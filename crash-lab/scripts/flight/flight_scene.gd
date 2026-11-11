@@ -63,7 +63,7 @@ func _spawn(mode: GameState.StartMode) -> void:
 			aircraft.global_transform = Transform3D(Basis.IDENTITY, start + Vector3(0.0, 900.0, 2600.0))
 			aircraft.setup(def)
 			aircraft.set_initial_velocity(Vector3(0.0, 0.0, -def.v_cruise))
-			aircraft.configure_airborne(0.5)
+			aircraft.configure_airborne(def.cruise_throttle)
 		GameState.StartMode.APPROACH:
 			# Three-degree glide path to the threshold, landing configuration.
 			var dist := 3800.0

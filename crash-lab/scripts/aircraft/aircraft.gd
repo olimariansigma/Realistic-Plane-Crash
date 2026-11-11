@@ -171,7 +171,7 @@ func _update_actuators(dt: float) -> void:
 	_act.z = move_toward(_act.z, clampf(c.yaw, -1.0, 1.0), rate)
 
 	# Auto-trim: held stick slowly becomes trim, so releasing it holds attitude.
-	if auto_trim and not telemetry.on_ground and absf(c.pitch) > 0.04:
+	if auto_trim and not telemetry.on_ground and absf(c.pitch) > 0.01:
 		trim = clampf(trim + c.pitch * def.trim_rate * dt, -1.0, 1.0)
 
 	var steps := def.flap_steps_deg

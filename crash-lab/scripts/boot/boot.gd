@@ -1,6 +1,6 @@
 extends Control
 ## Milestone 1 boot screen: proves the engine, renderer and physics backend
-## that actually shipped in the APK. Replaced by the hangar in milestone 3.
+## that actually shipped in the APK, then hands over to the hangar.
 
 @onready var _info: Label = %Info
 @onready var _fps: Label = %Fps
@@ -26,4 +26,4 @@ func _process(delta: float) -> void:
 	_fps.text = "%d FPS" % Engine.get_frames_per_second()
 	if not _launched:
 		_launched = true
-		GameState.instance().goto_flight()
+		GameState.instance().goto_hangar()

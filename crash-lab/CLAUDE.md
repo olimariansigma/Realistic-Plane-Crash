@@ -29,7 +29,7 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 
 1. **Toolchain + APK skeleton** - done
 2. **Flight model + controls (one plane)** - done
-3. Hangar + 3 planes
+3. **Hangar + 3 planes** - done
 4. Fracture crash
 5. FRED + cutaway
 6. Telemetry + survival report
@@ -97,6 +97,11 @@ built is marked *(planned)*.
   behind a loading overlay. `FlightScene` builds world, aircraft, `CameraRig`
   and the touch HUD (`FlightHud` writes `ControlState`, reads
   `FlightTelemetry`).
+- **Hangar** (`scripts/hangar/hangar.gd`, `HangarUi`). Turntable showroom with
+  an orbit camera. Selecting a plane loads its def on a loader thread and its
+  meshes on a worker thread, then swaps a physics-free display model in.
+  Planes are discovered by listing `data/aircraft/`, so dropping in a `.tres`
+  adds one. Wall and floor lighting is baked into an unshaded shader.
 - **Crash.** *(planned, M4)* Fuselage sections, wings, tail, engines and gear
   are separate `RigidBody3D` chunks joined by `Generic6DOFJoint3D`. Joint load
   is computed every physics frame and compared with the part's threshold;

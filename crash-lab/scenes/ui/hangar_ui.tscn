@@ -1,0 +1,172 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hangar/hangar_ui.gd" id="1_hui"]
+[ext_resource type="PackedScene" path="res://scenes/ui/settings_panel.tscn" id="2_set"]
+
+[node name="HangarUi" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_hui")
+
+[node name="TitleBox" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 600.0
+offset_bottom = 140.0
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="GameTitle" type="Label" parent="TitleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "AIRCRAFT CRASH LAB"
+
+[node name="NameLabel" type="Label" parent="TitleBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 44
+text = "Aircraft"
+
+[node name="SubRow" type="HBoxContainer" parent="TitleBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="CategoryLabel" type="Label" parent="TitleBox/SubRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="IndexLabel" type="Label" parent="TitleBox/SubRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="LoadingLabel" type="Label" parent="TitleBox/SubRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "LOADING..."
+
+[node name="LeftPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 150.0
+offset_right = 354.0
+offset_bottom = -24.0
+mouse_filter = 0
+
+[node name="Col" type="VBoxContainer" parent="LeftPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="DescriptionLabel" type="Label" parent="LeftPanel/Col"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+
+[node name="StatsBox" type="VBoxContainer" parent="LeftPanel/Col"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="BottomBar" type="HBoxContainer" parent="."]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -112.0
+offset_right = 300.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="PrevButton" type="Button" parent="BottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(88, 88)
+layout_mode = 2
+theme_override_font_sizes/font_size = 40
+text = "<"
+
+[node name="LaunchButton" type="Button" parent="BottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 88)
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "LAUNCH"
+
+[node name="NextButton" type="Button" parent="BottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(88, 88)
+layout_mode = 2
+theme_override_font_sizes/font_size = 40
+text = ">"
+
+[node name="RightPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -244.0
+offset_top = -200.0
+offset_right = -24.0
+offset_bottom = 200.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Col" type="VBoxContainer" parent="RightPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="StartCaption" type="Label" parent="RightPanel/Col"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "START"
+horizontal_alignment = 1
+
+[node name="StartModes" type="VBoxContainer" parent="RightPanel/Col"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="CutawayButton" type="Button" parent="RightPanel/Col"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+toggle_mode = true
+text = "CUTAWAY"
+
+[node name="SettingsButton" type="Button" parent="RightPanel/Col"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+text = "SETTINGS"
+
+[node name="SettingsPanel" parent="." instance=ExtResource("2_set")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1

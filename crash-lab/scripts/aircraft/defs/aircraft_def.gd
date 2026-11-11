@@ -38,8 +38,10 @@ extends Resource
 @export var control_rate: float = 2.5
 ## Auto-trim rate in full trim range per second at full stick.
 @export var trim_rate: float = 0.12
-## Trim setting [-1, 1] preset for an in-flight start.
+## Trim [-1, 1] and throttle [0, 1] that hold level flight at v_cruise; preset
+## for an in-flight start (measured by tests/smoke_flight.gd).
 @export var cruise_trim: float = 0.0
+@export var cruise_throttle: float = 0.3
 
 @export_group("Propulsion")
 @export var engines: Array[EngineDef] = []

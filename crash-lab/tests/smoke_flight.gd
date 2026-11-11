@@ -6,10 +6,10 @@ extends SceneTree
 ##  1. parked on its gear it stays put and level;
 ##  2. full thrust accelerates it, it rotates and climbs away within the runway;
 ##  3. in the air, each control axis moves the aircraft the right way;
-##  4. hands off, it stays within a sane envelope (no divergence, no NaN);
+##  4. trimmed for level flight then released, it holds attitude and height;
 ##  5. in steady flight total lift is close to weight (the force model adds up).
 
-enum Phase { SETTLE, TAKEOFF, CLIMB, ROLL_CHECK, RECOVER, YAW_CHECK, HANDS_OFF, DONE }
+enum Phase { SETTLE, TAKEOFF, CLIMB, ROLL_CHECK, RECOVER, YAW_CHECK, TRIM, HANDS_OFF, DONE }
 
 var _aircraft: Aircraft
 var _def: AircraftDef
@@ -23,6 +23,13 @@ var _liftoff_t := 0.0
 var _mark := 0.0
 var _lift_ratio_sum := 0.0
 var _lift_samples := 0
+var _pitch_target := 0.0
+var _trimmed_t := 0.0
+var _release_alt := 0.0
+var _trim_found := 0.0
+var _throttle_i := 0.3
+var _prev_ias := 0.0
+var _accel_f := 0.0
 
 
 func _start() -> void:
@@ -86,19 +93,20 @@ func _physics_process(dt: float) -> bool:
 		Phase.CLIMB:
 			_wings_level(c, tm)
 			_hold_pitch(c, tm, 9.0)
-			if tm.altitude_agl > 250.0:
+			if tm.altitude_agl > 350.0:
 				c.flap_step = 0
 				c.throttle = 0.6
 				_mark = tm.roll_deg
 				_next(Phase.ROLL_CHECK)
 			elif _phase_t > 60.0:
-				return _fail("could not climb to 250 m (alt %.0f m, vs %.1f)" % [tm.altitude_agl, tm.vertical_speed])
+				return _fail("could not climb to 350 m (alt %.0f m, vs %.1f)" % [tm.altitude_agl, tm.vertical_speed])
 		Phase.ROLL_CHECK:
 			_hold_pitch(c, tm, 4.0)
 			c.roll = 0.5
-			if _phase_t > 2.5:
-				if tm.roll_deg - _mark < 4.0:
-					return _fail("right stick did not roll right (%.1f -> %.1f deg)" % [_mark, tm.roll_deg])
+			if _phase_t > 0.8:
+				var rolled := wrapf(tm.roll_deg - _mark, -180.0, 180.0)
+				if rolled < 1.5:
+					return _fail("right stick did not roll right (%.1f deg in 0.8 s)" % rolled)
 				_next(Phase.RECOVER)
 		Phase.RECOVER:
 			_wings_level(c, tm)
@@ -117,28 +125,56 @@ func _physics_process(dt: float) -> bool:
 				if turned < 0.3:
 					return _fail("right rudder did not yaw right (%.2f deg)" % turned)
 				c.yaw = 0.0
-				c.roll = 0.0
-				c.pitch = 0.0
-				_next(Phase.HANDS_OFF)
-		Phase.HANDS_OFF:
-			# Light wing-leveller only; pitch is hands-off to test static stability.
+				_pitch_target = tm.pitch_deg
+				_next(Phase.TRIM)
+		Phase.TRIM:
+			# Autopilot: hold level flight at cruise speed and let auto-trim take
+			# the stick load, so the release below starts from a trimmed state.
 			_wings_level(c, tm)
-			if _phase_t > 6.0:
+			_pitch_target = clampf(_pitch_target - tm.vertical_speed * 0.004, -5.0, 12.0)
+			_hold_pitch(c, tm, _pitch_target)
+			# PI auto-throttle on airspeed.
+			var speed_err := _def.v_cruise - tm.ias
+			if absf(speed_err) < 8.0:  # anti-windup: integrate only near the target
+				_throttle_i = clampf(_throttle_i + speed_err * 0.0001, 0.0, 1.0)
+			c.throttle = clampf(_throttle_i + speed_err * 0.03, 0.02, 1.0)
+			var accel := (tm.ias - _prev_ias) / dt
+			_accel_f = lerpf(_accel_f, accel, 0.05)
+			var steady := absf(c.pitch) < 0.02 and absf(tm.vertical_speed) < 0.8 \
+					and absf(speed_err) < 3.0 and absf(_accel_f) < 0.15
+			_trimmed_t = _trimmed_t + dt if steady else 0.0
+			if _trimmed_t > 3.0:
+				c.pitch = 0.0
+				_release_alt = tm.altitude_msl
+				_trim_found = tm.trim
+				_next(Phase.HANDS_OFF)
+			elif _phase_t > 150.0:
+				return _fail("could not trim for level flight (stick %.2f, vs %.1f, ias %.1f, accel %.2f)"
+						% [c.pitch, tm.vertical_speed, tm.ias, _accel_f])
+		Phase.HANDS_OFF:
+			# Wing-leveller only; pitch and throttle are untouched.
+			_wings_level(c, tm)
+			if _phase_t > 2.0:
 				var lift := 0.0
 				for s: AeroSurface in _aircraft.surfaces:
 					lift += s.lift * (s.part.xf.basis * s.local_normal).y
 				_lift_ratio_sum += lift / (_def.total_mass() * Aircraft.GRAVITY)
 				_lift_samples += 1
-			if absf(tm.pitch_deg) > 35.0 or tm.ias < _def.v_rotate * 0.6 or tm.altitude_agl < 60.0:
-				return _fail("diverged hands-off (pitch %.1f, ias %.1f, alt %.0f)" % [tm.pitch_deg, tm.ias, tm.altitude_agl])
+			# A released, trimmed aircraft still has a slow, lightly damped phugoid
+			# (about a minute per cycle); the limits allow that but not divergence.
+			if absf(tm.pitch_deg - _pitch_target) > 7.0 or absf(tm.altitude_msl - _release_alt) > 250.0:
+				return _fail("diverged hands-off (pitch %.1f from %.1f, ias %.1f, height change %.0f m)"
+						% [tm.pitch_deg, _pitch_target, tm.ias, tm.altitude_msl - _release_alt])
 			if _phase_t > 25.0:
 				var ratio := _lift_ratio_sum / float(_lift_samples)
-				if absf(ratio - 1.0) > 0.12:
-					return _fail("mean lift / weight = %.2f in steady flight, expected ~1" % ratio)
-				print("SMOKE PASS: %s lifted off at %.0f m in %.0f s, controls respond, stable hands-off, L/W %.2f"
-						% [_def.display_name, World.RUNWAY_START.z - _liftoff_z, _liftoff_t - 4.0, ratio])
+				if absf(ratio - 1.0) > 0.08:
+					return _fail("mean lift / weight = %.2f in level flight, expected ~1" % ratio)
+				print("SMOKE PASS: %s lifted off at %.0f m in %.0f s, controls respond, holds level hands-off (trim %.2f, throttle %.2f at %.0f m/s), L/W %.2f"
+						% [_def.display_name, World.RUNWAY_START.z - _liftoff_z, _liftoff_t - 4.0,
+						_trim_found, c.throttle, _def.v_cruise, ratio])
 				quit(0)
 				return true
+	_prev_ias = tm.ias
 	if World.RUNWAY_START.z - pos.z > World.RUNWAY_LENGTH and _phase == Phase.TAKEOFF:
 		return _fail("ran off the end of the runway at %.1f m/s" % tm.ias)
 	return false

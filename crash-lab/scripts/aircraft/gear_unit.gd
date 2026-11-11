@@ -57,7 +57,10 @@ func apply(deployed: float, yaw_input: float, brake: float, dt: float, frame: Ai
 	var axis_down := -basis.y
 	var x := clampf(def.free_length - origin.distance_to(hit), 0.0, def.travel)
 	var v_c := frame.velocity_at(hit)
-	var rate := v_c.dot(axis_down)
+	# Stroke rate is the closing speed along the ground normal, projected onto
+	# the strut. Using the strut axis directly would count forward speed as
+	# stroke whenever the aircraft is pitched, unloading the gear nose-down.
+	var rate := -v_c.dot(normal) / maxf(-axis_down.dot(normal), 0.3)
 	var f := maxf(def.spring_k * x + def.damper_c * rate, 0.0)
 	compression = x
 	if wheel_visual != null:

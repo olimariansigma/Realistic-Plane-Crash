@@ -107,7 +107,9 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 	return root
 
 
-## Static display model (no physics) with the aircraft origin at the node origin.
+## Static display model (no physics) with the aircraft origin at the node
+## origin. Gear is drawn at its static stroke so the wheels sit on the floor
+## when the model is placed `ground_clearance` above it.
 static func build_display_model(adef: AircraftDef) -> Node3D:
 	var model := Node3D.new()
 	model.name = "DisplayModel"
@@ -115,8 +117,14 @@ static func build_display_model(adef: AircraftDef) -> Node3D:
 		var holder := Node3D.new()
 		holder.name = String(part.name)
 		holder.position = part.com
-		holder.add_child(build_part_visual(adef, part))
+		var visual := build_part_visual(adef, part)
+		holder.add_child(visual)
 		model.add_child(holder)
+		if part.kind == PartDef.Kind.GEAR:
+			var wheels := visual.get_node_or_null("Leg/Wheels") as Node3D
+			for g: GearDef in adef.gear:
+				if g.part == part.name and wheels != null:
+					wheels.position.y = g.travel * 0.55
 	return model
 
 

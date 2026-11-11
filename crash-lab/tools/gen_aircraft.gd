@@ -131,7 +131,7 @@ func _narrow_body() -> Dictionary:
 			z_start = -12.2, rows = 30, pitch = 0.81, floor = -0.6, first_row = 1,
 			abreast = [-1.55, -1.05, -0.55, 0.55, 1.05, 1.55],
 		},
-		v_rotate = 72.0, v_cruise = 135.0, v_ne = 245.0,
+		v_rotate = 72.0, v_cruise = 135.0, v_ne = 245.0, cruise_trim = 0.31, cruise_throttle = 0.21,
 	}
 
 
@@ -186,7 +186,7 @@ func _wide_body() -> Dictionary:
 			z_start = -23.0, rows = 38, pitch = 0.86, floor = -0.75, first_row = 1,
 			abreast = [-2.5, -2.0, -1.5, -0.5, 0.0, 0.5, 1.5, 2.0, 2.5],
 		},
-		v_rotate = 84.0, v_cruise = 150.0, v_ne = 260.0,
+		v_rotate = 84.0, v_cruise = 150.0, v_ne = 260.0, cruise_trim = 0.28, cruise_throttle = 0.31,
 	}
 
 
@@ -206,7 +206,7 @@ func _fighter() -> Dictionary:
 			mass_in = 700.0, mass_out = 300.0, fuel_in = 500.0, fuel_out = 120.0,
 			break_force_in = 1.1e6, break_torque_in = 1.5e6,
 			break_force_out = 4.5e5, break_torque_out = 3.2e5,
-			flap_in = 0.7, flap_out = 0.3, aileron_deg = 22.0, e = 0.78,
+			flap_in = 0.7, flap_out = 0.3, aileron_deg = 12.0, e = 0.78,
 			cg_mac = 0.27,
 		},
 		htail = {
@@ -215,7 +215,7 @@ func _fighter() -> Dictionary:
 			mass = 160.0, break_force = 3.4e5, break_torque = 2.6e5,
 			# All-moving tailerons: pitch plus a little roll.
 			elevator_deg = 24.0, effectiveness = 1.0, trim_deg = -6.0, e = 0.8,
-			roll_mix = 0.25,
+			roll_mix = 0.12,
 		},
 		fins = [{
 			x = 0.0, cant = 0.0, root_c = 3.3, tip_c = 1.1, height = 3.0, sweep = 45.0,
@@ -240,7 +240,7 @@ func _fighter() -> Dictionary:
 			cockpit_z = -4.3, cockpit_x = 0.0, cockpit_floor = -0.2,
 			rows = 0, z_start = 0.0, pitch = 1.0, floor = 0.0, first_row = 1, abreast = [],
 		},
-		v_rotate = 78.0, v_cruise = 190.0, v_ne = 420.0,
+		v_rotate = 78.0, v_cruise = 190.0, v_ne = 420.0, cruise_trim = 0.46, cruise_throttle = 0.10,
 	}
 
 
@@ -264,6 +264,8 @@ func _build(p: Dictionary) -> AircraftDef:
 	def.v_rotate = p.v_rotate
 	def.v_cruise = p.v_cruise
 	def.v_never_exceed = p.v_ne
+	def.cruise_trim = p.cruise_trim
+	def.cruise_throttle = p.cruise_throttle
 
 	_add_fuselage(def, p)
 	# The wing group (wing, wing-mounted engines and gear) slides along Z until
@@ -286,6 +288,7 @@ func _build(p: Dictionary) -> AircraftDef:
 	var cg := def.center_of_mass()
 	_translate(def, -cg)
 	def.ground_clearance = float(p.gear.clearance) - cg.y
+	_size_gear(def)
 	def.wing_area = _wing_area(w)
 	def.wing_span = float(w.semi) * 2.0
 	return def
@@ -336,8 +339,10 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 		var taper := 1.0
 		if i == 0 or i == n - 1:
 			taper = 0.8
+		# Cross-flow: a cylinder at Cd ~0.7. Axial: skin friction on the wetted
+		# area (Cf ~0.003 with form factor), a little more on the tapered ends.
 		part.drag_area = Vector3(length * 2.0 * r * 0.7 * taper, length * 2.0 * r * 0.7 * taper,
-				PI * r * r * 0.085 * (1.6 if i == 0 or i == n - 1 else 0.6))
+				0.0033 * TAU * r * length * (1.2 if i == 0 or i == n - 1 else 1.0))
 		part.crush_depth = p.fus_crush
 		made.append(part)
 	# Root (mid) first, then outward so parents precede children.
@@ -564,12 +569,6 @@ func _fill_gear(def: AircraftDef, leg: PartDef, pivot: Vector3, gear_p: Dictiona
 	leg.crush_depth = 0.1
 	if not with_def:
 		return
-	var total := 0.0
-	for m: float in p.fus_mass:
-		total += m
-	# Rough share of weight on this leg: nose ~8 %, each main ~46 %.
-	var all_mass := total * 1.85
-	var load := all_mass * G * (0.08 if is_nose else 0.46)
 	var gd := GearDef.new()
 	gd.name = leg.name
 	gd.part = leg.name
@@ -577,15 +576,34 @@ func _fill_gear(def: AircraftDef, leg: PartDef, pivot: Vector3, gear_p: Dictiona
 	gd.free_length = free_length
 	gd.travel = travel
 	gd.wheel_radius = wheel_r
-	gd.spring_k = load / static_stroke
-	var m_eff := load / G
-	gd.damper_c = 2.0 * sqrt(gd.spring_k * m_eff) * (0.55 if is_nose else 0.45)
 	gd.steer_max_deg = float(gear_p.steer) if is_nose else 0.0
 	gd.brake_mu = 0.0 if is_nose else 0.55
 	gd.rolling_mu = 0.018
 	gd.lateral_mu = 0.75
 	gd.drag_area = wheel_r * (1.0 if is_nose else 2.0 * float(leg.shape_a) / 2.0) * 1.3
 	def.gear.append(gd)
+
+
+## Sizes every oleo from the static load it actually carries (moment balance
+## about the final centre of mass, which is the origin by now): the spring
+## holds that load at 55 % of the stroke and the damper is ~0.5 of critical.
+func _size_gear(def: AircraftDef) -> void:
+	var weight := def.total_mass() * G
+	var nose_z := 0.0
+	var main_z := 0.0
+	var mains := 0
+	for g: GearDef in def.gear:
+		if g.steer_max_deg > 0.0:
+			nose_z = g.pivot.z
+		else:
+			main_z = g.pivot.z
+			mains += 1
+	var nose_load := weight * main_z / (main_z - nose_z)
+	for g: GearDef in def.gear:
+		var load := nose_load if g.steer_max_deg > 0.0 else (weight - nose_load) / float(mains)
+		var static_stroke := g.travel * 0.55
+		g.spring_k = load / static_stroke
+		g.damper_c = 2.0 * sqrt(g.spring_k * load / G) * (0.55 if g.steer_max_deg > 0.0 else 0.45)
 
 
 func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
