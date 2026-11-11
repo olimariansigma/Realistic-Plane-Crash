@@ -32,7 +32,7 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 3. **Hangar + 3 planes** - done
 4. **Fracture crash** - done
 5. **FRED + cutaway** - done (plus piece-by-piece skin breakup and the visual overhaul)
-6. Telemetry + survival report
+6. **Telemetry + survival report** - done
 7. Optimization pass
 
 Each milestone ends with `tools/gate.sh` green, a commit, and a 5-line status.
@@ -155,10 +155,25 @@ built is marked *(planned)*.
   - Cutaway: a global shader uniform clips skin on the +X side of the
     centreline; the cabin, structure and dummies are shown while it is on,
     and stay shown on any part that has lost skin.
-- **Telemetry + survival.** *(planned, M6)* A recorder captures impact velocity,
-  peak G per seat and per FRED, and per-seat-zone damage (intrusion, fire,
-  deceleration). The injury model (HIC / peak-G thresholds, documented in
-  `docs/` when written) turns that into survival % per seat and overall.
+- **Telemetry + survival** (`scripts/telemetry/`).
+  - Live HUD: speed, altitude, V/S, AoA, G, heading, attitude indicator.
+  - `Aircraft` snapshots the impact velocity vector, pitch and roll on the
+    last tick before the crash. `Cabin` logs peak g per seat (total and by
+    seat axis); `Fred` logs peak g per limb, HIC, mount stroke and restraint
+    load.
+  - `InjuryModel.build_report()` turns that into a `CrashReport`: four
+    independent risks per seat (deceleration by axis after Eiband, head by
+    the NHTSA HIC curve, structural intrusion from dents and fuselage breaks,
+    fire by distance and incapacitation) plus restraint failure. Full
+    derivation and every constant: `docs/INJURY_MODEL.md`.
+  - Measured outcomes, in order of severity: firm landing 100 %, gear-up
+    belly landing 99-100 %, 30 m flat drop 23-80 % by type, cruise dive 0 %.
+  - `CrashRecorder` records from cabin arming for up to 14 s: one keyframe
+    track per body, keyed only while that body is moving, plus timed events
+    for skin tearing, dents and fires. Replay turns the physics server off
+    and writes interpolated transforms, at 0.1x to 1x with scrubbing.
+  - `CrashReportScreen` shows impact figures, a tappable seat map coloured
+    by survival, per-seat detail with FRED limb readings, and the replay bar.
 
 ## Conventions
 

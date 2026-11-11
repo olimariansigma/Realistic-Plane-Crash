@@ -3,12 +3,16 @@ extends Node3D
 ## The playable scene: world, one aircraft, cameras and the HUD.
 
 const HUD_SCENE_PATH := "res://scenes/ui/flight_hud.tscn"
+const REPORT_SCENE_PATH := "res://scenes/ui/crash_report.tscn"
 
 var world: World
 var aircraft: Aircraft
 var camera_rig: CameraRig
 var hud: FlightHud
 var director: CrashDirector
+var recorder: CrashRecorder
+var report_screen: CrashReportScreen
+var report: CrashReport
 var def: AircraftDef
 
 var _game: GameState
@@ -40,6 +44,11 @@ func _ready() -> void:
 	director.crash_started.connect(_on_crash_started)
 	director.crash_settled.connect(_on_crash_settled)
 
+	recorder = CrashRecorder.new()
+	recorder.name = "CrashRecorder"
+	add_child(recorder)
+	recorder.setup(aircraft, director)
+
 	camera_rig = CameraRig.new()
 	camera_rig.name = "CameraRig"
 	add_child(camera_rig)
@@ -59,6 +68,17 @@ func _ready() -> void:
 	hud.restart_requested.connect(_on_restart)
 	hud.hangar_requested.connect(_on_hangar)
 	_settings.changed.connect(_on_settings_changed)
+
+	report_screen = (load(REPORT_SCENE_PATH) as PackedScene).instantiate() as CrashReportScreen
+	report_screen.visible = false
+	layer.add_child(report_screen)
+	report_screen.replay_requested.connect(_on_replay_requested)
+	report_screen.replay_speed_changed.connect(_on_replay_speed)
+	report_screen.replay_seek.connect(recorder.seek)
+	report_screen.replay_closed.connect(_on_replay_closed)
+	report_screen.restart_requested.connect(_on_restart)
+	report_screen.hangar_requested.connect(_on_hangar)
+	recorder.playback_progress.connect(report_screen.set_replay_progress)
 	hud.show_message("%s  -  %s" % [def.display_name, GameState.START_MODE_NAMES[_game.start_mode]], 3.0)
 	print("Flight ready: %s, %d parts, %d surfaces" % [def.id, aircraft.parts.size(), aircraft.surfaces.size()])
 
@@ -119,7 +139,37 @@ func _on_crash_started() -> void:
 
 
 func _on_crash_settled() -> void:
-	hud.show_message("WRECK AT REST", 3.0)
+	recorder.stop_recording()
+	report = InjuryModel.build_report(aircraft, director)
+	_game.last_report = report
+	hud.show_message("WRECK AT REST", 1.5)
+	await get_tree().create_timer(1.5).timeout
+	if not is_inside_tree():
+		return
+	hud.set_controls_visible(false)
+	report_screen.show_report(report)
+	report_screen.visible = true
+
+
+func _on_replay_requested() -> void:
+	report_screen.show_replay_controls(true)
+	camera_rig.set_mode(CameraRig.Mode.ORBIT)
+	recorder.play()
+
+
+func _on_replay_speed(speed: float) -> void:
+	recorder.speed = speed
+
+
+func _on_replay_closed() -> void:
+	recorder.stop()
+	report_screen.show_replay_controls(false)
+
+
+func _physics_process(_delta: float) -> void:
+	# The recorder starts with the cabin: about 1.2 s before the impact.
+	if aircraft.cabin.armed and not recorder.recording and recorder.frames == 0:
+		recorder.start_recording()
 
 
 func _on_camera_cycle() -> void:

@@ -178,7 +178,7 @@ func _wide_body() -> Dictionary:
 			break_force = 1.6e6, break_torque = 8.0e6, rudder_deg = 25.0, effectiveness = 0.55,
 		}],
 		engines = [{
-			x = 9.6, y = -3.7, z_off = -8.6, length = 7.2, r = 1.85, mass = 9500.0,
+			x = 9.6, y = -3.25, z_off = -8.6, length = 7.2, r = 1.7, mass = 9500.0,
 			thrust = 400000.0, spool = 4.0, lapse = 0.45, mount = "wing_in",
 			break_force = 1.5e6, break_torque = 3.5e6, fuel = 400.0,
 		}],
@@ -208,7 +208,7 @@ func _fighter() -> Dictionary:
 		nose_z = -8.6, tail_z = 6.9, fus_r = 0.92, nose_cap = 4.6, tail_cap = 1.2,
 		cuts = [-3.0, 2.4], fus_mass = [2230.0, 3900.0, 1700.0],
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
-		fus_crush = 0.3, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
+		fus_crush = 0.5, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
 		tail_upsweep = 0.0, squash = Vector2(1.22, 0.9),
 		canopy = { z0 = -6.0, z1 = -3.2, half_width = 0.44, height = 0.62, mass = 70.0 },
 		wing = {

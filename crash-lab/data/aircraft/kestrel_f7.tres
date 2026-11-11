@@ -94,7 +94,7 @@ squash = Vector2(1.22, 0.9)
 winglet = 0.0
 drag_area = Vector3(6.9552, 6.9552, 0.103009)
 fuel_kg = 0.0
-crush_depth = 0.3
+crush_depth = 0.5
 
 [sub_resource type="Resource" id="Resource_gjab2"]
 script = ExtResource("3_y0fk7")
@@ -122,7 +122,7 @@ squash = Vector2(1.22, 0.9)
 winglet = 0.0
 drag_area = Vector3(5.77024, 5.77024, 0.128189)
 fuel_kg = 0.0
-crush_depth = 0.3
+crush_depth = 0.5
 
 [sub_resource type="Resource" id="Resource_r4f80"]
 script = ExtResource("3_y0fk7")
@@ -150,7 +150,7 @@ squash = Vector2(1.22, 0.9)
 winglet = 0.0
 drag_area = Vector3(4.6368, 4.6368, 0.103009)
 fuel_kg = 0.0
-crush_depth = 0.3
+crush_depth = 0.5
 
 [sub_resource type="Resource" id="Resource_h00gc"]
 script = ExtResource("3_y0fk7")

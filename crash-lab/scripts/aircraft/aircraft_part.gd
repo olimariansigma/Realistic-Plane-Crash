@@ -72,6 +72,8 @@ var far_node: MeshInstance3D
 var core_always_visible: bool = false
 ## True once any skin has been lost.
 var stripped: bool = false
+## Hidden nodes of pieces already torn off, by piece index (for the replay).
+var _released_nodes: Dictionary = {}
 
 
 func begin_tick() -> void:
@@ -148,6 +150,36 @@ func add_dent(local_pos: Vector3, local_dir: Vector3, depth: float) -> void:
 			_push_dents(piece_nodes[i])
 
 
+## Dent slot 0 or 1 as (centre x, y, z, radius); radius 0 means unused.
+func dent_slot(slot: int) -> Vector4:
+	if slot == 0:
+		return Vector4(_dent_a_pos.x, _dent_a_pos.y, _dent_a_pos.z, _dent_a_radius)
+	return Vector4(_dent_b_pos.x, _dent_b_pos.y, _dent_b_pos.z, _dent_b_radius)
+
+
+func dent_push(slot: int) -> Vector3:
+	return _dent_a_push if slot == 0 else _dent_b_push
+
+
+## Shows the given dent state on the meshes without touching the recorded
+## damage. Used by the replay to rewind and re-apply crumpling.
+func show_dents(a: Vector4, a_push: Vector3, b: Vector4, b_push: Vector3) -> void:
+	_show_dents_on(far_node, a, a_push, b, b_push)
+	for i: int in piece_nodes.size():
+		var node := piece_nodes[i] if piece_nodes[i] != null else _released_nodes.get(i) as MeshInstance3D
+		if node != null and pieces[i].control == SkinPiece.Surface.NONE:
+			_show_dents_on(node, a, a_push, b, b_push)
+
+
+func _show_dents_on(mesh: MeshInstance3D, a: Vector4, a_push: Vector3, b: Vector4, b_push: Vector3) -> void:
+	if mesh == null:
+		return
+	mesh.set_instance_shader_parameter(&"dent_a", a)
+	mesh.set_instance_shader_parameter(&"dent_a_push", a_push)
+	mesh.set_instance_shader_parameter(&"dent_b", b)
+	mesh.set_instance_shader_parameter(&"dent_b_push", b_push)
+
+
 func _push_dents(mesh: MeshInstance3D) -> void:
 	if mesh == null:
 		return
@@ -190,6 +222,7 @@ func release_piece(index: int) -> MeshInstance3D:
 	if node == null:
 		return null
 	piece_nodes[index] = null
+	_released_nodes[index] = node
 	pieces_left -= 1
 	node.visible = false
 	mass = maxf(mass - pieces[index].mass, def.mass * 0.4)

@@ -24,14 +24,18 @@ const LIMB_FILTER_TAU := 0.03
 ## Seat mount, modelled as a plastic energy absorber between the seat and the
 ## dummy's pelvis. It stands in for everything that gives in a real crash and
 ## that rigid bodies lack: underfloor crush, seat stroke, belt stretch.
-##   - Natural frequency chosen so an abrupt 13.4 m/s stop (the 14 CFR 25.562
-##     longitudinal test) peaks near that test's 16 g: a ~ 0.8 * omega * dv.
-##   - Stroke is the owning part's `crush_depth`. Past it the mount bottoms
-##     out on a much stiffer stop: the survivable volume is gone.
+##   - It is sized to reach MOUNT_DESIGN_G just as it runs out of stroke, the
+##     stroke being the owning part's `crush_depth`: omega^2 = a / stroke.
+##     A 0.75 m stroke gives 14.5 rad/s, for which an abrupt 13.4 m/s stop
+##     (the 14 CFR 25.562 longitudinal test) peaks near that test's 16 g,
+##     since peak a ~ 0.8 * omega * dv. Less crush room means a stiffer
+##     mount and more g for the same stop.
+##   - Past the stroke it bottoms out on a much stiffer stop: the survivable
+##     volume is gone.
 ##   - Plastic: it resists being stretched but does not spring back.
-const MOUNT_OMEGA := 14.6
+const MOUNT_DESIGN_G := 16.0
 const MOUNT_DAMPING := 300.0
-const MOUNT_STOP_FACTOR := 30.0
+const MOUNT_STOP_FACTOR := 10.0
 ## Restraint failure: sustained mount load equivalent to this many g on the
 ## whole dummy (seat attachments are certified to 16 g and fail well above).
 const BELT_BREAK_G := 34.0
@@ -67,8 +71,14 @@ var _joint_a: PackedInt32Array
 var _joint_b: PackedInt32Array
 var _belts: Array[Generic6DOFJoint3D] = []
 var _stroke_limit: float = 0.5
+var _omega: float = 14.5
 var _mount_set := Vector3.ZERO
 var _chest_set := Vector3.ZERO
+
+
+## Natural frequency (rad/s) of a seat mount with `stroke` metres of crush.
+static func mount_omega(stroke: float) -> float:
+	return sqrt(MOUNT_DESIGN_G * GRAVITY / maxf(stroke, 0.1))
 
 
 ## Capsule/box/sphere dimensions per limb: (radius or half-width, length).
@@ -206,6 +216,7 @@ func setup(target_seat: Seat, anchor_part: AircraftPart) -> void:
 		belt.set("linear_limit_%s/enabled" % axis, false)
 	_belts.append(belt)
 	_stroke_limit = maxf(anchor.def.crush_depth, 0.1) if anchor.def != null else 0.5
+	_omega = mount_omega(_stroke_limit)
 	sync_pose()
 	visible = false
 
@@ -323,7 +334,7 @@ func _mount_force(limb: int, carried_mass: float, is_pelvis: bool, dt: float) ->
 		# Unloading: the crushed structure stays crushed.
 		set_point += stretch * minf(dt * 25.0, 1.0)
 		stretch = offset - set_point
-	var k := carried_mass * MOUNT_OMEGA * MOUNT_OMEGA
+	var k := carried_mass * _omega * _omega
 	var force := stretch * -k - rel_vel * (MOUNT_DAMPING * carried_mass / TOTAL_MASS)
 	var travel := offset.length()
 	if is_pelvis:

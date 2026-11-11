@@ -11,11 +11,15 @@ extends RefCounted
 const HIP_HEIGHT := 0.47
 const SEAT_LETTERS := "ABCDEFGHJK"
 const GRAVITY := 9.80665
-## Time constant of the seat-level acceleration filter. A rigid-body impact
-## stops in one or two physics ticks; a real airframe crushes over ~0.1-0.2 s.
-## With 0.085 s, the 13.4 m/s velocity change of the 14 CFR 25.562 seat test
-## reads as its specified 16 g peak.
-const SEAT_FILTER_TAU := 0.085
+## Seat-level acceleration is low-passed, because a rigid-body impact stops in
+## one or two physics ticks where a real airframe crushes for ~0.1 s. The
+## time constant matches the response of the seat mount on the same part,
+## tau = 1 / (0.8 * omega) (see Fred.mount_omega): 0.085 s for 0.75 m of
+## crush, so the 13.4 m/s stop of the 14 CFR 25.562 seat test reads near its
+## 16 g. Stiffer structure (less crush room) gives a shorter tau and more g.
+static func filter_tau(crush_depth: float) -> float:
+	return 1.0 / (0.8 * Fred.mount_omega(crush_depth))
+
 
 static var _seat_mesh: ArrayMesh
 
@@ -41,6 +45,7 @@ static func list_seats(def: AircraftDef) -> Array[Seat]:
 				seat.index = out.size()
 				seat.is_crew = block.is_crew
 				seat.row = block.first_row + r
+				seat.column = c
 				seat.part_index = maxi(part_index, 0)
 				seat.def_pos = Vector3(block.abreast[c], block.floor_y + HIP_HEIGHT,
 						block.z_start + block.pitch * float(r))
@@ -173,6 +178,9 @@ func arm(sim_time: float) -> void:
 		return
 	armed = true
 	armed_time = sim_time
+	var dt := 1.0 / float(Engine.physics_ticks_per_second)
+	for seat: Seat in seats:
+		seat.filter_alpha = 1.0 - exp(-dt / filter_tau(seat.part.def.crush_depth))
 	for fred: Fred in freds:
 		fred.activate()
 
@@ -184,10 +192,9 @@ func tick(dt: float) -> void:
 			for fred: Fred in freds:
 				fred.sync_pose()
 		return
-	var alpha := 1.0 - exp(-dt / SEAT_FILTER_TAU)
 	var inv_dt := 1.0 / dt
 	for i: int in seats.size():
-		track_seat(seats[i], alpha, inv_dt)
+		track_seat(seats[i], seats[i].filter_alpha, inv_dt)
 	for fred: Fred in freds:
 		fred.tick(dt)
 

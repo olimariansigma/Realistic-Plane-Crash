@@ -71,7 +71,7 @@ func _physics_process(dt: float) -> bool:
 		_sled.lin_vel = Vector3.ZERO
 	# The sled is weightless; cancel gravity on the dummy's seat too by holding
 	# the sled exactly (a 20 t sled barely notices an 82 kg dummy anyway).
-	Cabin.track_seat(_seat, 1.0 - exp(-dt / Cabin.SEAT_FILTER_TAU), 1.0 / dt)
+	Cabin.track_seat(_seat, 1.0 - exp(-dt / Cabin.filter_tau(_sled.def.crush_depth)), 1.0 / dt)
 	_fred.tick(dt)
 	for limb: RigidBody3D in _fred.limbs:
 		var p := limb.global_position

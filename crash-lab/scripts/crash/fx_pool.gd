@@ -18,6 +18,9 @@ var _blob: GradientTexture2D
 
 ## `quality` 0..2 scales emitter count and particle amounts.
 func setup(quality: int) -> void:
+	# Emitters are positioned every rendered frame, so they opt out of
+	# physics interpolation (which expects moves only on physics ticks).
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	max_fires = [3, 5, 8][clampi(quality, 0, 2)]
 	var density: float = [0.5, 0.8, 1.0][clampi(quality, 0, 2)]
 	_blob = _make_blob()
@@ -56,6 +59,15 @@ func start_fire(source: FireSource) -> void:
 	_smoke[i].restart()
 	_fire[i].emitting = true
 	_smoke[i].emitting = true
+
+
+## Puts every fire out (the replay re-lights them at the right moments).
+func stop_fires() -> void:
+	for i: int in _fires_used:
+		_fire[i].emitting = false
+		_smoke[i].emitting = false
+		_fire_source[i] = null
+	_fires_used = 0
 
 
 func burst_dust(pos: Vector3, size: float) -> void:

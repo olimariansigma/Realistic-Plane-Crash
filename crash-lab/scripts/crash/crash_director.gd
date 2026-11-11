@@ -11,7 +11,7 @@ signal crash_settled
 ## longest a crash may run before it is called settled anyway.
 const REST_TIME := 2.5
 const REST_SPEED := 1.2
-const MAX_CRASH_TIME := 60.0
+const MAX_CRASH_TIME := 30.0
 
 var aircraft: Aircraft
 var debris: DebrisPool

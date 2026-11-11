@@ -11,6 +11,8 @@ signal part_detached(part: AircraftPart, parent: AircraftPart, load_ratio: float
 ## A hard contact: where, the contact impulse (N s), and the energy absorbed (J).
 signal part_impacted(part: AircraftPart, world_pos: Vector3, impulse: Vector3, energy: float)
 signal fire_started(source: FireSource)
+## A part's dent state changed.
+signal part_dented(part: AircraftPart)
 ## A skin piece has been torn off `part` (already hidden there). `node` is the
 ## mesh node that showed it; `kick` is the speed (m/s) to throw it clear at.
 signal piece_shed(part: AircraftPart, piece: SkinPiece, node: MeshInstance3D, kick: float)
@@ -31,6 +33,8 @@ const WRECK_SLIDE_DRAG := 0.35
 ## wreckage above this dynamic pressure (Pa) sheds panels into the airstream.
 const SCRAPE_SPEED := 12.0
 const STRIP_DYN_PRESSURE := 2200.0
+## Seconds of fuselage/wing/engine ground contact that make a belly landing a crash.
+const BODY_CONTACT_CRASH_TIME := 0.8
 ## The cabin is armed this many seconds before a predicted impact.
 const ARM_LEAD_TIME := 1.2
 ## Minimum ticks between impact events from one part.
@@ -57,6 +61,10 @@ var fires: Array[FireSource] = []
 ## Simulation time since setup (s) and the time of the first crash event.
 var sim_time: float = 0.0
 var crash_time: float = -1.0
+## Root-part state on the last tick before the crash began.
+var impact_velocity := Vector3.ZERO
+var impact_pitch_deg: float = 0.0
+var impact_roll_deg: float = 0.0
 
 var auto_trim: bool = true
 var trim: float = 0.0
@@ -75,6 +83,9 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+var _body_contact_time: float = 0.0
+var _vel_history: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+var _attitude_before := Vector2.ZERO
 var _rng := RandomNumberGenerator.new()
 var _hinged_nodes: Array[MeshInstance3D] = []
 var _hinged_pieces: Array[SkinPiece] = []
@@ -194,6 +205,10 @@ func _physics_process(dt: float) -> void:
 	for i: int in count:
 		parts[i].begin_tick()
 	sim_time += dt
+	if crash_time < 0.0:
+		_vel_history[_ticks % 4] = root_part.lin_vel
+		if _ticks % 4 == 0:
+			_attitude_before = Vector2(telemetry.pitch_deg, telemetry.roll_deg)
 	structure.update(dt)
 	if structure.broken.size() > 0:
 		for k: int in structure.broken.size():
@@ -340,12 +355,21 @@ func _mark_crashed() -> void:
 	if crash_time >= 0.0:
 		return
 	crash_time = sim_time
+	# The fastest of the last few ticks: the tick that raised the alarm has
+	# usually already been slowed by the contact.
+	impact_velocity = _vel_history[0]
+	for v: Vector3 in _vel_history:
+		if v.length_squared() > impact_velocity.length_squared():
+			impact_velocity = v
+	impact_pitch_deg = _attitude_before.x
+	impact_roll_deg = _attitude_before.y
 	telemetry.crashed = true
 	crashed.emit()
 
 
 ## Turns hard contacts into dents, damage and events.
 func _process_impacts(dt: float) -> void:
+	var body_contact := false
 	for i: int in parts.size():
 		var part := parts[i]
 		if part.burning > 0.0:
@@ -360,6 +384,8 @@ func _process_impacts(dt: float) -> void:
 				shed_pieces(part, pick, 1000.0, 1, 4.0)
 		if part.contact_count == 0 or part.sleeping:
 			continue
+		if part.def.kind != PartDef.Kind.GEAR:
+			body_contact = true
 		if part.assembly_root != 0:
 			# Wreckage on the ground: rolling and ploughing resistance, so loose
 			# wheels and nacelles do not trundle on forever. Applied as explicit
@@ -389,6 +415,7 @@ func _process_impacts(dt: float) -> void:
 			var local_pos := (part.hit_position - part.xf.origin) * basis
 			var dir := part.hit_impulse.normalized() * basis
 			part.add_dent(local_pos, dir, depth)
+			part_dented.emit(part)
 			# Roughly one panel per 0.4 m of crush, nearest first.
 			shed_pieces(part, local_pos, clampf(1.2 + depth * 2.0, 1.5, 5.0),
 					clampi(int(depth * 2.5), 0, 4), 3.0 + minf(part.hit_speed * 0.2, 8.0))
@@ -397,6 +424,15 @@ func _process_impacts(dt: float) -> void:
 			if part.def.fuel_kg > 0.0 and part.hit_speed > 22.0:
 				ignite(part, local_pos, clampf(part.def.fuel_kg / 3000.0, 0.35, 1.0))
 		part_impacted.emit(part, part.hit_position, part.hit_impulse, energy)
+	# Airframe on the ground: arm the cabin at once, and call it a crash if it
+	# stays there (a brief tail scrape on rotation is not one).
+	if body_contact:
+		cabin.arm(sim_time)
+		_body_contact_time += dt
+		if _body_contact_time > BODY_CONTACT_CRASH_TIME:
+			_mark_crashed()
+	else:
+		_body_contact_time = maxf(_body_contact_time - dt * 0.5, 0.0)
 
 
 func _update_actuators(dt: float) -> void:
