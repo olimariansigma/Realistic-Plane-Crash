@@ -13,6 +13,8 @@ var def: AircraftDef
 
 var _game: GameState
 var _settings: SettingsStore
+var _cutaway: float = 0.0
+var _cutaway_target: float = 0.0
 
 
 func _ready() -> void:
@@ -27,6 +29,7 @@ func _ready() -> void:
 	aircraft = Aircraft.new()
 	aircraft.name = "Aircraft"
 	add_child(aircraft)
+	aircraft.max_freds = _settings.max_freds()
 	_spawn(_game.start_mode)
 	aircraft.auto_trim = _settings.auto_trim
 
@@ -98,8 +101,13 @@ func _eye_point() -> Vector3:
 	return Vector3(0.0, 1.0, -def.wing_span * 0.3)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	camera_rig.target_velocity = aircraft.root_part.lin_vel
+	if _cutaway != _cutaway_target:
+		_cutaway = move_toward(_cutaway, _cutaway_target, delta * 1.6)
+		RenderingServer.global_shader_parameter_set(&"cutaway_amount", _cutaway)
+		if _cutaway == 0.0:
+			aircraft.cabin.set_visible(false)
 
 
 func _on_crash_started() -> void:
@@ -120,7 +128,9 @@ func _on_camera_cycle() -> void:
 
 
 func _on_cutaway_toggled(enabled: bool) -> void:
-	RenderingServer.global_shader_parameter_set(&"cutaway_amount", 1.0 if enabled else 0.0)
+	_cutaway_target = 1.0 if enabled else 0.0
+	if enabled:
+		aircraft.cabin.set_visible(true)
 
 
 func _on_settings_changed() -> void:

@@ -10,6 +10,7 @@ var _out := "user://shot.png"
 var _started := false
 var _frames_after := 0
 var _hangar: Node
+var _cut_sent := false
 
 
 func _process(delta: float) -> bool:
@@ -38,8 +39,14 @@ func _process(delta: float) -> bool:
 					basis * Vector3(0.0, 0.0, -v))
 		return false
 	_t += delta
-	if _hangar != null and args.size() > 4 and _t > 0.6:
-		RenderingServer.global_shader_parameter_set(&"cutaway_amount", float(args[4]))
+	if _hangar != null and args.size() > 4 and _t > 0.6 and not _cut_sent:
+		_cut_sent = true
+		_hangar.call("_on_cutaway_toggled", float(args[4]) > 0.5)
+		if args.size() > 5:
+			_hangar.set("_yaw", float(args[5]))
+			_hangar.set("_drag_cooldown", 100.0)
+		if args.size() > 6:
+			_hangar.set("_zoom", float(args[6]))
 	if _t < 0.2 and _scene != null:
 		if args.size() > 4:
 			_scene.camera_rig.set_mode(int(args[4]) as CameraRig.Mode)

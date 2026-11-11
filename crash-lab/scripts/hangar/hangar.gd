@@ -23,6 +23,7 @@ var _focus_y: float = 3.0
 var _drag_cooldown: float = 0.0
 var _cutaway: float = 0.0
 var _cutaway_target: float = 0.0
+var _cabin_nodes: Array[Node3D] = []
 
 # Background loading state.
 var _loading_path: String = ""
@@ -173,6 +174,8 @@ func _show(def: AircraftDef) -> void:
 	_model = AirframeBuilder.build_display_model(def)
 	_model.position.y = def.ground_clearance
 	_turntable.add_child(_model)
+	_cabin_nodes = Cabin.build_display(def, _model, 12)
+	_set_cabin_visible(_cutaway > 0.0 or _cutaway_target > 0.0)
 	_model.scale = Vector3.ONE * 0.85
 	create_tween().tween_property(_model, ^"scale", Vector3.ONE, 0.35) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -199,6 +202,14 @@ func _launch() -> void:
 
 func _on_cutaway_toggled(enabled: bool) -> void:
 	_cutaway_target = 1.0 if enabled else 0.0
+	if enabled:
+		_set_cabin_visible(true)
+
+
+func _set_cabin_visible(enabled: bool) -> void:
+	for node: Node3D in _cabin_nodes:
+		if is_instance_valid(node):
+			node.visible = enabled
 
 
 func _on_start_mode_changed(mode: int) -> void:
@@ -224,6 +235,8 @@ func _process(delta: float) -> void:
 	if _cutaway != _cutaway_target:
 		_cutaway = move_toward(_cutaway, _cutaway_target, delta * 1.6)
 		RenderingServer.global_shader_parameter_set(&"cutaway_amount", _cutaway)
+		if _cutaway == 0.0:
+			_set_cabin_visible(false)
 	var dist := clampf(_span * 1.45 * _zoom, 8.0, 105.0)
 	var dir := Vector3(sin(_yaw) * cos(_pitch), sin(_pitch), cos(_yaw) * cos(_pitch))
 	var focus := Vector3(0.0, _focus_y, 0.0)

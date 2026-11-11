@@ -24,6 +24,8 @@ const N_CRUSH := 12.0
 ## detached wreckage in ground contact.
 const WRECK_ROLL_DRAG := 2.5
 const WRECK_SLIDE_DRAG := 0.35
+## The cabin is armed this many seconds before a predicted impact.
+const ARM_LEAD_TIME := 1.2
 ## Minimum ticks between impact events from one part.
 const IMPACT_EVENT_TICKS := 6
 
@@ -38,6 +40,11 @@ var engines: Array[EngineUnit] = []
 var gears: Array[GearUnit] = []
 var root_part: AircraftPart
 var structure: StructureMonitor
+var cabin: Cabin
+## How many FRED dummies to seat (set before setup()).
+var max_freds: int = 8
+## Estimated seconds until the aircraft hits something (large when none).
+var impact_eta: float = 999.0
 ## Active fires, oldest first. Read by FX and by the survival model.
 var fires: Array[FireSource] = []
 ## Simulation time since setup (s) and the time of the first crash event.
@@ -55,11 +62,14 @@ var air_density: float = RHO0
 
 var _act := Vector3.ZERO
 var _agl_ray: RayCast3D
+var _ahead_ray: RayCast3D
 var _prev_root_vel := Vector3.ZERO
 var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+var _ahead_hit: bool = false
+var _ahead_dist: float = 0.0
 
 
 ## Builds the airframe at this node's current transform. Call once, in-tree.
@@ -93,6 +103,15 @@ func setup(aircraft_def: AircraftDef) -> void:
 
 	structure = StructureMonitor.new()
 	structure.setup(parts)
+	cabin = Cabin.new()
+	cabin.build(self, max_freds)
+
+	_ahead_ray = RayCast3D.new()
+	_ahead_ray.name = "AheadRay"
+	_ahead_ray.enabled = false
+	_ahead_ray.top_level = true
+	_ahead_ray.collision_mask = AirframeBuilder.LAYER_WORLD
+	add_child(_ahead_ray)
 
 	_agl_ray = RayCast3D.new()
 	_agl_ray.name = "AglRay"
@@ -207,6 +226,33 @@ func _physics_process(dt: float) -> void:
 		part.push_central_force(basis * f_local)
 
 	_update_telemetry(dt)
+	_update_arming()
+	cabin.tick(dt)
+
+
+## Arms the cabin (seat logging, dummies) shortly before an impact, so the
+## whole deceleration is captured without simulating occupants all flight.
+func _update_arming() -> void:
+	if cabin.armed:
+		return
+	var v := root_part.lin_vel
+	var speed := v.length()
+	var eta := 999.0
+	if v.y < -6.0:
+		eta = telemetry.altitude_agl / -v.y
+	if speed > 12.0 and _ticks % 3 == 0:
+		# Look ahead along the flight path for terrain and buildings.
+		_ahead_ray.global_position = root_part.xf.origin
+		_ahead_ray.target_position = v * ARM_LEAD_TIME
+		_ahead_ray.force_raycast_update()
+		_ahead_hit = _ahead_ray.is_colliding()
+		if _ahead_hit:
+			_ahead_dist = root_part.xf.origin.distance_to(_ahead_ray.get_collision_point())
+	if _ahead_hit and speed > 12.0 and not telemetry.on_ground:
+		eta = minf(eta, maxf(_ahead_dist - def.wing_span * 0.5, 0.0) / speed)
+	impact_eta = eta
+	if eta < ARM_LEAD_TIME or telemetry.crashed or telemetry.g_total > 3.2:
+		cabin.arm(sim_time)
 
 
 ## Cuts the joint holding part `index` to its parent.

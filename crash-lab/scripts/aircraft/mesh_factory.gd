@@ -347,6 +347,84 @@ static func gear_wheel_mesh(part: PartDef) -> ArrayMesh:
 	return _finish(st)
 
 
+# ---------------------------------------------------------------- cabin
+
+## Low-poly cabin liner for a fuselage section, in the part's local frame:
+## an inward-facing tube plus the floor. Only drawn in cutaway view. Floor
+## vertices carry alpha 0 so the interior shader keeps them out of the cut.
+static func interior_mesh(part: PartDef, floor_y: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0)
+	var sides := 10
+	var axis := part.p1 - part.p0
+	var length := axis.length()
+	var dir := axis / length
+	var origin := part.p0 - part.com
+	var wall := Color(0.78, 0.8, 0.82, 1.0)
+	var floor_col := Color(0.2, 0.24, 0.34, 0.0)
+	var steps := maxi(int(ceil(length / 3.5)), 2)
+	for s: int in steps:
+		var d0 := length * float(s) / float(steps)
+		var d1 := length * float(s + 1) / float(steps)
+		var pr0 := body_profile(part, d0, length)
+		var pr1 := body_profile(part, d1, length)
+		var r0 := pr0.x * 0.94
+		var r1 := pr1.x * 0.94
+		var c0 := origin + dir * d0 + Vector3(0.0, pr0.y, 0.0)
+		var c1 := origin + dir * d1 + Vector3(0.0, pr1.y, 0.0)
+		# A point far outside: _quad then faces the wall toward the axis.
+		for k: int in sides:
+			var a0 := TAU * float(k) / float(sides)
+			var a1 := TAU * float(k + 1) / float(sides)
+			var n0 := Vector3(sin(a0), cos(a0), 0.0)
+			var n1 := Vector3(sin(a1), cos(a1), 0.0)
+			var outside := (c0 + c1) * 0.5 + (n0 + n1) * (r0 + r1)
+			var uv := atlas_uv(TILE_INTERIOR, float(k) / float(sides), float(s) / float(steps))
+			_quad(st, c0 + n0 * r0, c0 + n1 * r0, c1 + n1 * r1, c1 + n0 * r1, outside, wall, uv, uv, uv, uv)
+		# Floor strip where the floor plane cuts the tube.
+		var fy0 := floor_y - part.com.y - c0.y
+		var fy1 := floor_y - part.com.y - c1.y
+		if absf(fy0) < r0 * 0.95 and absf(fy1) < r1 * 0.95:
+			var w0 := sqrt(r0 * r0 - fy0 * fy0)
+			var w1 := sqrt(r1 * r1 - fy1 * fy1)
+			var y := floor_y - part.com.y
+			var below := Vector3(0.0, y - 5.0, (c0.z + c1.z) * 0.5)
+			var fuv := atlas_uv(TILE_FLOOR, 0.5, 0.5)
+			_quad(st, Vector3(-w0, y, c0.z), Vector3(w0, y, c0.z), Vector3(w1, y, c1.z),
+					Vector3(-w1, y, c1.z), below, floor_col, fuv, fuv, fuv, fuv)
+	return _finish(st)
+
+
+static func _box(st: SurfaceTool, center: Vector3, size: Vector3, col: Color, tile: Vector2i) -> void:
+	var h := size * 0.5
+	var uv := atlas_uv(tile, 0.5, 0.5)
+	for axis: int in 3:
+		for sign: float in [-1.0, 1.0]:
+			var n := Vector3.ZERO
+			n[axis] = sign
+			var u := Vector3.ZERO
+			u[(axis + 1) % 3] = 1.0
+			var v := Vector3.ZERO
+			v[(axis + 2) % 3] = 1.0
+			var c := center + n * h[axis]
+			var du := u * h[(axis + 1) % 3]
+			var dv := v * h[(axis + 2) % 3]
+			_quad(st, c - du - dv, c + du - dv, c + du + dv, c - du + dv, center, col, uv, uv, uv, uv)
+
+
+## One passenger seat: origin on the floor under the hip point, facing -Z.
+static func seat_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(1)
+	var col := Color(1.0, 1.0, 1.0)
+	_box(st, Vector3(0.0, 0.34, -0.02), Vector3(0.44, 0.12, 0.46), col, TILE_SEAT)
+	_box(st, Vector3(0.0, 0.72, 0.25), Vector3(0.44, 0.74, 0.08), col, TILE_SEAT)
+	_box(st, Vector3(0.0, 0.14, 0.0), Vector3(0.36, 0.28, 0.06), col.darkened(0.5), TILE_METAL)
+	return _finish(st)
+
+
 static func part_mesh(adef: AircraftDef, part: PartDef, lod: int) -> ArrayMesh:
 	match part.kind:
 		PartDef.Kind.FUSELAGE, PartDef.Kind.ENGINE:

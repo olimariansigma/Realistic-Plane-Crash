@@ -123,6 +123,28 @@ func _physics_process(dt: float) -> bool:
 					deepest = maxf(deepest, part.crush_depth)
 				if deepest < 0.3:
 					return _fail("dive crash crumpled only %.2f m" % deepest)
+				# Occupants: the cabin must have been armed before the first
+				# impact, every seat must have logged it, and the dummies must
+				# have come through with finite, non-trivial readings.
+				var cabin := _aircraft.cabin
+				if not cabin.armed or cabin.armed_time > _aircraft.crash_time:
+					return _fail("cabin armed at %.2f s, after the crash began at %.2f s" % [cabin.armed_time, _aircraft.crash_time])
+				var seat_peak := 0.0
+				for seat: Seat in cabin.seats:
+					seat_peak = maxf(seat_peak, seat.peak_g)
+				if seat_peak < 8.0:
+					return _fail("seats logged only %.1f g in a dive crash" % seat_peak)
+				var fred_peak := 0.0
+				for fred: Fred in cabin.freds:
+					for limb: RigidBody3D in fred.limbs:
+						var lp := limb.global_position
+						if not (is_finite(lp.x) and is_finite(lp.y) and is_finite(lp.z)) or lp.y < -8.0:
+							return _fail("%s limb %s ended at %s" % [fred.name, limb.name, lp])
+					fred_peak = maxf(fred_peak, fred.peak_g[fred.worst_limb()])
+				if cabin.freds.size() > 0 and fred_peak < 8.0:
+					return _fail("dummies logged only %.1f g in a dive crash" % fred_peak)
+				_summary.append("%d seats peak %.0f g, %d FREDs peak %.0f g" % [
+						cabin.seats.size(), seat_peak, cabin.freds.size(), fred_peak])
 				_summary.append("dive: %d/%d joints, %d fires, crumple %.1f m, peak %d flying debris, rest in %.1f s" % [
 						broken, joints, _aircraft.fires.size(), deepest, _peak_flying, _director.crash_clock])
 				print("SMOKE PASS: %s | %s" % [_def.display_name, " | ".join(_summary)])
