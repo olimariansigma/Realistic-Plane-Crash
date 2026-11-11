@@ -5,14 +5,20 @@ extends RefCounted
 
 const LAYER_WORLD := 1
 const LAYER_AIRFRAME := 2
-## Distance at which parts swap to their low-detail mesh.
-const LOD_DISTANCE := 260.0
+## Distance at which an intact part swaps its skin pieces for one merged mesh.
+const LOD_DISTANCE := 170.0
 const SHADER_PATH := "res://shaders/airframe.gdshader"
+const INTERIOR_SHADER_PATH := "res://shaders/interior.gdshader"
+const ATLAS_PATH := "res://assets/atlas.png"
+
+## Mesh detail tier (0 low, 1 medium, 2 high): bay length, side count.
+static var detail: int = 1
 
 static var _material: ShaderMaterial
+static var _interior_material: ShaderMaterial
 static var _physics_material: PhysicsMaterial
-## Meshes keyed by "<aircraft id>/<part name>/<slot>". Filled off the main
-## thread by prebuild_meshes() during loading; build_part_visual() falls back
+## PartMeshes keyed by "<aircraft id>/<part name>/<detail>". Filled off the
+## main thread by prebuild_meshes() during loading; part_meshes() falls back
 ## to generating inline on a miss.
 static var _mesh_cache: Dictionary = {}
 static var _cache_mutex := Mutex.new()
@@ -21,41 +27,43 @@ static var _cache_mutex := Mutex.new()
 ## Generates every mesh of an aircraft. Safe to call from a worker thread.
 static func prebuild_meshes(adef: AircraftDef) -> void:
 	for part: PartDef in adef.parts:
-		if part.kind == PartDef.Kind.GEAR:
-			_cached(adef, part, 2)
-			_cached(adef, part, 3)
-		else:
-			_cached(adef, part, 0)
-			_cached(adef, part, 1)
+		part_meshes(adef, part)
 
 
-## Slots: 0 near LOD, 1 far LOD, 2 gear strut, 3 gear wheels.
-static func _cached(adef: AircraftDef, part: PartDef, slot: int) -> Mesh:
-	var key := "%s/%s/%d" % [adef.id, part.name, slot]
+static func part_meshes(adef: AircraftDef, part: PartDef) -> PartMeshes:
+	var key := "%s/%s/%d" % [adef.id, part.name, detail]
 	_cache_mutex.lock()
-	var found: Mesh = _mesh_cache.get(key)
+	var found: PartMeshes = _mesh_cache.get(key)
 	_cache_mutex.unlock()
 	if found != null:
 		return found
-	var mesh: Mesh
-	match slot:
-		2:
-			mesh = MeshFactory.gear_strut_mesh(part)
-		3:
-			mesh = MeshFactory.gear_wheel_mesh(part)
-		_:
-			mesh = MeshFactory.part_mesh(adef, part, slot)
+	var built := MeshFactory.build_part(adef, part, detail)
 	_cache_mutex.lock()
-	_mesh_cache[key] = mesh
+	_mesh_cache[key] = built
 	_cache_mutex.unlock()
-	return mesh
+	return built
 
 
 static func material() -> ShaderMaterial:
 	if _material == null:
 		_material = ShaderMaterial.new()
 		_material.shader = load(SHADER_PATH) as Shader
+		_material.set_shader_parameter(&"atlas", load(ATLAS_PATH))
 	return _material
+
+
+static func interior_material() -> ShaderMaterial:
+	if _interior_material == null:
+		_interior_material = ShaderMaterial.new()
+		_interior_material.shader = load(INTERIOR_SHADER_PATH) as Shader
+		_interior_material.set_shader_parameter(&"atlas", load(ATLAS_PATH))
+	return _interior_material
+
+
+## Atlas rectangle for primitive meshes whose UVs span 0..1.
+static func tile_rect(tile: Vector2i) -> Vector4:
+	return Vector4((float(tile.x) * 256.0 + 6.0) / 1024.0, (float(tile.y) * 256.0 + 6.0) / 1024.0,
+			244.0 / 1024.0, 244.0 / 1024.0)
 
 
 static func physics_material() -> PhysicsMaterial:
@@ -74,36 +82,53 @@ static func _mesh_instance(mesh: Mesh, cut_x: float) -> MeshInstance3D:
 	return mi
 
 
-## Visual subtree for one part, in the part's local frame. Returns the root;
-## near/far LOD meshes are children "Near" and "Far" (gear: "Strut"/"Wheels").
+## Visual subtree for one part, in the part's local frame:
+##   Core   internal structure (hidden while the skin is whole, except engines)
+##   Far    merged far-LOD mesh
+##   P<n>   skin pieces, in the order of PartMeshes.pieces
+## Gear instead has Leg/Strut and Leg/Wheels.
 static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Visual"
 	var cut_x := -part.com.x
+	var meshes := part_meshes(adef, part)
 	if part.kind == PartDef.Kind.GEAR:
 		var leg := Node3D.new()
 		leg.name = "Leg"
 		leg.position = part.p0 - part.com
 		root.add_child(leg)
-		var strut := _mesh_instance(_cached(adef, part, 2), cut_x - leg.position.x)
+		var strut := _mesh_instance(meshes.strut, cut_x - leg.position.x)
 		strut.name = "Strut"
-		strut.visibility_range_end = LOD_DISTANCE * 3.0
+		strut.visibility_range_end = LOD_DISTANCE * 4.0
 		leg.add_child(strut)
-		var wheels := _mesh_instance(_cached(adef, part, 3), cut_x - leg.position.x)
+		var wheels := _mesh_instance(meshes.wheels, cut_x - leg.position.x)
 		wheels.name = "Wheels"
-		wheels.visibility_range_end = LOD_DISTANCE * 3.0
+		wheels.visibility_range_end = LOD_DISTANCE * 4.0
 		leg.add_child(wheels)
 		return root
-	var near := _mesh_instance(_cached(adef, part, 0), cut_x)
-	near.name = "Near"
-	near.visibility_range_end = LOD_DISTANCE
-	near.visibility_range_end_margin = 10.0
-	root.add_child(near)
-	var far := _mesh_instance(_cached(adef, part, 1), cut_x)
-	far.name = "Far"
-	far.visibility_range_begin = LOD_DISTANCE
-	far.visibility_range_begin_margin = 10.0
-	root.add_child(far)
+	if meshes.core != null:
+		var core := MeshInstance3D.new()
+		core.name = "Core"
+		core.mesh = meshes.core
+		core.material_override = interior_material()
+		core.set_instance_shader_parameter(&"cut_plane_x", cut_x)
+		core.visible = meshes.core_always_visible
+		core.visibility_range_end = LOD_DISTANCE * 3.0
+		root.add_child(core)
+	if meshes.far != null:
+		var far := _mesh_instance(meshes.far, cut_x)
+		far.name = "Far"
+		far.visibility_range_begin = LOD_DISTANCE
+		far.visibility_range_begin_margin = 8.0
+		root.add_child(far)
+	for i: int in meshes.pieces.size():
+		var piece := meshes.pieces[i]
+		var mi := _mesh_instance(piece.mesh, cut_x - piece.xform.origin.x)
+		mi.name = "P%d" % i
+		mi.transform = piece.xform
+		mi.visibility_range_end = LOD_DISTANCE
+		mi.visibility_range_end_margin = 8.0
+		root.add_child(mi)
 	return root
 
 
@@ -150,7 +175,7 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 	match part.kind:
 		PartDef.Kind.FUSELAGE, PartDef.Kind.ENGINE:
 			body.crumple_limit = maxf(part.r0, part.r1) * 0.85
-		PartDef.Kind.GEAR:
+		PartDef.Kind.GEAR, PartDef.Kind.CANOPY:
 			body.crumple_limit = 0.0
 		_:
 			body.crumple_limit = (part.r0 + part.r1) * 0.5 * 0.3
@@ -176,8 +201,14 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 
 	body.visual = build_part_visual(adef, part)
 	body.add_child(body.visual)
-	body.mesh_near = body.visual.get_node_or_null("Near") as MeshInstance3D
-	body.mesh_far = body.visual.get_node_or_null("Far") as MeshInstance3D
+	var meshes := part_meshes(adef, part)
+	body.pieces = meshes.pieces
+	body.core_node = body.visual.get_node_or_null("Core") as MeshInstance3D
+	body.far_node = body.visual.get_node_or_null("Far") as MeshInstance3D
+	body.core_always_visible = meshes.core_always_visible
+	for i: int in meshes.pieces.size():
+		body.piece_nodes.append(body.visual.get_node("P%d" % i) as MeshInstance3D)
+	body.pieces_left = meshes.pieces.size()
 	return body
 
 

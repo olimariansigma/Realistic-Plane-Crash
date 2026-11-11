@@ -22,17 +22,17 @@ func setup(quality: int) -> void:
 	var density: float = [0.5, 0.8, 1.0][clampi(quality, 0, 2)]
 	_blob = _make_blob()
 	for i: int in max_fires:
-		var fire := _make_emitter("Fire%d" % i, int(36.0 * density), 0.9, _fire_process(), _billboard(true), 2.6)
+		var fire := _make_emitter("Fire%d" % i, int(44.0 * density), 0.8, _fire_process(), _billboard(true), 1.5)
 		fire.emitting = false
 		add_child(fire)
 		_fire.append(fire)
-		var smoke := _make_emitter("Smoke%d" % i, int(34.0 * density), 5.0, _smoke_process(), _billboard(false), 5.0)
+		var smoke := _make_emitter("Smoke%d" % i, int(30.0 * density), 5.5, _smoke_process(), _billboard(false), 4.5)
 		smoke.emitting = false
 		add_child(smoke)
 		_smoke.append(smoke)
 		_fire_source.append(null)
 	for i: int in DUST_COUNT:
-		var dust := _make_emitter("Dust%d" % i, int(22.0 * density), 1.8, _dust_process(), _billboard(false), 4.0)
+		var dust := _make_emitter("Dust%d" % i, int(16.0 * density), 1.6, _dust_process(), _billboard(false), 3.2)
 		dust.one_shot = true
 		dust.explosiveness = 0.92
 		dust.emitting = false
@@ -152,18 +152,18 @@ func _scale_curve(points: Array[Vector2]) -> CurveTexture:
 func _fire_process() -> ParticleProcessMaterial:
 	var m := ParticleProcessMaterial.new()
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	m.emission_sphere_radius = 1.4
+	m.emission_sphere_radius = 1.1
 	m.direction = Vector3.UP
-	m.spread = 28.0
-	m.initial_velocity_min = 2.5
-	m.initial_velocity_max = 6.5
+	m.spread = 22.0
+	m.initial_velocity_min = 3.0
+	m.initial_velocity_max = 8.0
 	m.gravity = Vector3(0.0, 5.0, 0.0)
 	m.scale_min = 0.7
 	m.scale_max = 1.5
 	m.scale_curve = _scale_curve([Vector2(0.0, 0.45), Vector2(0.3, 1.0), Vector2(1.0, 0.2)])
 	m.color_ramp = _ramp(
-			[Color(1.0, 0.92, 0.55, 0.0), Color(1.0, 0.72, 0.2, 0.9), Color(0.95, 0.3, 0.05, 0.7), Color(0.3, 0.05, 0.0, 0.0)],
-			[0.0, 0.12, 0.6, 1.0])
+			[Color(1.0, 0.85, 0.45, 0.0), Color(1.0, 0.55, 0.12, 0.55), Color(0.8, 0.2, 0.03, 0.4), Color(0.2, 0.03, 0.0, 0.0)],
+			[0.0, 0.15, 0.6, 1.0])
 	return m
 
 
@@ -200,6 +200,6 @@ func _dust_process() -> ParticleProcessMaterial:
 	m.scale_max = 1.4
 	m.scale_curve = _scale_curve([Vector2(0.0, 0.3), Vector2(0.5, 1.0), Vector2(1.0, 1.6)])
 	m.color_ramp = _ramp(
-			[Color(0.55, 0.48, 0.38, 0.0), Color(0.5, 0.44, 0.35, 0.6), Color(0.5, 0.46, 0.4, 0.0)],
+			[Color(0.5, 0.47, 0.42, 0.0), Color(0.48, 0.45, 0.4, 0.3), Color(0.5, 0.48, 0.45, 0.0)],
 			[0.0, 0.15, 1.0])
 	return m

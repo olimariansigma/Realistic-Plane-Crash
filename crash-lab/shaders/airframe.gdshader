@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back;
+render_mode cull_disabled;
 // Shared by every airframe part. One material for the whole fleet keeps draw
 // state changes down; per-part variation rides on instance uniforms.
 //
@@ -7,11 +7,13 @@ render_mode cull_back;
 // along the impact direction, scaled by absorbed energy (set from script).
 // Cutaway: fragments on the +X side of the aircraft centreline are discarded
 // while the global cutaway_amount is above zero.
+// Skin is drawn two-sided: the inside face shows primer, so torn panels and
+// the cutaway read as sheet metal rather than vanishing when seen from behind.
 
 uniform sampler2D atlas : source_color, hint_default_white, filter_linear_mipmap, repeat_disable;
 uniform float roughness_value : hint_range(0.0, 1.0) = 0.42;
 uniform float metallic_value : hint_range(0.0, 1.0) = 0.15;
-uniform vec3 interior_tint : source_color = vec3(0.55, 0.57, 0.6);
+uniform vec3 primer : source_color = vec3(0.42, 0.5, 0.27);
 
 global uniform float cutaway_amount;
 
@@ -26,6 +28,8 @@ instance uniform vec3 dent_b_push = vec3(0.0);
 instance uniform float scorch = 0.0;
 // Multiplies the vertex colour; used by debris, which shares this material.
 instance uniform vec3 tint : source_color = vec3(1.0);
+// Remaps UVs into an atlas region (offset.xy, scale.zw) for primitive meshes.
+instance uniform vec4 uv_rect = vec4(0.0, 0.0, 1.0, 1.0);
 
 varying vec3 local_pos;
 varying float dent_weight;
@@ -56,7 +60,10 @@ void fragment() {
 			&& local_pos.x > cut_plane_x + (1.0 - cutaway_amount) * 40.0) {
 		discard;
 	}
-	vec3 base = COLOR.rgb * tint * texture(atlas, UV).rgb;
+	vec3 base = COLOR.rgb * tint * texture(atlas, uv_rect.xy + UV * uv_rect.zw).rgb;
+	if (!FRONT_FACING) {
+		base = primer;
+	}
 	base = mix(base, base * 0.5, dent_weight * 0.7);
 	base = mix(base, vec3(0.025), scorch);
 	ALBEDO = base;

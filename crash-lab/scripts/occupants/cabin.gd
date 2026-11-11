@@ -1,6 +1,6 @@
 class_name Cabin
 extends RefCounted
-## Everything inside the fuselage: seats, the cutaway liner, FRED dummies, and
+## Everything inside the fuselage: seats, FRED dummies, and
 ## the per-seat acceleration log.
 ##
 ## Seat tracking and dummies are "armed" just before an impact (see
@@ -18,7 +18,6 @@ const GRAVITY := 9.80665
 const SEAT_FILTER_TAU := 0.085
 
 static var _seat_mesh: ArrayMesh
-static var _interior_material: ShaderMaterial
 
 var seats: Array[Seat] = []
 var freds: Array[Fred] = []
@@ -26,7 +25,8 @@ var armed: bool = false
 ## Aircraft.sim_time when the cabin was armed.
 var armed_time: float = -1.0
 
-var _nodes: Array[Node3D] = []
+var _seat_nodes: Array[MultiMeshInstance3D] = []
+var _parts: Array[AircraftPart] = []
 var _visible: bool = false
 
 
@@ -53,35 +53,15 @@ static func list_seats(def: AircraftDef) -> Array[Seat]:
 	return out
 
 
-static func _interior_mat() -> ShaderMaterial:
-	if _interior_material == null:
-		_interior_material = ShaderMaterial.new()
-		_interior_material.shader = load("res://shaders/interior.gdshader") as Shader
-	return _interior_material
-
-
-## Liner and seats for one fuselage part, positioned for a parent whose origin
-## is the part's centre of mass. Returns the created nodes.
-static func _build_part_interior(def: AircraftDef, part_index: int, all_seats: Array[Seat]) -> Array[Node3D]:
-	var out: Array[Node3D] = []
-	var part := def.parts[part_index]
+## Seat rows for one fuselage part, positioned for a parent whose origin is
+## the part's centre of mass. Returns null when the part has no seats.
+static func _build_part_seats(def: AircraftDef, part_index: int, all_seats: Array[Seat]) -> MultiMeshInstance3D:
 	var mine: Array[Seat] = []
-	var floor_y := 1.0e9
 	for seat: Seat in all_seats:
 		if seat.part_index == part_index:
 			mine.append(seat)
-			floor_y = minf(floor_y, seat.def_pos.y - HIP_HEIGHT)
 	if mine.is_empty():
-		return out
-	var liner := MeshInstance3D.new()
-	liner.name = "Liner"
-	liner.mesh = MeshFactory.interior_mesh(part, floor_y)
-	liner.material_override = _interior_mat()
-	liner.set_instance_shader_parameter(&"cut_plane_x", -part.com.x)
-	liner.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	liner.visibility_range_end = 400.0
-	out.append(liner)
-
+		return null
 	if _seat_mesh == null:
 		_seat_mesh = MeshFactory.seat_mesh()
 	var mm := MultiMesh.new()
@@ -101,23 +81,25 @@ static func _build_part_interior(def: AircraftDef, part_index: int, all_seats: A
 	mmi.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mmi.visibility_range_end = 300.0
-	out.append(mmi)
-	return out
+	return mmi
 
 
 ## Builds the live cabin onto an aircraft's fuselage parts.
 func build(aircraft: Aircraft, max_freds: int) -> void:
 	var def := aircraft.def
+	_parts = aircraft.parts
 	seats = list_seats(def)
 	for seat: Seat in seats:
 		seat.part = aircraft.parts[seat.part_index]
+	_seat_nodes.resize(def.parts.size())
 	for i: int in def.parts.size():
 		if def.parts[i].kind != PartDef.Kind.FUSELAGE:
 			continue
-		for node: Node3D in _build_part_interior(def, i, seats):
+		var node := _build_part_seats(def, i, seats)
+		if node != null:
 			node.visible = false
 			aircraft.parts[i].add_child(node)
-			_nodes.append(node)
+			_seat_nodes[i] = node
 	var picks := def.fred_seats
 	for k: int in mini(picks.size(), max_freds):
 		var index := picks[k]
@@ -129,7 +111,8 @@ func build(aircraft: Aircraft, max_freds: int) -> void:
 		freds.append(fred)
 
 
-## Adds liner, seats and static dummies to a hangar display model.
+## Adds seats and static dummies to a hangar display model. Returns the nodes
+## the cutaway toggle should show and hide (including each part's structure).
 static func build_display(def: AircraftDef, model: Node3D, max_freds: int) -> Array[Node3D]:
 	var out: Array[Node3D] = []
 	var all_seats := list_seats(def)
@@ -139,7 +122,11 @@ static func build_display(def: AircraftDef, model: Node3D, max_freds: int) -> Ar
 		var holder := model.get_node_or_null(String(def.parts[i].name)) as Node3D
 		if holder == null:
 			continue
-		for node: Node3D in _build_part_interior(def, i, all_seats):
+		var core := holder.get_node_or_null("Visual/Core") as Node3D
+		if core != null:
+			out.append(core)
+		var node := _build_part_seats(def, i, all_seats)
+		if node != null:
 			node.visible = false
 			holder.add_child(node)
 			out.append(node)
@@ -156,13 +143,28 @@ static func build_display(def: AircraftDef, model: Node3D, max_freds: int) -> Ar
 	return out
 
 
-## Shows or hides the cabin interior (cutaway view).
+## Shows or hides the cabin interior (cutaway view). Parts that have lost
+## skin keep theirs visible regardless.
 func set_visible(enabled: bool) -> void:
 	_visible = enabled
-	for node: Node3D in _nodes:
-		node.visible = enabled
+	for i: int in _seat_nodes.size():
+		var part := _parts[i]
+		var show := enabled or part.stripped
+		if _seat_nodes[i] != null:
+			_seat_nodes[i].visible = show
+		if part.def.kind == PartDef.Kind.FUSELAGE and part.core_node != null:
+			part.core_node.visible = show
 	for fred: Fred in freds:
-		fred.visible = enabled or fred.ejected
+		fred.visible = enabled or fred.ejected or fred.anchor.stripped
+
+
+## Called when a part first loses skin: its seats and dummies are now in view.
+func reveal_part(part_index: int) -> void:
+	if part_index < _seat_nodes.size() and _seat_nodes[part_index] != null:
+		_seat_nodes[part_index].visible = true
+	for fred: Fred in freds:
+		if fred.anchor.index == part_index:
+			fred.visible = true
 
 
 ## Starts per-seat tracking and wakes the dummies. Idempotent.

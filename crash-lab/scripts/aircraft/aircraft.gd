@@ -11,6 +11,9 @@ signal part_detached(part: AircraftPart, parent: AircraftPart, load_ratio: float
 ## A hard contact: where, the contact impulse (N s), and the energy absorbed (J).
 signal part_impacted(part: AircraftPart, world_pos: Vector3, impulse: Vector3, energy: float)
 signal fire_started(source: FireSource)
+## A skin piece has been torn off `part` (already hidden there). `node` is the
+## mesh node that showed it; `kick` is the speed (m/s) to throw it clear at.
+signal piece_shed(part: AircraftPart, piece: SkinPiece, node: MeshInstance3D, kick: float)
 ## Raised once, on the first structural failure or hard impact.
 signal crashed
 
@@ -24,6 +27,10 @@ const N_CRUSH := 12.0
 ## detached wreckage in ground contact.
 const WRECK_ROLL_DRAG := 2.5
 const WRECK_SLIDE_DRAG := 0.35
+## Sliding faster than this (m/s) on the ground scrapes skin off, and loose
+## wreckage above this dynamic pressure (Pa) sheds panels into the airstream.
+const SCRAPE_SPEED := 12.0
+const STRIP_DYN_PRESSURE := 2200.0
 ## The cabin is armed this many seconds before a predicted impact.
 const ARM_LEAD_TIME := 1.2
 ## Minimum ticks between impact events from one part.
@@ -68,6 +75,10 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+var _rng := RandomNumberGenerator.new()
+var _hinged_nodes: Array[MeshInstance3D] = []
+var _hinged_pieces: Array[SkinPiece] = []
+var _hinged_parts: Array[AircraftPart] = []
 var _ahead_hit: bool = false
 var _ahead_dist: float = 0.0
 
@@ -101,6 +112,13 @@ func setup(aircraft_def: AircraftDef) -> void:
 			gear.wheel_visual = gear.leg_visual.get_node_or_null("Wheels") as Node3D
 		gears.append(gear)
 
+	_rng.seed = 1903
+	for part: AircraftPart in parts:
+		for i: int in part.pieces.size():
+			if part.pieces[i].control != SkinPiece.Surface.NONE:
+				_hinged_nodes.append(part.piece_nodes[i])
+				_hinged_pieces.append(part.pieces[i])
+				_hinged_parts.append(part)
 	structure = StructureMonitor.new()
 	structure.setup(parts)
 	cabin = Cabin.new()
@@ -286,6 +304,10 @@ func detach(index: int, load_ratio: float) -> void:
 				gear.leg_visual.rotation.x = 0.0
 	_mark_crashed()
 	part_detached.emit(part, parent, load_ratio)
+	# A joint never parts cleanly: skin around the break goes with it.
+	var tear := 2 if load_ratio > 4.0 else 1
+	shed_pieces(part, part.anchor_local, 3.5, tear, 6.0)
+	shed_pieces(parent, part.def.anchor - parent.def.com, 3.5, tear, 6.0)
 
 	# Ruptured tanks and hot engines catch fire.
 	var speed := part.lin_vel.length()
@@ -330,6 +352,12 @@ func _process_impacts(dt: float) -> void:
 			part.burn_time += dt
 			if (_ticks + i) % 20 == 0:
 				part.set_scorch(minf(part.burn_time / 25.0, 0.85) * part.burning)
+		# Broken structure in a fast airstream keeps coming apart, panel by panel.
+		if part.pieces_left > 0 and (part.stripped or part.assembly_root != 0) and (_ticks + i * 3) % 12 == 0:
+			var q := 0.5 * air_density * part.lin_vel.length_squared()
+			if q > STRIP_DYN_PRESSURE and _rng.randf() < minf(q / 90000.0, 0.25):
+				var pick := part.pieces[_rng.randi() % part.pieces.size()].center
+				shed_pieces(part, pick, 1000.0, 1, 4.0)
 		if part.contact_count == 0 or part.sleeping:
 			continue
 		if part.assembly_root != 0:
@@ -338,6 +366,11 @@ func _process_impacts(dt: float) -> void:
 			# forces so the structure monitor still accounts for them.
 			part.push_torque(part.angular_momentum() * -WRECK_ROLL_DRAG)
 			part.push_central_force(part.lin_vel * (-WRECK_SLIDE_DRAG * part.mass))
+		# Scraping along the ground at speed grinds skin off the contact patch.
+		if part.pieces_left > 0 and (_ticks + i) % 8 == 0:
+			var slide := part.lin_vel.length()
+			if slide > SCRAPE_SPEED and _rng.randf() < slide / 420.0:
+				shed_pieces(part, (part.hit_position - part.xf.origin) * part.xf.basis, 2.4, 1, 2.0)
 		if part.hit_speed < IMPACT_MIN_SPEED:
 			continue
 		# Energy absorbed at the contact: impulse times mean closing speed.
@@ -356,6 +389,9 @@ func _process_impacts(dt: float) -> void:
 			var local_pos := (part.hit_position - part.xf.origin) * basis
 			var dir := part.hit_impulse.normalized() * basis
 			part.add_dent(local_pos, dir, depth)
+			# Roughly one panel per 0.4 m of crush, nearest first.
+			shed_pieces(part, local_pos, clampf(1.2 + depth * 2.0, 1.5, 5.0),
+					clampi(int(depth * 2.5), 0, 4), 3.0 + minf(part.hit_speed * 0.2, 8.0))
 			if part.hit_speed > 4.0:
 				_mark_crashed()
 			if part.def.fuel_kg > 0.0 and part.hit_speed > 22.0:
@@ -382,11 +418,50 @@ func _update_actuators(dt: float) -> void:
 	flap_ratio = move_toward(flap_ratio, flap_target, dt / def.flap_time)
 	spoiler_ratio = move_toward(spoiler_ratio, 1.0 if c.spoilers else 0.0, dt * 2.0)
 
+	_animate_surfaces()
+
 	# Weight-on-wheels interlock: the gear will not retract on the ground.
 	var gear_target := 1.0 if c.gear_down or telemetry.on_ground else 0.0
 	if gear_ratio != gear_target:
 		gear_ratio = move_toward(gear_ratio, gear_target, dt / def.gear_time)
 		_apply_gear_state()
+
+
+## Swings the visible control surfaces to match the actuators.
+func _animate_surfaces() -> void:
+	for i: int in _hinged_nodes.size():
+		var node := _hinged_nodes[i]
+		if not node.visible:
+			continue
+		var piece := _hinged_pieces[i]
+		var amount := 0.0
+		match piece.control:
+			SkinPiece.Surface.AILERON:
+				amount = -piece.side * _act.y
+			SkinPiece.Surface.ELEVATOR:
+				amount = -clampf(_act.x + trim * 0.4, -1.0, 1.0)
+			SkinPiece.Surface.RUDDER:
+				amount = _act.z
+			SkinPiece.Surface.FLAP:
+				amount = flap_ratio
+		node.transform = Transform3D(Basis(piece.hinge, amount * piece.deflect_max), piece.xform.origin)
+
+
+## Tears up to `max_count` skin pieces off `part`, nearest to `local_pos`
+## first and no further than `radius` from it. Returns how many came off.
+func shed_pieces(part: AircraftPart, local_pos: Vector3, radius: float, max_count: int, kick: float) -> int:
+	var shed := 0
+	for _n: int in max_count:
+		var index := part.nearest_piece(local_pos, radius)
+		if index < 0:
+			break
+		var first := not part.stripped
+		var node := part.release_piece(index)
+		if first:
+			cabin.reveal_part(part.index)
+		piece_shed.emit(part, part.pieces[index], node, kick)
+		shed += 1
+	return shed
 
 
 func _apply_gear_state() -> void:

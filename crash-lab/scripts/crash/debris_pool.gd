@@ -67,6 +67,7 @@ func setup(count: int) -> void:
 		mi.material_override = AirframeBuilder.material()
 		# Debris has no centreline: keep it out of the cutaway clip.
 		mi.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
+		mi.set_instance_shader_parameter(&"uv_rect", AirframeBuilder.tile_rect(MeshFactory.TILE_PLAIN))
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.visibility_range_end = 900.0
 		body.add_child(mi)

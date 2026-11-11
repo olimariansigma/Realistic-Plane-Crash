@@ -87,17 +87,23 @@ func _narrow_body() -> Dictionary:
 		paint = Color(0.93, 0.95, 0.97), accent = Color(0.09, 0.32, 0.72),
 		# Fuselage: nose tip Z, section cut Zs, radius, cap lengths, masses per section.
 		nose_z = -17.2, tail_z = 20.4, fus_r = 1.98, nose_cap = 5.2, tail_cap = 9.5,
-		cuts = [-6.5, 5.5], fus_mass = [8000.0, 16000.0, 9500.0],
-		fus_break_force = [1.5e6, 1.7e6], fus_break_torque = [8.0e6, 9.0e6],
-		fus_crush = 0.75,
+		cuts = [-11.5, -5.0, 5.0, 11.5],
+		fus_mass = [4500.0, 7000.0, 13500.0, 5500.0, 3000.0],
+		fus_break_force = [1.2e6, 1.5e6, 1.7e6, 1.3e6],
+		fus_break_torque = [5.0e6, 8.0e6, 9.0e6, 6.0e6],
+		fus_crush = 0.75, nose_power = 0.62, nose_droop = 0.28, tail_ratio = 0.14,
+		tail_upsweep = 0.72, squash = Vector2(1.0, 1.0),
 		# Wing planform measured from the centreline.
 		wing = {
 			root_c = 6.1, tip_c = 1.6, semi = 17.0, sweep = 25.0, dihedral = 5.0,
-			y = -1.15, z_c4 = -3.2, x_in = 1.8, x_kink = 6.8, thick = 0.13,
+			y = -1.15, z_c4 = -3.2, x_in = 1.8, x_kink = 6.8, x_kink2 = 11.8, thick = 0.13,
+			winglet = 1.9,
 			incidence = 3.0, washout = -2.5, airfoil = "transport",
-			mass_in = 6000.0, mass_out = 2500.0, fuel_in = 3600.0, fuel_out = 1300.0,
+			mass_in = 5000.0, mass_mid = 2400.0, mass_out = 1100.0,
+			fuel_in = 3000.0, fuel_mid = 1400.0, fuel_out = 500.0,
 			break_force_in = 2.6e6, break_torque_in = 7.5e6,
-			break_force_out = 2.0e6, break_torque_out = 3.5e6,
+			break_force_mid = 2.2e6, break_torque_mid = 4.0e6,
+			break_force_out = 8.0e5, break_torque_out = 1.0e6,
 			flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.80,
 			cg_mac = 0.24,
 		},
@@ -141,18 +147,22 @@ func _wide_body() -> Dictionary:
 		desc = "Long-haul twin-aisle heavy. 345 seats and a lot of inertia: plan ahead.",
 		paint = Color(0.95, 0.95, 0.93), accent = Color(0.62, 0.10, 0.14),
 		nose_z = -30.0, tail_z = 34.0, fus_r = 3.05, nose_cap = 7.5, tail_cap = 15.0,
-		cuts = [-18.0, -7.0, 7.0, 18.0],
-		fus_mass = [17000.0, 26000.0, 46000.0, 26000.0, 15000.0],
-		fus_break_force = [3.6e6, 5.2e6, 5.4e6, 3.8e6],
-		fus_break_torque = [3.0e7, 5.0e7, 5.2e7, 3.2e7],
-		fus_crush = 1.1,
+		cuts = [-21.5, -13.5, -5.5, 5.5, 13.5, 22.5],
+		fus_mass = [10000.0, 17000.0, 24000.0, 34000.0, 21000.0, 15000.0, 9000.0],
+		fus_break_force = [2.8e6, 3.6e6, 5.2e6, 5.4e6, 3.8e6, 3.0e6],
+		fus_break_torque = [2.0e7, 3.0e7, 5.0e7, 5.2e7, 3.2e7, 2.2e7],
+		fus_crush = 1.1, nose_power = 0.6, nose_droop = 0.3, tail_ratio = 0.13,
+		tail_upsweep = 0.75, squash = Vector2(1.0, 1.0),
 		wing = {
 			root_c = 12.4, tip_c = 2.6, semi = 30.0, sweep = 31.0, dihedral = 6.0,
-			y = -1.7, z_c4 = -6.0, x_in = 2.8, x_kink = 12.0, thick = 0.12,
+			y = -1.7, z_c4 = -6.0, x_in = 2.8, x_kink = 12.0, x_kink2 = 21.0, thick = 0.12,
+			winglet = 2.8,
 			incidence = 3.0, washout = -3.0, airfoil = "transport",
-			mass_in = 22000.0, mass_out = 9000.0, fuel_in = 15000.0, fuel_out = 5000.0,
+			mass_in = 19000.0, mass_mid = 8500.0, mass_out = 3500.0,
+			fuel_in = 13000.0, fuel_mid = 5000.0, fuel_out = 2000.0,
 			break_force_in = 9.5e6, break_torque_in = 5.2e7,
-			break_force_out = 7.0e6, break_torque_out = 2.4e7,
+			break_force_mid = 7.0e6, break_torque_mid = 2.6e7,
+			break_force_out = 2.5e6, break_torque_out = 6.5e6,
 			flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.82,
 			cg_mac = 0.25,
 		},
@@ -196,16 +206,21 @@ func _fighter() -> Dictionary:
 		desc = "Single-seat interceptor. Thrust to spare, 9 g airframe, very little margin for error.",
 		paint = Color(0.50, 0.55, 0.60), accent = Color(0.95, 0.72, 0.12),
 		nose_z = -8.6, tail_z = 6.9, fus_r = 0.92, nose_cap = 4.6, tail_cap = 1.2,
-		cuts = [-3.0, 2.4], fus_mass = [2300.0, 3900.0, 1700.0],
+		cuts = [-3.0, 2.4], fus_mass = [2230.0, 3900.0, 1700.0],
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
-		fus_crush = 0.3,
+		fus_crush = 0.3, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
+		tail_upsweep = 0.0, squash = Vector2(1.22, 0.9),
+		canopy = { z0 = -6.0, z1 = -3.2, half_width = 0.44, height = 0.62, mass = 70.0 },
 		wing = {
 			root_c = 5.2, tip_c = 1.1, semi = 4.9, sweep = 38.0, dihedral = 0.0,
-			y = 0.0, z_c4 = -0.9, x_in = 0.85, x_kink = 2.7, thick = 0.05,
+			y = 0.0, z_c4 = -0.9, x_in = 1.0, x_kink = 2.6, x_kink2 = 3.8, thick = 0.05,
+			winglet = 0.0,
 			incidence = 0.5, washout = -1.5, airfoil = "fighter",
-			mass_in = 700.0, mass_out = 300.0, fuel_in = 500.0, fuel_out = 120.0,
+			mass_in = 600.0, mass_mid = 280.0, mass_out = 120.0,
+			fuel_in = 450.0, fuel_mid = 150.0, fuel_out = 0.0,
 			break_force_in = 1.1e6, break_torque_in = 1.5e6,
-			break_force_out = 4.5e5, break_torque_out = 3.2e5,
+			break_force_mid = 6.5e5, break_torque_mid = 6.0e5,
+			break_force_out = 2.2e5, break_torque_out = 1.5e5,
 			flap_in = 0.7, flap_out = 0.3, aileron_deg = 12.0, e = 0.78,
 			cg_mac = 0.27,
 		},
@@ -224,7 +239,7 @@ func _fighter() -> Dictionary:
 		}],
 		engines = [{
 			x = 0.0, y = 0.0, z_off = 0.0, z_abs = 4.9, length = 3.6, r = 0.62, mass = 1700.0,
-			thrust = 128000.0, spool = 1.1, lapse = 0.08, mount = "fus_aft",
+			thrust = 128000.0, spool = 1.1, lapse = 0.08, mount = "fus_tail",
 			break_force = 9.0e5, break_torque = 7.0e5, fuel = 200.0,
 		}],
 		gear = {
@@ -282,6 +297,7 @@ func _build(p: Dictionary) -> AircraftDef:
 		shift += trial.center_of_mass().z - target
 	_add_wing_group(def, p, shift, true)
 	_add_tail(def, p, true)
+	_add_canopy(def, p)
 	_add_cabin(def, p)
 
 	# Re-origin everything on the centre of mass so "aircraft origin" == CG.
@@ -295,13 +311,19 @@ func _build(p: Dictionary) -> AircraftDef:
 	return def
 
 
+## Front-most is always fus_nose, aft-most fus_tail, the wing section fus_mid;
+## anything between is fus_fwd / fus_fwd2 ... and fus_aft / fus_aft2 ...
 func _fus_section_name(i: int, n: int) -> StringName:
-	if i == n / 2:
+	var mid := n / 2
+	if i == mid:
 		return &"fus_mid"
-	if n == 3:
-		return &"fus_fwd" if i == 0 else &"fus_aft"
-	var names: Array[StringName] = [&"fus_nose", &"fus_fwd", &"fus_mid", &"fus_aft", &"fus_tail"]
-	return names[i]
+	if i == 0:
+		return &"fus_nose"
+	if i == n - 1:
+		return &"fus_tail"
+	var steps := absi(i - mid)
+	var base := "fus_fwd" if i < mid else "fus_aft"
+	return StringName(base if steps == 1 else "%s%d" % [base, steps])
 
 
 func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
@@ -345,6 +367,11 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 		part.drag_area = Vector3(length * 2.0 * r * 0.7 * taper, length * 2.0 * r * 0.7 * taper,
 				0.0033 * TAU * r * length * (1.2 if i == 0 or i == n - 1 else 1.0))
 		part.crush_depth = p.fus_crush
+		part.nose_power = p.nose_power
+		part.nose_droop = p.nose_droop
+		part.tail_ratio = p.tail_ratio
+		part.tail_upsweep = p.tail_upsweep
+		part.squash = p.squash
 		made.append(part)
 	# Root (mid) first, then outward so parents precede children.
 	def.parts.append(made[mid])
@@ -456,21 +483,30 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 		inner.fuel_kg = w.fuel_in
 		inner.break_force = w.break_force_in
 		inner.break_torque = w.break_torque_in
-		var outer := _panel_part(StringName("wing_%s_out" % tag), inner.name, PartDef.Kind.WING,
-				w, x_kink, semi, side, shift, w.mass_out)
+		var x_kink2: float = w.x_kink2
+		var middle := _panel_part(StringName("wing_%s_mid" % tag), inner.name, PartDef.Kind.WING,
+				w, x_kink, x_kink2, side, shift, w.mass_mid)
+		middle.fuel_kg = w.fuel_mid
+		middle.break_force = w.break_force_mid
+		middle.break_torque = w.break_torque_mid
+		var outer := _panel_part(StringName("wing_%s_out" % tag), middle.name, PartDef.Kind.WING,
+				w, x_kink2, semi, side, shift, w.mass_out)
 		outer.fuel_kg = w.fuel_out
 		outer.break_force = w.break_force_out
 		outer.break_torque = w.break_torque_out
+		outer.winglet = w.winglet
 		def.parts.append(inner)
+		def.parts.append(middle)
 		def.parts.append(outer)
 
 		if with_surfaces:
 			var inc: float = w.incidence
 			var wash: float = w.washout
-			var bounds: Array[float] = [x_in, (x_in + x_kink) * 0.5, x_kink,
-					x_kink + (semi - x_kink) * 0.5, semi]
+			# Four strips: two on the inner panel, one each on the middle and outer.
+			var bounds: Array[float] = [x_in, (x_in + x_kink) * 0.5, x_kink, x_kink2, semi]
+			var owners: Array[StringName] = [inner.name, inner.name, middle.name, outer.name]
 			for k: int in 4:
-				var owner := inner.name if k < 2 else outer.name
+				var owner := owners[k]
 				var xm := (bounds[k] + bounds[k + 1]) * 0.5
 				var s := _strip(StringName("wing_%s_%d" % [tag, k]), owner, w, bounds[k],
 						bounds[k + 1], side, shift, inc + wash * xm / semi, w.airfoil, aspect,
@@ -609,8 +645,7 @@ func _size_gear(def: AircraftDef) -> void:
 
 func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
 	var h: Dictionary = p.htail
-	var aft := def.parts[def.find_part(&"fus_tail")].name if def.find_part(&"fus_tail") >= 0 \
-			else &"fus_aft"
+	var aft: StringName = &"fus_tail"
 	var h_area := (float(h.root_c) + float(h.tip_c)) * float(h.semi)
 	var h_aspect := 4.0 * float(h.semi) * float(h.semi) / h_area
 	for side_i: int in 2:
@@ -733,6 +768,45 @@ func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
 	nose.parent = owner
 	_fill_gear(def, nose, Vector3(0.0, gear_p.nose_y, nose_z), gear_p, true, with_surfaces, p)
 	def.parts.append(nose)
+
+
+## Bubble canopy: its own lightly-attached part, so it can come off.
+func _add_canopy(def: AircraftDef, p: Dictionary) -> void:
+	if not p.has("canopy"):
+		return
+	var c: Dictionary = p.canopy
+	var z0: float = c.z0
+	var z1: float = c.z1
+	var owner := _fuselage_part_at(def, (z0 + z1) * 0.5)
+	var body := def.parts[def.find_part(owner)]
+	var top := float(p.fus_r) * body.squash.y
+	var part := PartDef.new()
+	part.name = &"canopy"
+	part.parent = owner
+	part.kind = PartDef.Kind.CANOPY
+	part.mass = c.mass
+	# Sit the dome on the crown line, which is lower over the nose cap.
+	var length := (body.p1 - body.p0).length()
+	var y0 := top * 0.55
+	var y1 := top * 0.86
+	if body.shape_a > 0.0:
+		var pr0 := MeshFactory.body_profile(body, clampf(z0 - body.p0.z, 0.0, length), length)
+		var pr1 := MeshFactory.body_profile(body, clampf(z1 - body.p0.z, 0.0, length), length)
+		y0 = pr0.y + pr0.x * body.squash.y * 0.72
+		y1 = pr1.y + pr1.x * body.squash.y * 0.8
+	part.p0 = Vector3(0.0, y0, z0)
+	part.p1 = Vector3(0.0, y1, z1)
+	part.r0 = c.half_width
+	part.r1 = c.height
+	part.com = (part.p0 + part.p1) * 0.5 + Vector3(0.0, float(c.height) * 0.3, 0.0)
+	part.anchor = part.p1
+	var span := z1 - z0
+	part.inertia = Vector3(part.mass * span * span / 12.0, part.mass * span * span / 12.0,
+			part.mass * 0.1)
+	part.break_force = 6.0e4
+	part.break_torque = 5.0e4
+	part.crush_depth = 0.1
+	def.parts.append(part)
 
 
 func _add_cabin(def: AircraftDef, p: Dictionary) -> void:

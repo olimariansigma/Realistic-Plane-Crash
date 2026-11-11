@@ -4,7 +4,7 @@ extends Resource
 ## it to its parent. All positions are in the aircraft frame (-Z forward, +Y up,
 ## +X right wing), metres.
 
-enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR }
+enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR, CANOPY }
 
 @export var name: StringName
 ## Name of the part this one is bolted to. Empty for the root part.
@@ -30,6 +30,7 @@ enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR }
 ## Bodies of revolution (FUSELAGE, ENGINE): front and back centre points.
 ## Lifting panels (WING, STABILIZER, FIN): root and tip quarter-chord points.
 ## GEAR: pivot and extended wheel-centre points.
+## CANOPY: front and back of the dome; r0 = half width, r1 = height.
 @export var p0: Vector3
 @export var p1: Vector3
 ## Radius at p0 / p1, chord at root / tip, or wheel radius / strut radius.
@@ -40,8 +41,20 @@ enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR }
 @export var shape_a: float = 0.0
 ## Bodies: length of the tapered tail cap at p1 (0 = flat end).
 @export var shape_b: float = 0.0
-## Index into the paint palette / texture atlas tile.
+## 0 = main paint, 1 = accent colour, 2 = bare metal.
 @export var skin: int = 0
+## Fuselage nose bluntness: 0.5 is a blunt ellipse, 1.0 a pointed ogive.
+@export var nose_power: float = 0.62
+## How far the nose tip sits below the centreline, in radii.
+@export var nose_droop: float = 0.28
+## Radius at the very end of the tail cap as a fraction of the body radius.
+@export var tail_ratio: float = 0.14
+## How much of the tail taper is taken from the belly (1 = flat crown line).
+@export var tail_upsweep: float = 0.72
+## Cross-section scale (width, height): (1, 1) is a circle.
+@export var squash: Vector2 = Vector2.ONE
+## Height of a winglet on the tip of this panel (0 = none).
+@export var winglet: float = 0.0
 
 @export_group("Aerodynamics")
 ## Bluff-body drag area Cd*A (m^2) along the part's local X, Y and Z axes.

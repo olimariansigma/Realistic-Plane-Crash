@@ -1,6 +1,7 @@
 class_name CrashDirector
 extends Node3D
-## Turns the aircraft's structural events into debris and effects, and
+## Turns the aircraft's structural events into flying skin chunks, debris
+## shards and effects, and
 ## decides when a crash has started and when the wreck has come to rest.
 
 signal crash_started
@@ -14,6 +15,7 @@ const MAX_CRASH_TIME := 60.0
 
 var aircraft: Aircraft
 var debris: DebrisPool
+var chunks: ChunkPool
 var fx: FxPool
 var crash_active: bool = false
 var settled: bool = false
@@ -26,6 +28,11 @@ var _still_time: float = 0.0
 
 func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 	aircraft = target
+	chunks = ChunkPool.new()
+	chunks.name = "Chunks"
+	add_child(chunks)
+	chunks.setup([70, 120, 180][clampi(quality, 0, 2)])
+	aircraft.piece_shed.connect(_on_piece_shed)
 	debris = DebrisPool.new()
 	debris.name = "Debris"
 	add_child(debris)
@@ -63,6 +70,10 @@ func _on_part_impacted(part: AircraftPart, world_pos: Vector3, _impulse: Vector3
 		debris.spawn_burst(world_pos, part.lin_vel, 4.0 + minf(part.hit_speed * 0.25, 9.0), count,
 				aircraft.def.paint)
 	fx.burst_dust(world_pos, 0.8 + sqrt(energy) / 900.0)
+
+
+func _on_piece_shed(part: AircraftPart, piece: SkinPiece, node: MeshInstance3D, kick: float) -> void:
+	chunks.spawn(piece, part.xf, part.velocity_at(part.xf * piece.center), kick, node)
 
 
 func _on_fire_started(source: FireSource) -> void:

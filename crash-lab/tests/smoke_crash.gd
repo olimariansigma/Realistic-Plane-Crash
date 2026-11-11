@@ -6,6 +6,7 @@ extends SceneTree
 ##  1. Firm landing (touchdown at ~2.5 m/s sink): nothing may break.
 ##  2. Flat drop from 30 m (~24 m/s): the gear must collapse, the wreck must
 ##     shed debris within the pool cap and come to rest above ground.
+##     (Scenario 3 also checks skin comes off piece by piece.)
 ##  3. Dive into the ground at cruise speed: most joints must fail, fuel must
 ##     ignite and the structure must crumple.
 ## Every scenario also checks that nothing goes non-finite or tunnels.
@@ -22,6 +23,7 @@ var _wait := 0
 var _started := false
 var _summary: PackedStringArray = []
 var _peak_flying := 0
+var _peak_chunks := 0
 
 
 func _start() -> void:
@@ -40,6 +42,7 @@ func _begin(index: int) -> void:
 	_scenario = index
 	_t = 0.0
 	_peak_flying = 0
+	_peak_chunks = 0
 	_aircraft = Aircraft.new()
 	root.add_child(_aircraft)
 	var start := World.RUNWAY_START
@@ -80,6 +83,9 @@ func _physics_process(dt: float) -> bool:
 		if _director != null and _director.settled and p.y < -1.5:
 			return _fail("%s came to rest under the ground in scenario %d (y=%.1f)" % [part.name, _scenario, p.y])
 	_peak_flying = maxi(_peak_flying, _director.debris.flying_count)
+	_peak_chunks = maxi(_peak_chunks, _director.chunks.flying_count)
+	if _director.chunks.flying_count > _director.chunks.capacity:
+		return _fail("chunk pool exceeded its cap (%d)" % _director.chunks.flying_count)
 	if _director.debris.flying_count > DEBRIS_CAP:
 		return _fail("debris pool exceeded its cap (%d)" % _director.debris.flying_count)
 
@@ -90,6 +96,9 @@ func _physics_process(dt: float) -> bool:
 			if _t > 6.0:
 				if broken > 0 or _aircraft.telemetry.crashed:
 					return _fail("a firm landing broke %d joint(s)" % broken)
+				for part: AircraftPart in _aircraft.parts:
+					if part.stripped:
+						return _fail("a firm landing tore skin off %s" % part.name)
 				var worst := 0.0
 				for i: int in range(1, _aircraft.parts.size()):
 					worst = maxf(worst, _aircraft.structure.peak_ratio[i])
@@ -107,8 +116,17 @@ func _physics_process(dt: float) -> bool:
 					return _fail("30 m drop collapsed only %d gear leg(s)" % gear_broken)
 				if _director.debris.spawned_total == 0:
 					return _fail("30 m drop spawned no debris")
-				_summary.append("30 m drop: %d/%d joints, %d gear, %d debris, rest in %.1f s" % [
-						broken, joints, gear_broken, _director.debris.spawned_total, _director.crash_clock])
+				var drop_total := 0
+				var drop_left := 0
+				for part: AircraftPart in _aircraft.parts:
+					drop_total += part.pieces.size()
+					drop_left += part.pieces_left
+				# A flat drop is a hard belly landing, not a disintegration.
+				if drop_left * 2 < drop_total:
+					return _fail("30 m drop stripped %d of %d skin pieces" % [drop_total - drop_left, drop_total])
+				_summary.append("30 m drop: %d/%d joints, %d gear, %d/%d skin pieces off, %d debris, rest in %.1f s" % [
+						broken, joints, gear_broken, drop_total - drop_left, drop_total,
+						_director.debris.spawned_total, _director.crash_clock])
 				_begin(2)
 		2:
 			if _director.settled or _t > 80.0:
@@ -145,6 +163,17 @@ func _physics_process(dt: float) -> bool:
 					return _fail("dummies logged only %.1f g in a dive crash" % fred_peak)
 				_summary.append("%d seats peak %.0f g, %d FREDs peak %.0f g" % [
 						cabin.seats.size(), seat_peak, cabin.freds.size(), fred_peak])
+				# Piece by piece: skin must have come off as separate chunks, and
+				# the wreck must not be left fully skinned or fully bare.
+				var skin_total := 0
+				var skin_left := 0
+				for part: AircraftPart in _aircraft.parts:
+					skin_total += part.pieces.size()
+					skin_left += part.pieces_left
+				var shed := skin_total - skin_left
+				if shed < 12 or _director.chunks.spawned_total < shed:
+					return _fail("dive crash tore off only %d of %d skin pieces (%d chunks)" % [shed, skin_total, _director.chunks.spawned_total])
+				_summary.append("%d/%d skin pieces torn off, peak %d chunks flying" % [shed, skin_total, _peak_chunks])
 				_summary.append("dive: %d/%d joints, %d fires, crumple %.1f m, peak %d flying debris, rest in %.1f s" % [
 						broken, joints, _aircraft.fires.size(), deepest, _peak_flying, _director.crash_clock])
 				print("SMOKE PASS: %s | %s" % [_def.display_name, " | ".join(_summary)])

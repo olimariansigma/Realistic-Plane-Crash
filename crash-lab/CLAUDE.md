@@ -31,7 +31,7 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 2. **Flight model + controls (one plane)** - done
 3. **Hangar + 3 planes** - done
 4. **Fracture crash** - done
-5. FRED + cutaway
+5. **FRED + cutaway** - done (plus piece-by-piece skin breakup and the visual overhaul)
 6. Telemetry + survival report
 7. Optimization pass
 
@@ -124,9 +124,37 @@ built is marked *(planned)*.
     to static with collisions off 0.6 s after they stop. `FxPool`: pooled
     fire/smoke/dust emitters. `CrashDirector` maps structural events to both
     and decides when the wreck is at rest.
-- **Occupants.** *(planned, M5)* FRED dummies are Jolt-jointed ragdolls with
-  per-limb G tracking, seated from the def's seat layout. The cutaway uses a
-  clip-plane shader on a separate lower-poly interior shell.
+- **Skin pieces** (`mesh_factory.gd`, `SkinPiece`, `ChunkPool`). A part is
+  drawn as separate skin pieces over a core: fuselage panels (bay x
+  quadrant), wing box segments, control surfaces, cowl halves, pylons.
+  Underneath sit frames, longerons and floor (fuselage), spars and ribs
+  (wing) or the fan and hot section (engine). `Aircraft.shed_pieces()` tears
+  pieces off nearest-first and `ChunkPool` flies each one as its own rigid
+  body. Four things shed skin: impacts (about one panel per 0.4 m of crush),
+  joint breaks (the skin around the break), scraping along the ground, and
+  the airstream over already-broken structure. Measured: firm landing 0 %,
+  30 m flat drop 25-40 %, cruise-speed dive 70-100 % of pieces. While a part
+  is intact it swaps to one merged mesh beyond 170 m.
+- **Looks.** One shared material samples one 1024 px atlas
+  (`tools/gen_atlas.gd` -> `assets/atlas.png`, imported VRAM-compressed, ASTC
+  on Android): cabin windows, windscreen, doors, panel lines, fan face.
+  Vertex colour carries the livery. Skin is two-sided with primer on the
+  inside. Control surfaces are hinged pieces that move with the actuators.
+- **Occupants** (`scripts/occupants/`).
+  - `Cabin` flattens the def's seat blocks into `Seat`s, draws them as one
+    `MultiMesh` per fuselage part, and logs every seat's felt acceleration
+    through a 0.085 s low-pass (chosen so the 13.4 m/s stop of the
+    14 CFR 25.562 seat test reads near its 16 g).
+  - `Fred` is a nine-body dummy on Jolt 6-DOF joints with per-limb peak g and
+    a head HIC. Its seat mount is a plastic energy absorber whose stroke is
+    the part's `crush_depth`; past it the mount bottoms out, and at 34 g
+    sustained the restraint fails and the dummy is thrown clear.
+  - Seats and dummies are dormant in normal flight. `Aircraft._update_arming`
+    arms the cabin 1.2 s before a predicted impact (sink rate vs height, a
+    ray along the flight path) or on any crash event.
+  - Cutaway: a global shader uniform clips skin on the +X side of the
+    centreline; the cabin, structure and dummies are shown while it is on,
+    and stay shown on any part that has lost skin.
 - **Telemetry + survival.** *(planned, M6)* A recorder captures impact velocity,
   peak G per seat and per FRED, and per-seat-zone damage (intrusion, fire,
   deceleration). The injury model (HIC / peak-G thresholds, documented in
@@ -201,6 +229,15 @@ Made without asking, per the brief. Revisit if they stop fitting.
   flat from the first tick, check the spawn pose.
 - **Retracted gear has its collider disabled.** A leg torn off in that state
   fell through the ground until `detach()` re-enabled it.
+
+- **GDScript enums must not shadow native classes.** `enum Control` in a
+  script fails to parse ("shadows a native class").
+- **Primitive meshes have 0..1 UVs**, which span the whole atlas. Anything
+  using `BoxMesh`/`CapsuleMesh` with the airframe material sets the
+  `uv_rect` instance uniform to one tile (`AirframeBuilder.tile_rect`).
+- **Never joint a frozen body to a moving one.** Dormant FRED limbs are
+  frozen; their joints are created unwired and only get node paths in
+  `Fred.activate()`. Wired earlier, the belt would pin the fuselage in place.
 
 ## Not verifiable in this environment
 

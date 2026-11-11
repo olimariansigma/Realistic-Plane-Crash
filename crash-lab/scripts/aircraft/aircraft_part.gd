@@ -62,8 +62,16 @@ var _dent_b_radius: float = 0.0
 var _dent_b_depth: float = 0.0
 
 var visual: Node3D
-var mesh_near: MeshInstance3D
-var mesh_far: MeshInstance3D
+## Skin pieces (shared with every aircraft of this type) and this part's own
+## node for each; an entry goes null once that piece has been torn off.
+var pieces: Array[SkinPiece] = []
+var piece_nodes: Array[MeshInstance3D] = []
+var pieces_left: int = 0
+var core_node: MeshInstance3D
+var far_node: MeshInstance3D
+var core_always_visible: bool = false
+## True once any skin has been lost.
+var stripped: bool = false
 
 
 func begin_tick() -> void:
@@ -105,7 +113,7 @@ func angular_momentum() -> Vector3:
 ## `local_dir`. Hits near an existing dent deepen it; otherwise the shallower
 ## of the two slots is reused. Only touches the shader when something changes.
 func add_dent(local_pos: Vector3, local_dir: Vector3, depth: float) -> void:
-	if mesh_near == null or depth < 0.02:
+	if pieces.is_empty() or depth < 0.02:
 		return
 	depth = minf(depth, crumple_limit)
 	crush_depth = maxf(crush_depth, depth)
@@ -133,8 +141,11 @@ func add_dent(local_pos: Vector3, local_dir: Vector3, depth: float) -> void:
 		_dent_b_depth = depth
 	else:
 		return
-	_push_dents(mesh_near)
-	_push_dents(mesh_far)
+	_push_dents(far_node)
+	for i: int in piece_nodes.size():
+		# Hinged pieces have their own mesh frame, so part-local dents do not apply.
+		if piece_nodes[i] != null and pieces[i].control == SkinPiece.Surface.NONE:
+			_push_dents(piece_nodes[i])
 
 
 func _push_dents(mesh: MeshInstance3D) -> void:
@@ -149,10 +160,52 @@ func _push_dents(mesh: MeshInstance3D) -> void:
 
 
 func set_scorch(amount: float) -> void:
-	if mesh_near != null:
-		mesh_near.set_instance_shader_parameter(&"scorch", amount)
-	if mesh_far != null:
-		mesh_far.set_instance_shader_parameter(&"scorch", amount)
+	if far_node != null:
+		far_node.set_instance_shader_parameter(&"scorch", amount)
+	for node: MeshInstance3D in piece_nodes:
+		if node != null:
+			node.set_instance_shader_parameter(&"scorch", amount)
+
+
+## Index of the attached skin piece nearest to `local_pos`, or -1 if none lies
+## within `max_distance`.
+func nearest_piece(local_pos: Vector3, max_distance: float) -> int:
+	var best := -1
+	var best_d := max_distance * max_distance
+	for i: int in pieces.size():
+		if piece_nodes[i] == null:
+			continue
+		var d := pieces[i].center.distance_squared_to(local_pos)
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+## Tears skin piece `index` off this part. Returns the node that was showing
+## it (now hidden), so its dents and scorch can be copied onto the flying
+## chunk; the caller owns spawning that chunk.
+func release_piece(index: int) -> MeshInstance3D:
+	var node := piece_nodes[index]
+	if node == null:
+		return null
+	piece_nodes[index] = null
+	pieces_left -= 1
+	node.visible = false
+	mass = maxf(mass - pieces[index].mass, def.mass * 0.4)
+	if not stripped:
+		stripped = true
+		# From now on the part is drawn piece by piece at any distance, over
+		# its exposed structure.
+		if far_node != null:
+			far_node.visible = false
+		if core_node != null:
+			core_node.visible = true
+			core_node.visibility_range_end = 0.0
+		for other: MeshInstance3D in piece_nodes:
+			if other != null:
+				other.visibility_range_end = 0.0
+	return node
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:

@@ -140,6 +140,7 @@ static func _limb_mesh(index: int) -> MeshInstance3D:
 	mi.mesh = _meshes[index]
 	mi.material_override = AirframeBuilder.material()
 	mi.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
+	mi.set_instance_shader_parameter(&"uv_rect", AirframeBuilder.tile_rect(MeshFactory.TILE_FRED))
 	mi.set_instance_shader_parameter(&"tint",
 			DARK if index == Limb.PELVIS or index >= Limb.SHIN_L else YELLOW)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
