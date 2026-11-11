@@ -1,0 +1,39 @@
+; Engine configuration file.
+; Edit via the Godot editor or by hand; keep keys sorted by section.
+
+config_version=5
+
+[application]
+
+config/name="Aircraft Crash Lab"
+config/version="0.1.0"
+run/main_scene="res://scenes/boot/boot.tscn"
+config/features=PackedStringArray("4.4", "Mobile")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+3d/default_linear_damp=0.0
+3d/default_angular_damp=0.0
+common/physics_ticks_per_second=60
+common/max_physics_steps_per_frame=4
+common/physics_interpolation=true
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/vram_compression/import_etc2_astc=true
