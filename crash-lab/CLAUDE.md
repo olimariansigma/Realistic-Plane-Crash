@@ -20,7 +20,10 @@ All commands run from `crash-lab/` (the Godot project root).
 | `tools/gate.sh` | Runs gates 1-3 in order. **Must pass before a milestone is committed.** |
 | `godot --headless --path . -s res://tools/gen_aircraft.gd` | Regenerates `data/airfoils/*.tres` and `data/aircraft/*.tres` from the parameter tables in the script. |
 | `godot --headless --path . --fixed-fps 60 -s res://tools/flight_probe.gd -- <id> <takeoff\|cruise>` | Prints a telemetry time series for tuning. |
-| `xvfb-run -a godot --path . -s res://tools/shot.gd -- <id> <runway\|air\|approach> <seconds> <out.png>` | Renders the flight scene offscreen (needs `mesa-vulkan-drivers` for lavapipe). |
+| `godot --headless --path . -s res://tools/gen_atlas.gd` | Repaints `assets/atlas.png`. Keep its `.import` at VRAM compression, high quality, mipmaps on. |
+| `godot --headless --path . --fixed-fps 60 -s res://tools/bench.gd -- <id>` | Simulation frame-time benchmark: cruise, crash, wreck at rest. |
+| `CRASHLAB_LOADS=1 godot ... -s res://tests/smoke_flight.gd -- <id>` | Same test, plus every joint's peak load ratio (also prints seat detail in `smoke_crash.gd`). |
+| `xvfb-run -a godot --path . -s res://tools/shot.gd -- <id> <runway\|air\|approach\|dive\|hangar> <seconds> <out.png>` | Renders a scene offscreen (needs `mesa-vulkan-drivers` for lavapipe). `dive` crashes the aircraft about 2 s in. |
 
 One-off: `godot --headless --path . -s res://tests/<file>.gd` runs a single test.
 Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
@@ -33,7 +36,7 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 4. **Fracture crash** - done
 5. **FRED + cutaway** - done (plus piece-by-piece skin breakup and the visual overhaul)
 6. **Telemetry + survival report** - done
-7. Optimization pass
+7. **Optimization pass** - done
 
 Each milestone ends with `tools/gate.sh` green, a commit, and a 5-line status.
 
@@ -41,22 +44,27 @@ Each milestone ends with `tools/gate.sh` green, a commit, and a 5-line status.
 
 ```
 project.godot  export_presets.cfg
-data/aircraft/      AircraftDef .tres files (one per plane; planes are data only)
-scenes/             .tscn, mirrored by feature (boot, hangar, flight, report)
+assets/atlas.png    the one texture (generated; ASTC on Android)
+data/aircraft/      AircraftDef .tres, one per plane (generated, hand-editable)
+data/airfoils/      AirfoilDef .tres: section CL/CD curves
+docs/               INJURY_MODEL.md
+scenes/             boot, hangar, flight, ui/*.tscn
 scripts/
-  core/             autoloads: game state, settings, object pools
-  aircraft/         AircraftDef + sub-resources, airframe builder, flight model
-  crash/            structural joints, load monitor, debris pool, crumple
-  occupants/        seats, FRED ragdoll, per-limb G tracking
-  telemetry/        recorder, injury model, survival report, replay
-  ui/               HUD, touch controls, hangar, report screen
-shaders/            cutaway clip, crumple vertex shader
+  core/             GameState and SettingsStore autoloads, ControlState, FlightTelemetry
+  aircraft/         defs/, MeshFactory, AirframeBuilder, Aircraft, AircraftPart,
+                    AeroSurface, EngineUnit, GearUnit, SkinPiece
+  crash/            StructureMonitor, CrashDirector, ChunkPool, DebrisPool, FxPool, FireSource
+  occupants/        Cabin, Seat, Fred
+  telemetry/        InjuryModel, CrashReport (+ SeatResult, FredResult), CrashRecorder
+  flight/           FlightScene, CameraRig
+  hangar/           Hangar
+  world/            World
+  ui/               controls/, hud/, hangar/, report/, settings
+shaders/            airframe (crumple, cutaway, atlas), interior, ground, runway, hangar_wall
 tests/              smoke_*.gd headless tests (SceneTree scripts)
-tools/              gate and toolchain scripts
+tools/              gates, toolchain, generators, probes, benchmark
 build/              export output (git-ignored)
 ```
-
-Directories appear as the milestone that needs them lands.
 
 ## Architecture
 
@@ -175,6 +183,48 @@ built is marked *(planned)*.
   - `CrashReportScreen` shows impact figures, a tappable seat map coloured
     by survival, per-seat detail with FRED limb readings, and the replay bar.
 
+## Performance
+
+Target is 60 FPS on a mid-range phone. What is in place, against the brief's
+rules:
+
+| Rule | Status |
+|---|---|
+| LODs for the exterior | Skin pieces within 170 m, one merged mesh per part beyond; three mesh detail tiers (bay length, side count) tied to the quality setting. |
+| Occlusion | Occlusion culling is on, with box occluders on the large buildings. In an open-sky scene it does little; the work is mostly done by distance culling (`visibility_range`). |
+| Lower-poly shell for the cutaway | The interior is its own low-poly meshes (frames, floor) and one seat `MultiMesh` per part, hidden unless the cutaway is on or the skin is torn. |
+| Baked lighting | Hangar walls and floor are lit in an unshaded shader. The outdoor scene uses one directional light plus sky ambient. **No `LightmapGI`:** it cannot be baked headless, so that part of the rule is not met. |
+| Texture atlas, ASTC | One 1024 px atlas for everything, imported VRAM-compressed high quality: the APK carries the `.astc.ctex`. |
+| Physics in `_physics_process` only | Yes. Cameras, HUD and particle follow run in `_process` and only read. |
+| Object pooling | Debris shards, skin chunks, fire/smoke/dust emitters and FRED bodies all exist from scene load. |
+| No per-frame allocations | Steady-state flight shows zero object-count growth over 540 ticks (`tools/bench.gd`). Crash events allocate (recorder keys, event records); HUD text formats at 10 Hz. |
+| Cap, sleep, pool debris | Shards 24/48/80 and chunks 70/120/180 by quality, oldest recycled first, frozen to static 0.6-0.7 s after stopping. |
+| Profile and report frame times | `tools/bench.gd` headless; on device the HUD shows FPS, frame ms and sim ms when "show FPS" is on. |
+
+Other load-shedding:
+
+- Seats and dummies are dormant until 1.2 s before an impact.
+- Dummies wake two per tick and skin chunks spawn six per tick, so a hard hit
+  does not land all its set-up cost on one frame.
+- Once the wreck has stopped, `Aircraft.rest()` stops the flight model,
+  structure monitor and cabin, and every body may sleep.
+- Low quality also drops shadows and renders 3D at 0.7 scale (medium 0.85).
+
+Simulation cost per physics tick, measured headless on the build machine
+(4-core x86-64, no renderer), milliseconds as average / 99th percentile / worst:
+
+| Aircraft | Cruise | Crash | Wreck at rest |
+|---|---|---|---|
+| Wide-body (344 seats, 8 FREDs) | 0.60 / 0.98 / 3.3 | 1.65 / 3.15 / 5.7 | 0.26 / 0.62 / 0.7 |
+| Narrow-body (182 seats, 8 FREDs) | 0.55 / 1.04 / 1.3 | 1.52 / 2.82 / 4.7 | 0.30 / 0.65 / 1.3 |
+| Fighter (1 seat, 1 FRED) | 0.60 / 1.16 / 4.8 | 0.81 / 1.61 / 3.5 | 0.25 / 0.60 / 2.2 |
+
+Of the crash figure about 0.5 ms is GDScript and the rest the Jolt step, with
+up to ~130 loose bodies on top of ~90 airframe and dummy bodies. A mid-range
+phone core is several times slower than this machine, so expect a few ms per
+tick in a crash. **Rendering cost is not in these numbers and has not been
+measured on any device.**
+
 ## Conventions
 
 - **Units:** SI everywhere (m, kg, s, N, rad). Data fields authored in degrees
@@ -254,9 +304,23 @@ Made without asking, per the brief. Revisit if they stop fitting.
   frozen; their joints are created unwired and only get node paths in
   `Fred.activate()`. Wired earlier, the belt would pin the fuselage in place.
 
+- **`set -e` ignores failures inside `&&` chains.** `tools/gate.sh` once
+  printed ALL GATES PASS after a smoke failure; each gate is now checked
+  explicitly.
+- **A resting aircraft stops refreshing its cached part state.** After
+  `Aircraft.rest()`, read `linear_velocity` from the body, not `lin_vel`.
+
 ## Not verifiable in this environment
 
-No Android device or emulator is attached to the build machine. APK exports
-are checked for signature, ABI, manifest and size, and gameplay is tested
-headless on Linux. On-device frame times must be measured on real hardware;
-until then, performance numbers in status reports are desktop/headless only.
+No Android device or emulator is attached to the build machine, so:
+
+- The APK has never been launched. Exports are checked for signature, ABI,
+  manifest and size only.
+- Frame rate on a phone is unknown. The simulation numbers above are from a
+  desktop CPU with no renderer; draw-call and fill-rate cost (two-sided skin,
+  ~100-140 skin pieces up close, smoke overdraw) need a real device.
+- Touch feel, safe-area fit and the gyro axis signs are untested.
+- Visuals were checked in software-rendered screenshots (lavapipe), which
+  use the same Mobile renderer but say nothing about speed.
+- The replay is tested for playing, seeking and rewinding without error; it
+  has not been watched.

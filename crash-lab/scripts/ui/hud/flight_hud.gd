@@ -256,7 +256,12 @@ func _read_gyro() -> Vector2:
 func _refresh_telemetry() -> void:
 	_fps_label.visible = _settings.show_fps
 	if _settings.show_fps:
-		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+		# Frame time, and the share of it spent in the physics tick (sim).
+		_fps_label.text = "%d FPS  %.1f ms  sim %.1f ms" % [
+				Engine.get_frames_per_second(),
+				Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+				+ Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+				Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0]
 	if _telemetry == null:
 		_telemetry_label.text = "NO DATA"
 		return

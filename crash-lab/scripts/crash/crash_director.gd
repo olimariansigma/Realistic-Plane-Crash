@@ -11,7 +11,10 @@ signal crash_settled
 ## longest a crash may run before it is called settled anyway.
 const REST_TIME := 2.5
 const REST_SPEED := 1.2
-const MAX_CRASH_TIME := 30.0
+const MAX_CRASH_TIME := 45.0
+## Chunk spawn queue length and how many are released per physics tick.
+const QUEUE_SIZE := 256
+const SPAWNS_PER_TICK := 6
 
 var aircraft: Aircraft
 var debris: DebrisPool
@@ -24,6 +27,13 @@ var crash_clock: float = 0.0
 var breaks: int = 0
 
 var _still_time: float = 0.0
+var _q_piece: Array[SkinPiece] = []
+var _q_node: Array[MeshInstance3D] = []
+var _q_xf: Array[Transform3D] = []
+var _q_vel: PackedVector3Array
+var _q_kick: PackedFloat32Array
+var _queued: int = 0
+var _released: int = 0
 
 
 func setup(target: Aircraft, quality: int, max_debris: int) -> void:
@@ -32,6 +42,11 @@ func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 	chunks.name = "Chunks"
 	add_child(chunks)
 	chunks.setup([70, 120, 180][clampi(quality, 0, 2)])
+	_q_piece.resize(QUEUE_SIZE)
+	_q_node.resize(QUEUE_SIZE)
+	_q_xf.resize(QUEUE_SIZE)
+	_q_vel.resize(QUEUE_SIZE)
+	_q_kick.resize(QUEUE_SIZE)
 	aircraft.piece_shed.connect(_on_piece_shed)
 	debris = DebrisPool.new()
 	debris.name = "Debris"
@@ -72,8 +87,30 @@ func _on_part_impacted(part: AircraftPart, world_pos: Vector3, _impulse: Vector3
 	fx.burst_dust(world_pos, 0.8 + sqrt(energy) / 900.0)
 
 
+## Spawning a chunk swaps a mesh and copies shader parameters; a hard hit can
+## shed dozens at once, so they are queued and released a few per tick.
 func _on_piece_shed(part: AircraftPart, piece: SkinPiece, node: MeshInstance3D, kick: float) -> void:
-	chunks.spawn(piece, part.xf, part.velocity_at(part.xf * piece.center), kick, node)
+	if _queued - _released >= QUEUE_SIZE:
+		return
+	var slot := _queued % QUEUE_SIZE
+	_q_piece[slot] = piece
+	_q_node[slot] = node
+	_q_xf[slot] = part.xf
+	_q_vel[slot] = part.velocity_at(part.xf * piece.center)
+	_q_kick[slot] = kick
+	_queued += 1
+
+
+func _release_chunks() -> void:
+	var budget := SPAWNS_PER_TICK
+	while _released < _queued and budget > 0:
+		var slot := _released % QUEUE_SIZE
+		# A chunk released a few ticks late starts where its part has moved on from.
+		chunks.spawn(_q_piece[slot], _q_xf[slot], _q_vel[slot], _q_kick[slot], _q_node[slot])
+		_q_piece[slot] = null
+		_q_node[slot] = null
+		_released += 1
+		budget -= 1
 
 
 func _on_fire_started(source: FireSource) -> void:
@@ -81,6 +118,7 @@ func _on_fire_started(source: FireSource) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	_release_chunks()
 	if not crash_active or settled:
 		return
 	crash_clock += dt
@@ -91,4 +129,5 @@ func _physics_process(dt: float) -> void:
 	_still_time = _still_time + dt if fastest < REST_SPEED * REST_SPEED else 0.0
 	if _still_time >= REST_TIME or crash_clock >= MAX_CRASH_TIME:
 		settled = true
+		aircraft.rest()
 		crash_settled.emit()

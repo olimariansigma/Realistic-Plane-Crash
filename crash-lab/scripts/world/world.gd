@@ -175,23 +175,58 @@ func _build_town() -> void:
 
 
 func _build_ridge() -> void:
-	# Tilted slabs make a cheap, convex-collider mountain ridge to the west.
+	# A line of hills to the west: one shared cone mesh in a MultiMesh, each
+	# with a matching convex collider. Something solid to fly into.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 77
-	for i: int in 9:
-		var z := 1500.0 - float(i) * 950.0
-		var h := rng.randf_range(260.0, 620.0)
-		var w := rng.randf_range(1100.0, 1700.0)
-		var tilt := rng.randf_range(28.0, 40.0)
-		for side: float in [-1.0, 1.0]:
-			var basis := Basis(Vector3.UP, deg_to_rad(rng.randf_range(-12.0, 12.0))) \
-					* Basis(Vector3.FORWARD, deg_to_rad(side * tilt))
-			var center := Vector3(-4200.0 + side * h * 0.72, h * 0.18, z)
-			_add_building(center, Vector3(h * 1.9, h * 0.9, w), Color(0.36, 0.38, 0.30), 0.0)
-			_building_xforms[_building_xforms.size() - 1] = Transform3D(
-					basis.scaled(Vector3(h * 1.9, h * 0.9, w)), center)
-			var body := get_child(get_child_count() - 1) as StaticBody3D
-			body.transform = Transform3D(basis, center)
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.06
+	cone.bottom_radius = 1.0
+	cone.height = 1.0
+	cone.radial_segments = 12
+	cone.rings = 2
+	cone.cap_bottom = false
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.roughness = 1.0
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	cone.material = mat
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = cone
+	var count := 14
+	mm.instance_count = count
+	for i: int in count:
+		var radius := rng.randf_range(520.0, 980.0)
+		var height := rng.randf_range(220.0, 560.0)
+		var center := Vector3(-4300.0 + rng.randf_range(-500.0, 500.0), 0.0, 2200.0 - float(i) * 620.0)
+		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3(radius, height, radius)),
+				center + Vector3(0.0, height * 0.5, 0.0)))
+		var tone := rng.randf_range(0.85, 1.1)
+		mm.set_instance_color(i, Color(0.3 * tone, 0.36 * tone, 0.24 * tone))
+		var points := PackedVector3Array([Vector3(0.0, height, 0.0)])
+		for k: int in 10:
+			var a := TAU * float(k) / 10.0
+			points.append(Vector3(cos(a) * radius, 0.0, sin(a) * radius))
+			points.append(Vector3(cos(a) * radius, -20.0, sin(a) * radius))
+		var hull := ConvexPolygonShape3D.new()
+		hull.points = points
+		var body := StaticBody3D.new()
+		body.name = "Hill%d" % i
+		body.collision_layer = LAYER_WORLD
+		body.collision_mask = 0
+		body.physics_material_override = _ground_physics
+		body.position = center
+		var shape := CollisionShape3D.new()
+		shape.shape = hull
+		body.add_child(shape)
+		add_child(body)
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = "Hills"
+	mmi.multimesh = mm
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
 
 
 func _commit_buildings() -> void:

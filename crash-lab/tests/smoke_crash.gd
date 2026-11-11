@@ -136,10 +136,12 @@ func _physics_process(dt: float) -> bool:
 				_summary.append("firm landing ok (peak load %.0f %%)" % (worst * 100.0))
 				_begin(1)
 		1:
-			var stopped := _t > 8.0 and _aircraft.root_part.lin_vel.length() < 0.5
+			# Read the body directly: the aircraft stops refreshing its cached
+			# state once the director has stood it down.
+			var stopped := _t > 8.0 and _aircraft.root_part.linear_velocity.length() < 0.5
 			if stopped or _t > 70.0:
 				if not stopped:
-					return _fail("belly landing never stopped (%.1f m/s)" % _aircraft.root_part.lin_vel.length())
+					return _fail("belly landing never stopped (%.1f m/s)" % _aircraft.root_part.linear_velocity.length())
 				var belly := InjuryModel.build_report(_aircraft, _director)
 				if OS.has_environment("CRASHLAB_LOADS"):
 					for r: SeatResult in belly.seats:

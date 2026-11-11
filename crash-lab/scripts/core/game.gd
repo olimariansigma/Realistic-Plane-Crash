@@ -59,6 +59,17 @@ func _ready() -> void:
 	_scan_aircraft()
 	_build_overlay()
 	set_process(false)
+	var settings := SettingsStore.instance()
+	settings.changed.connect(apply_quality)
+	apply_quality()
+
+
+## Applies the graphics quality tier to everything that is not scene-specific:
+## mesh detail for the next aircraft build, and the 3D render scale.
+func apply_quality() -> void:
+	var quality := SettingsStore.instance().graphics_quality
+	AirframeBuilder.detail = quality
+	get_viewport().scaling_3d_scale = [0.7, 0.85, 1.0][clampi(quality, 0, 2)]
 
 
 func _scan_aircraft() -> void:

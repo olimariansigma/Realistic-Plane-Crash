@@ -61,6 +61,8 @@ var fires: Array[FireSource] = []
 ## Simulation time since setup (s) and the time of the first crash event.
 var sim_time: float = 0.0
 var crash_time: float = -1.0
+## True once the wreck has settled and simulation of it has stopped.
+var resting: bool = false
 ## Root-part state on the last tick before the crash began.
 var impact_velocity := Vector3.ZERO
 var impact_pitch_deg: float = 0.0
@@ -197,8 +199,20 @@ func total_mass() -> float:
 	return def.total_mass()
 
 
+## Called when the wreck has stopped: nothing is left to simulate, so the
+## flight model, structure monitor and cabin stand down and every body is
+## allowed to sleep.
+func rest() -> void:
+	if resting:
+		return
+	resting = true
+	cabin.stand_down()
+	for part: AircraftPart in parts:
+		part.can_sleep = true
+
+
 func _physics_process(dt: float) -> void:
-	if def == null:
+	if def == null or resting:
 		return
 	_ticks += 1
 	var count := parts.size()

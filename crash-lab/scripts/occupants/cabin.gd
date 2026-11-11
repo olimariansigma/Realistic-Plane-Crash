@@ -11,6 +11,8 @@ extends RefCounted
 const HIP_HEIGHT := 0.47
 const SEAT_LETTERS := "ABCDEFGHJK"
 const GRAVITY := 9.80665
+## Dummies woken per physics tick once the cabin is armed.
+const WAKE_PER_TICK := 2
 ## Seat-level acceleration is low-passed, because a rigid-body impact stops in
 ## one or two physics ticks where a real airframe crushes for ~0.1 s. The
 ## time constant matches the response of the seat mount on the same part,
@@ -32,6 +34,8 @@ var armed_time: float = -1.0
 var _seat_nodes: Array[MultiMeshInstance3D] = []
 var _parts: Array[AircraftPart] = []
 var _visible: bool = false
+var _wake_next: int = 1 << 30
+var _finished: bool = false
 
 
 ## Flattens the def's seat blocks into seats (aircraft-frame positions only).
@@ -172,7 +176,7 @@ func reveal_part(part_index: int) -> void:
 			fred.visible = true
 
 
-## Starts per-seat tracking and wakes the dummies. Idempotent.
+## Starts per-seat tracking and queues the dummies to wake. Idempotent.
 func arm(sim_time: float) -> void:
 	if armed:
 		return
@@ -181,8 +185,12 @@ func arm(sim_time: float) -> void:
 	var dt := 1.0 / float(Engine.physics_ticks_per_second)
 	for seat: Seat in seats:
 		seat.filter_alpha = 1.0 - exp(-dt / filter_tau(seat.part.def.crush_depth))
-	for fred: Fred in freds:
-		fred.activate()
+	_wake_next = 0
+
+
+## Stops all tracking once the wreck has come to rest.
+func stand_down() -> void:
+	_finished = true
 
 
 func tick(dt: float) -> void:
@@ -192,6 +200,15 @@ func tick(dt: float) -> void:
 			for fred: Fred in freds:
 				fred.sync_pose()
 		return
+	if _finished:
+		return
+	# Waking a dummy unfreezes nine bodies and wires nine joints; doing them
+	# all on one tick is a visible hitch, so they wake a few per tick.
+	var woken := 0
+	while _wake_next < freds.size() and woken < WAKE_PER_TICK:
+		freds[_wake_next].activate()
+		_wake_next += 1
+		woken += 1
 	var inv_dt := 1.0 / dt
 	for i: int in seats.size():
 		track_seat(seats[i], seats[i].filter_alpha, inv_dt)
