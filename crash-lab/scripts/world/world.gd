@@ -104,7 +104,7 @@ func _build_ground() -> void:
 	mesh.subdivide_width = 8
 	mesh.subdivide_depth = 8
 	var mat := ShaderMaterial.new()
-	mat.shader = preload("res://shaders/ground.gdshader")
+	mat.shader = load("res://shaders/ground.gdshader") as Shader
 	var mi := MeshInstance3D.new()
 	mi.name = "GroundMesh"
 	mi.mesh = mesh
@@ -117,7 +117,7 @@ func _build_runway() -> void:
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(RUNWAY_WIDTH, RUNWAY_LENGTH)
 	var mat := ShaderMaterial.new()
-	mat.shader = preload("res://shaders/runway.gdshader")
+	mat.shader = load("res://shaders/runway.gdshader") as Shader
 	mat.set_shader_parameter(&"size_m", Vector2(RUNWAY_WIDTH, RUNWAY_LENGTH))
 	var mi := MeshInstance3D.new()
 	mi.name = "Runway"

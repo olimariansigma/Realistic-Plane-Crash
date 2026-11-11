@@ -7,16 +7,54 @@ const LAYER_WORLD := 1
 const LAYER_AIRFRAME := 2
 ## Distance at which parts swap to their low-detail mesh.
 const LOD_DISTANCE := 260.0
-const SHADER := preload("res://shaders/airframe.gdshader")
+const SHADER_PATH := "res://shaders/airframe.gdshader"
 
 static var _material: ShaderMaterial
 static var _physics_material: PhysicsMaterial
+## Meshes keyed by "<aircraft id>/<part name>/<slot>". Filled off the main
+## thread by prebuild_meshes() during loading; build_part_visual() falls back
+## to generating inline on a miss.
+static var _mesh_cache: Dictionary = {}
+static var _cache_mutex := Mutex.new()
+
+
+## Generates every mesh of an aircraft. Safe to call from a worker thread.
+static func prebuild_meshes(adef: AircraftDef) -> void:
+	for part: PartDef in adef.parts:
+		if part.kind == PartDef.Kind.GEAR:
+			_cached(adef, part, 2)
+			_cached(adef, part, 3)
+		else:
+			_cached(adef, part, 0)
+			_cached(adef, part, 1)
+
+
+## Slots: 0 near LOD, 1 far LOD, 2 gear strut, 3 gear wheels.
+static func _cached(adef: AircraftDef, part: PartDef, slot: int) -> Mesh:
+	var key := "%s/%s/%d" % [adef.id, part.name, slot]
+	_cache_mutex.lock()
+	var found: Mesh = _mesh_cache.get(key)
+	_cache_mutex.unlock()
+	if found != null:
+		return found
+	var mesh: Mesh
+	match slot:
+		2:
+			mesh = MeshFactory.gear_strut_mesh(part)
+		3:
+			mesh = MeshFactory.gear_wheel_mesh(part)
+		_:
+			mesh = MeshFactory.part_mesh(adef, part, slot)
+	_cache_mutex.lock()
+	_mesh_cache[key] = mesh
+	_cache_mutex.unlock()
+	return mesh
 
 
 static func material() -> ShaderMaterial:
 	if _material == null:
 		_material = ShaderMaterial.new()
-		_material.shader = SHADER
+		_material.shader = load(SHADER_PATH) as Shader
 	return _material
 
 
@@ -47,21 +85,21 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		leg.name = "Leg"
 		leg.position = part.p0 - part.com
 		root.add_child(leg)
-		var strut := _mesh_instance(MeshFactory.gear_strut_mesh(part), cut_x - leg.position.x)
+		var strut := _mesh_instance(_cached(adef, part, 2), cut_x - leg.position.x)
 		strut.name = "Strut"
 		strut.visibility_range_end = LOD_DISTANCE * 3.0
 		leg.add_child(strut)
-		var wheels := _mesh_instance(MeshFactory.gear_wheel_mesh(part), cut_x - leg.position.x)
+		var wheels := _mesh_instance(_cached(adef, part, 3), cut_x - leg.position.x)
 		wheels.name = "Wheels"
 		wheels.visibility_range_end = LOD_DISTANCE * 3.0
 		leg.add_child(wheels)
 		return root
-	var near := _mesh_instance(MeshFactory.part_mesh(adef, part, 0), cut_x)
+	var near := _mesh_instance(_cached(adef, part, 0), cut_x)
 	near.name = "Near"
 	near.visibility_range_end = LOD_DISTANCE
 	near.visibility_range_end_margin = 10.0
 	root.add_child(near)
-	var far := _mesh_instance(MeshFactory.part_mesh(adef, part, 1), cut_x)
+	var far := _mesh_instance(_cached(adef, part, 1), cut_x)
 	far.name = "Far"
 	far.visibility_range_begin = LOD_DISTANCE
 	far.visibility_range_begin_margin = 10.0

@@ -18,6 +18,9 @@ All commands run from `crash-lab/` (the Godot project root).
 | `tools/smoke.sh` | Gate 2. Runs every `tests/smoke_*.gd` headless at fixed 60 FPS. |
 | `tools/export_apk.sh [debug\|release]` | Gate 3. Exports `build/crash-lab-<mode>.apk`, verifies the signature and the 150 MB budget. |
 | `tools/gate.sh` | Runs gates 1-3 in order. **Must pass before a milestone is committed.** |
+| `godot --headless --path . -s res://tools/gen_aircraft.gd` | Regenerates `data/airfoils/*.tres` and `data/aircraft/*.tres` from the parameter tables in the script. |
+| `godot --headless --path . --fixed-fps 60 -s res://tools/flight_probe.gd -- <id> <takeoff\|cruise>` | Prints a telemetry time series for tuning. |
+| `xvfb-run -a godot --path . -s res://tools/shot.gd -- <id> <runway\|air\|approach> <seconds> <out.png>` | Renders the flight scene offscreen (needs `mesa-vulkan-drivers` for lavapipe). |
 
 One-off: `godot --headless --path . -s res://tests/<file>.gd` runs a single test.
 Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
@@ -25,7 +28,7 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 ## Milestones
 
 1. **Toolchain + APK skeleton** - done
-2. Flight model + controls (one plane)
+2. **Flight model + controls (one plane)** - done
 3. Hangar + 3 planes
 4. Fracture crash
 5. FRED + cutaway
@@ -53,25 +56,47 @@ tools/              gate and toolchain scripts
 build/              export output (git-ignored)
 ```
 
-Only `scenes/boot`, `scripts/boot`, `tests`, `tools` exist after milestone 1;
-the rest is created by the milestone that needs it.
+Directories appear as the milestone that needs them lands.
 
 ## Architecture
 
 Planned shape. Sections are updated as each milestone lands; anything not yet
 built is marked *(planned)*.
 
-- **Aircraft are data.** *(planned, M2-M3)* An `AircraftDef` resource holds
-  mass, inertia tensor, per-surface aero (area, CL/CD vs AoA curves, control
-  limits), thrust, gear, seat layout and per-part break thresholds. The
-  airframe (bodies, colliders, meshes, joints) is generated from the def at
-  load time, so a new plane is a new `.tres` and nothing else.
-- **Flight model.** *(planned, M2)* Forces only. Each aero surface samples the
-  local airflow at its own position (so roll/pitch/yaw damping fall out of the
-  geometry), looks up CL/CD at its own AoA, and applies lift/drag at that
-  point. Stall comes from the curves, ground effect scales induced drag and
-  lift by height/span, flaps shift the curves. Thrust and gear are forces too.
-  Nothing sets a transform or a velocity directly.
+- **Aircraft are data.** An `AircraftDef` (`scripts/aircraft/defs/`) lists
+  parts (mass, inertia, geometry, joint thresholds), aero surfaces (area,
+  airfoil, control mix), engines, gear and seat blocks. `AirframeBuilder`
+  turns it into rigid bodies, colliders, joints and procedural meshes
+  (`MeshFactory`). The runtime has no per-type code; a new plane is a new
+  `.tres`. The three shipped planes are written by `tools/gen_aircraft.gd`.
+- **Airframe is multi-body from the start.** Every part is an `AircraftPart`
+  (`RigidBody3D`, origin at its own centre of mass, explicit inertia) held to
+  its parent by a locked `Generic6DOFJoint3D`. Parts collide with the world
+  only, never with each other.
+- **Flight model** (`aircraft.gd`, `aero_surface.gd`). Forces only, applied in
+  `_physics_process` to the part that carries them:
+  - Each `AeroSurface` strip takes the air velocity at its own position, so
+    roll/pitch/yaw damping and asymmetric stall come from geometry.
+  - `AirfoilDef` curves are section (2D) data over -180..180 deg. At load each
+    strip solves `cl = section(alpha - cl / (pi e AR))` into a 0.5 deg table,
+    so stall angle and lift slope depend on aspect ratio and runtime cost is
+    one lookup.
+  - Induced drag `cl^2 / (pi e AR)`, flaps and spoilers as section increments
+    that fade past the stall, pitching moment about the quarter chord.
+  - Ground effect (McCormick): induced angle and drag scale by
+    `phi = (16h/b)^2 / (1 + (16h/b)^2)`.
+  - Controls shift the lookup angle by `effectiveness * deflection`; trim
+    shifts tailplane incidence. Auto-trim integrates held stick into trim.
+  - Engines: first-order spool, density and Mach lapse, thrust at the nacelle.
+  - Gear: ray-cast oleo (spring + damper) and a slip-angle tyre model, applied
+    to the gear leg's own body so landing loads go through its joint.
+  - Bluff-body drag per part from `drag_area`, ISA density with altitude.
+  - Not modelled: wing downwash on the tail, compressibility, propwash, wind.
+- **Scene flow.** `Game` autoload (`GameState`) loads the next scene and the
+  aircraft def on loader threads and pre-generates meshes on a worker thread
+  behind a loading overlay. `FlightScene` builds world, aircraft, `CameraRig`
+  and the touch HUD (`FlightHud` writes `ControlState`, reads
+  `FlightTelemetry`).
 - **Crash.** *(planned, M4)* Fuselage sections, wings, tail, engines and gear
   are separate `RigidBody3D` chunks joined by `Generic6DOFJoint3D`. Joint load
   is computed every physics frame and compared with the part's threshold;
@@ -127,6 +152,27 @@ Made without asking, per the brief. Revisit if they stop fitting.
   data rather than imported models. This is what makes "new plane by data
   only" true, and it keeps the APK small.
 - **`emulate_touch_from_mouse` is on** so touch UI can be driven on desktop.
+
+## Gotchas found the hard way
+
+- **Never feed a light body's own velocity into a stiff force on it.** Tyre
+  and damper forces computed from the 1 t gear leg's velocity overshot every
+  step and made the legs fight the joint solver (the aircraft crept sideways).
+  `GearUnit` takes contact velocity from the assembly's root part instead.
+- **Threaded resource loading fails under `--fixed-fps`** (random "Parse
+  Error" on scripts/resources). It is a test-mode artifact: headless tests
+  build scenes directly, and the real boot flow is checked without the flag.
+  Even so, `Game` loads the def and the scene one after the other and keeps
+  the def script classes compiled on the main thread.
+- **No `preload()` in scripts reachable from a threaded scene load** (same
+  class of failure). Use `load()` at runtime.
+- **Autoload globals are invisible to `--check-only`.** Autoload scripts carry
+  a `class_name` and a static `instance()`; use that, not the bare global.
+- **`SceneTree._initialize()` runs before the root is in the tree.** Tests
+  build their scene on the first `_process`/`_physics_process` call.
+- **"Jolt job system exceeded the maximum number of jobs"** appears now and
+  then in headless fixed-fps runs, where steps run back to back with no frame
+  pacing. Non-deterministic, harmless there; investigate if seen on device.
 
 ## Not verifiable in this environment
 

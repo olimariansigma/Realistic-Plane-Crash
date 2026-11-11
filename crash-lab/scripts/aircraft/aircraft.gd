@@ -91,14 +91,19 @@ func set_initial_velocity(velocity: Vector3) -> void:
 	_has_prev_vel = true
 
 
-## Configures an in-flight start: gear up, engines already at `throttle`.
-func configure_airborne(throttle: float) -> void:
+## Configures an in-flight start with engines already spooled to `throttle`.
+func configure_airborne(throttle: float, gear_down: bool = false, flap_step: int = 0) -> void:
 	controls.throttle = throttle
-	controls.gear_down = false
-	gear_ratio = 0.0
+	controls.gear_down = gear_down
+	controls.flap_step = flap_step
+	gear_ratio = 1.0 if gear_down else 0.0
+	var last := def.flap_steps_deg.size() - 1
+	if last > 0 and def.flap_steps_deg[last] > 0.0:
+		flap_ratio = def.flap_steps_deg[clampi(flap_step, 0, last)] / def.flap_steps_deg[last]
 	trim = def.cruise_trim
 	for engine: EngineUnit in engines:
 		engine.spool = engine.def.idle_fraction + (1.0 - engine.def.idle_fraction) * throttle
+	_gear_colliders_on = true
 	_apply_gear_state()
 
 

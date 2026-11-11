@@ -6,6 +6,7 @@ extends Control
 @onready var _fps: Label = %Fps
 
 var _accum := 0.0
+var _launched := false
 
 
 func _ready() -> void:
@@ -23,3 +24,6 @@ func _process(delta: float) -> void:
 		return
 	_accum = 0.0
 	_fps.text = "%d FPS" % Engine.get_frames_per_second()
+	if not _launched:
+		_launched = true
+		GameState.instance().goto_flight()
