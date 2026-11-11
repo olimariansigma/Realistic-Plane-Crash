@@ -1,0 +1,279 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/settings_panel.gd" id="1_dbor5"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qm286"]
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.07, 0.086, 0.11, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.91, 0.93, 0.96, 0.4)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="SettingsPanel" type="Control"]
+process_mode = 3
+layout_mode = 3
+anchors_preset = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_dbor5")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -330.0
+offset_right = 360.0
+offset_bottom = 330.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_qm286")
+
+[node name="Outer" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Panel/Outer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "SETTINGS"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Panel/Outer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="Panel/Outer/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="RowStickSensitivity" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelStickSensitivity" type="Label" parent="Panel/Outer/Scroll/Rows/RowStickSensitivity"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Stick sensitivity"
+vertical_alignment = 1
+
+[node name="StickSensitivity" type="HSlider" parent="Panel/Outer/Scroll/Rows/RowStickSensitivity"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+min_value = 0.5
+max_value = 2.0
+step = 0.05
+value = 0.5
+
+[node name="RowStickDeadzone" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelStickDeadzone" type="Label" parent="Panel/Outer/Scroll/Rows/RowStickDeadzone"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Stick deadzone"
+vertical_alignment = 1
+
+[node name="StickDeadzone" type="HSlider" parent="Panel/Outer/Scroll/Rows/RowStickDeadzone"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 0.4
+step = 0.01
+
+[node name="RowStickSmoothing" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelStickSmoothing" type="Label" parent="Panel/Outer/Scroll/Rows/RowStickSmoothing"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Stick smoothing"
+vertical_alignment = 1
+
+[node name="StickSmoothing" type="HSlider" parent="Panel/Outer/Scroll/Rows/RowStickSmoothing"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 0.9
+step = 0.01
+
+[node name="RowInvertPitch" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelInvertPitch" type="Label" parent="Panel/Outer/Scroll/Rows/RowInvertPitch"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Invert pitch"
+vertical_alignment = 1
+
+[node name="InvertPitch" type="CheckButton" parent="Panel/Outer/Scroll/Rows/RowInvertPitch"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RowGyroEnabled" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelGyroEnabled" type="Label" parent="Panel/Outer/Scroll/Rows/RowGyroEnabled"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Gyro steering"
+vertical_alignment = 1
+
+[node name="GyroEnabled" type="CheckButton" parent="Panel/Outer/Scroll/Rows/RowGyroEnabled"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RowGyroSensitivity" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelGyroSensitivity" type="Label" parent="Panel/Outer/Scroll/Rows/RowGyroSensitivity"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Gyro sensitivity"
+vertical_alignment = 1
+
+[node name="GyroSensitivity" type="HSlider" parent="Panel/Outer/Scroll/Rows/RowGyroSensitivity"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+min_value = 0.5
+max_value = 2.0
+step = 0.05
+value = 0.5
+
+[node name="RowAutoTrim" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelAutoTrim" type="Label" parent="Panel/Outer/Scroll/Rows/RowAutoTrim"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Auto trim"
+vertical_alignment = 1
+
+[node name="AutoTrim" type="CheckButton" parent="Panel/Outer/Scroll/Rows/RowAutoTrim"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RowUnitsMetric" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelUnitsMetric" type="Label" parent="Panel/Outer/Scroll/Rows/RowUnitsMetric"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Metric units (km/h, m)"
+vertical_alignment = 1
+
+[node name="UnitsMetric" type="CheckButton" parent="Panel/Outer/Scroll/Rows/RowUnitsMetric"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RowQuality" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelQuality" type="Label" parent="Panel/Outer/Scroll/Rows/RowQuality"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Graphics quality"
+vertical_alignment = 1
+
+[node name="Quality" type="OptionButton" parent="Panel/Outer/Scroll/Rows/RowQuality"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 0
+item_count = 3
+popup/item_0/text = "Low"
+popup/item_0/id = 0
+popup/item_1/text = "Medium"
+popup/item_1/id = 1
+popup/item_2/text = "High"
+popup/item_2/id = 2
+
+[node name="RowShowFps" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelShowFps" type="Label" parent="Panel/Outer/Scroll/Rows/RowShowFps"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Show FPS"
+vertical_alignment = 1
+
+[node name="ShowFps" type="CheckButton" parent="Panel/Outer/Scroll/Rows/RowShowFps"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ButtonRow" type="HBoxContainer" parent="Panel/Outer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ResetButton" type="Button" parent="Panel/Outer/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Reset"
+
+[node name="DoneButton" type="Button" parent="Panel/Outer/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Done"

@@ -1,0 +1,806 @@
+[gd_resource type="Resource" script_class="AircraftDef" load_steps=49 format=3]
+
+[ext_resource type="Script" path="res://scripts/aircraft/defs/engine_def.gd" id="1_axusn"]
+[ext_resource type="Script" path="res://scripts/aircraft/defs/gear_def.gd" id="2_oced0"]
+[ext_resource type="Script" path="res://scripts/aircraft/defs/part_def.gd" id="3_f4j65"]
+[ext_resource type="Script" path="res://scripts/aircraft/defs/aircraft_def.gd" id="4_um4x2"]
+[ext_resource type="Script" path="res://scripts/aircraft/defs/seat_block_def.gd" id="5_enxpb"]
+[ext_resource type="Script" path="res://scripts/aircraft/defs/surface_def.gd" id="6_txnm0"]
+[ext_resource type="Resource" path="res://data/airfoils/transport.tres" id="7_udojo"]
+[ext_resource type="Resource" path="res://data/airfoils/tail.tres" id="8_tvdcq"]
+
+[sub_resource type="Resource" id="Resource_8hp0o"]
+script = ExtResource("1_axusn")
+name = &"engine_l"
+part = &"engine_l"
+position = Vector3(-9.6, -2.92649, -9.88148)
+direction = Vector3(0, 0, -1)
+max_thrust = 400000.0
+idle_fraction = 0.05
+spool_time = 4.0
+mach_lapse = 0.45
+
+[sub_resource type="Resource" id="Resource_qvn4r"]
+script = ExtResource("1_axusn")
+name = &"engine_r"
+part = &"engine_r"
+position = Vector3(9.6, -2.92649, -9.88148)
+direction = Vector3(0, 0, -1)
+max_thrust = 400000.0
+idle_fraction = 0.05
+spool_time = 4.0
+mach_lapse = 0.45
+
+[sub_resource type="Resource" id="Resource_5j4v7"]
+script = ExtResource("2_oced0")
+name = &"gear_main_l"
+part = &"gear_main_l"
+pivot = Vector3(-5.4, -1.52648, 2.60036)
+free_length = 3.43
+travel = 0.6
+spring_k = 3.28761e+06
+damper_c = 542774.0
+wheel_radius = 0.72
+steer_max_deg = 0.0
+rolling_mu = 0.018
+brake_mu = 0.55
+lateral_mu = 0.75
+drag_area = 3.744
+
+[sub_resource type="Resource" id="Resource_mxwnr"]
+script = ExtResource("2_oced0")
+name = &"gear_main_r"
+part = &"gear_main_r"
+pivot = Vector3(5.4, -1.52648, 2.60036)
+free_length = 3.43
+travel = 0.6
+spring_k = 3.28761e+06
+damper_c = 542774.0
+wheel_radius = 0.72
+steer_max_deg = 0.0
+rolling_mu = 0.018
+brake_mu = 0.55
+lateral_mu = 0.75
+drag_area = 3.744
+
+[sub_resource type="Resource" id="Resource_t00cc"]
+script = ExtResource("2_oced0")
+name = &"gear_nose"
+part = &"gear_nose"
+pivot = Vector3(1.36047e-07, -1.72649, -24.6074)
+free_length = 3.23
+travel = 0.6
+spring_k = 571757.0
+damper_c = 115372.0
+wheel_radius = 0.55
+steer_max_deg = 65.0
+rolling_mu = 0.018
+brake_mu = 0.0
+lateral_mu = 0.75
+drag_area = 0.715
+
+[sub_resource type="Resource" id="Resource_8f4kv"]
+script = ExtResource("3_f4j65")
+name = &"fus_mid"
+parent = &""
+kind = 0
+mass = 46000.0
+com = Vector3(1.36047e-07, 0.407515, -0.107381)
+inertia = Vector3(858312, 858312, 308099)
+anchor = Vector3(1.36047e-07, 0.773515, -0.107381)
+break_force = 1e+06
+break_torque = 1e+06
+p0 = Vector3(1.36047e-07, 0.773515, -7.10738)
+p1 = Vector3(1.36047e-07, 0.773515, 6.89262)
+r0 = 3.05
+r1 = 3.05
+shape_a = 0.0
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(59.78, 59.78, 1.49046)
+fuel_kg = 0.0
+crush_depth = 1.1
+
+[sub_resource type="Resource" id="Resource_qid8c"]
+script = ExtResource("3_f4j65")
+name = &"fus_fwd"
+parent = &"fus_mid"
+kind = 0
+mass = 26000.0
+com = Vector3(1.36047e-07, 0.407515, -12.6074)
+inertia = Vector3(322633, 322633, 174143)
+anchor = Vector3(1.36047e-07, 0.773515, -7.10738)
+break_force = 5.2e+06
+break_torque = 5e+07
+p0 = Vector3(1.36047e-07, 0.773515, -18.1074)
+p1 = Vector3(1.36047e-07, 0.773515, -7.10738)
+r0 = 3.05
+r1 = 3.05
+shape_a = 0.0
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(46.97, 46.97, 1.49046)
+fuel_kg = 0.0
+crush_depth = 1.1
+
+[sub_resource type="Resource" id="Resource_x5vjr"]
+script = ExtResource("3_f4j65")
+name = &"fus_nose"
+parent = &"fus_fwd"
+kind = 0
+mass = 17000.0
+com = Vector3(1.36047e-07, 0.407515, -22.9074)
+inertia = Vector3(243536, 243536, 113863)
+anchor = Vector3(1.36047e-07, 0.773515, -18.1074)
+break_force = 3.6e+06
+break_torque = 3e+07
+p0 = Vector3(1.36047e-07, 0.773515, -30.1074)
+p1 = Vector3(1.36047e-07, 0.773515, -18.1074)
+r0 = 3.05
+r1 = 3.05
+shape_a = 7.5
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(40.992, 40.992, 3.97455)
+fuel_kg = 0.0
+crush_depth = 1.1
+
+[sub_resource type="Resource" id="Resource_qt1l4"]
+script = ExtResource("3_f4j65")
+name = &"fus_aft"
+parent = &"fus_mid"
+kind = 0
+mass = 26000.0
+com = Vector3(1.36047e-07, 0.407515, 12.3926)
+inertia = Vector3(322633, 322633, 174143)
+anchor = Vector3(1.36047e-07, 0.773515, 6.89262)
+break_force = 5.4e+06
+break_torque = 5.2e+07
+p0 = Vector3(1.36047e-07, 0.773515, 6.89262)
+p1 = Vector3(1.36047e-07, 0.773515, 17.8926)
+r0 = 3.05
+r1 = 3.05
+shape_a = 0.0
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(46.97, 46.97, 1.49046)
+fuel_kg = 0.0
+crush_depth = 1.1
+
+[sub_resource type="Resource" id="Resource_qxmo4"]
+script = ExtResource("3_f4j65")
+name = &"fus_tail"
+parent = &"fus_aft"
+kind = 0
+mass = 15000.0
+com = Vector3(1.36047e-07, 0.407515, 22.8926)
+inertia = Vector3(354884, 354884, 100467)
+anchor = Vector3(1.36047e-07, 0.773515, 17.8926)
+break_force = 3.8e+06
+break_torque = 3.2e+07
+p0 = Vector3(1.36047e-07, 0.773515, 17.8926)
+p1 = Vector3(1.36047e-07, 0.773515, 33.8926)
+r0 = 3.05
+r1 = 3.05
+shape_a = 0.0
+shape_b = 15.0
+skin = 0
+drag_area = Vector3(54.656, 54.656, 3.97455)
+fuel_kg = 0.0
+crush_depth = 1.1
+
+[sub_resource type="Resource" id="Resource_cnsl3"]
+script = ExtResource("3_f4j65")
+name = &"wing_l_in"
+parent = &"fus_mid"
+kind = 1
+mass = 22000.0
+com = Vector3(-7.16919, -0.172973, -1.23335)
+inertia = Vector3(188139, 398379, 215581)
+anchor = Vector3(-2.8, -0.632193, -3.64453)
+break_force = 9.5e+06
+break_torque = 5.2e+07
+p0 = Vector3(-2.8, -0.632193, -5.36733)
+p1 = Vector3(-12, 0.334766, 0.160586)
+r0 = 11.4853
+r1 = 8.48
+shape_a = 0.12
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 15000.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_q6yhn"]
+script = ExtResource("3_f4j65")
+name = &"wing_l_out"
+parent = &"wing_l_in"
+kind = 1
+mass = 9000.0
+com = Vector3(-19.4079, 1.11337, 5.52074)
+inertia = Vector3(27940, 360959, 333812)
+anchor = Vector3(-12, 0.334766, 1.43259)
+break_force = 3.2e+06
+break_torque = 1.1e+07
+p0 = Vector3(-12, 0.334766, 0.160586)
+p1 = Vector3(-30, 2.22664, 10.9761)
+r0 = 8.48
+r1 = 2.6
+shape_a = 0.12
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 5000.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_bjegc"]
+script = ExtResource("3_f4j65")
+name = &"engine_l"
+parent = &"wing_l_in"
+kind = 4
+mass = 9500.0
+com = Vector3(-9.6, -2.92649, -10.4575)
+inertia = Vector3(49168.4, 49168.4, 16256.9)
+anchor = Vector3(-9.6, -0.167484, -1.78148)
+break_force = 1.5e+06
+break_torque = 3.5e+06
+p0 = Vector3(-9.6, -2.92649, -13.4815)
+p1 = Vector3(-9.6, -2.92649, -6.28148)
+r0 = 1.85
+r1 = 1.332
+shape_a = 0.0
+shape_b = 0.0
+skin = 1
+drag_area = Vector3(18.648, 18.648, 0.645126)
+fuel_kg = 400.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_vvi0u"]
+script = ExtResource("3_f4j65")
+name = &"gear_main_l"
+parent = &"wing_l_in"
+kind = 5
+mass = 5200.0
+com = Vector3(-5.4, -3.42349, 2.60036)
+inertia = Vector3(5098.12, 2695.68, 5098.12)
+anchor = Vector3(-5.4, -1.52648, 2.60036)
+break_force = 4.8e+06
+break_torque = 1e+07
+p0 = Vector3(-5.4, -1.52648, 2.60036)
+p1 = Vector3(-5.4, -4.23649, 2.60036)
+r0 = 0.72
+r1 = 0.1584
+shape_a = 4.0
+shape_b = 0.0
+skin = 2
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 0.0
+crush_depth = 0.1
+
+[sub_resource type="Resource" id="Resource_co48c"]
+script = ExtResource("3_f4j65")
+name = &"wing_r_in"
+parent = &"fus_mid"
+kind = 1
+mass = 22000.0
+com = Vector3(7.16919, -0.172973, -1.23335)
+inertia = Vector3(188139, 398379, 215581)
+anchor = Vector3(2.8, -0.632193, -3.64453)
+break_force = 9.5e+06
+break_torque = 5.2e+07
+p0 = Vector3(2.8, -0.632193, -5.36733)
+p1 = Vector3(12, 0.334766, 0.160586)
+r0 = 11.4853
+r1 = 8.48
+shape_a = 0.12
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 15000.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_iardb"]
+script = ExtResource("3_f4j65")
+name = &"wing_r_out"
+parent = &"wing_r_in"
+kind = 1
+mass = 9000.0
+com = Vector3(19.4079, 1.11337, 5.52074)
+inertia = Vector3(27940, 360959, 333812)
+anchor = Vector3(12, 0.334766, 1.43259)
+break_force = 3.2e+06
+break_torque = 1.1e+07
+p0 = Vector3(12, 0.334766, 0.160586)
+p1 = Vector3(30, 2.22664, 10.9761)
+r0 = 8.48
+r1 = 2.6
+shape_a = 0.12
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 5000.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_ic8kc"]
+script = ExtResource("3_f4j65")
+name = &"engine_r"
+parent = &"wing_r_in"
+kind = 4
+mass = 9500.0
+com = Vector3(9.6, -2.92649, -10.4575)
+inertia = Vector3(49168.4, 49168.4, 16256.9)
+anchor = Vector3(9.6, -0.167484, -1.78148)
+break_force = 1.5e+06
+break_torque = 3.5e+06
+p0 = Vector3(9.6, -2.92649, -13.4815)
+p1 = Vector3(9.6, -2.92649, -6.28148)
+r0 = 1.85
+r1 = 1.332
+shape_a = 0.0
+shape_b = 0.0
+skin = 1
+drag_area = Vector3(18.648, 18.648, 0.645126)
+fuel_kg = 400.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_wbekp"]
+script = ExtResource("3_f4j65")
+name = &"gear_main_r"
+parent = &"wing_r_in"
+kind = 5
+mass = 5200.0
+com = Vector3(5.4, -3.42349, 2.60036)
+inertia = Vector3(5098.12, 2695.68, 5098.12)
+anchor = Vector3(5.4, -1.52648, 2.60036)
+break_force = 4.8e+06
+break_torque = 1e+07
+p0 = Vector3(5.4, -1.52648, 2.60036)
+p1 = Vector3(5.4, -4.23649, 2.60036)
+r0 = 0.72
+r1 = 0.1584
+shape_a = 4.0
+shape_b = 0.0
+skin = 2
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 0.0
+crush_depth = 0.1
+
+[sub_resource type="Resource" id="Resource_h4lxl"]
+script = ExtResource("3_f4j65")
+name = &"hstab_l"
+parent = &"fus_tail"
+kind = 2
+mass = 1900.0
+com = Vector3(-5.23771, 2.31663, 33.4924)
+inertia = Vector3(3465.98, 22270.5, 18873.1)
+anchor = Vector3(-1.4, 1.84541, 31.2578)
+break_force = 1.8e+06
+break_torque = 7e+06
+p0 = Vector3(-1.4, 1.84541, 30.3018)
+p1 = Vector3(-10.5, 2.96275, 36.2114)
+r0 = 6.37333
+r1 = 2.3
+shape_a = 0.1
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 0.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_u3arb"]
+script = ExtResource("3_f4j65")
+name = &"hstab_r"
+parent = &"fus_tail"
+kind = 2
+mass = 1900.0
+com = Vector3(5.23771, 2.31663, 33.4924)
+inertia = Vector3(3465.98, 22270.5, 18873.1)
+anchor = Vector3(1.4, 1.84541, 31.2578)
+break_force = 1.8e+06
+break_torque = 7e+06
+p0 = Vector3(1.4, 1.84541, 30.3018)
+p1 = Vector3(10.5, 2.96275, 36.2114)
+r0 = 6.37333
+r1 = 2.3
+shape_a = 0.1
+shape_b = 0.0
+skin = 0
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 0.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_rri3h"]
+script = ExtResource("3_f4j65")
+name = &"fin"
+parent = &"fus_tail"
+kind = 3
+mass = 3000.0
+com = Vector3(1.36047e-07, 7.46706, 30.914)
+inertia = Vector3(36168.5, 11168.5, 25000)
+anchor = Vector3(1.36047e-07, 3.27351, 27.7726)
+break_force = 1.6e+06
+break_torque = 8e+06
+p0 = Vector3(1.36047e-07, 3.27351, 26.3926)
+p1 = Vector3(1.36047e-07, 13.2735, 34.7836)
+r0 = 9.2
+r1 = 3.2
+shape_a = 0.1
+shape_b = 0.0
+skin = 1
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 0.0
+crush_depth = 0.5
+
+[sub_resource type="Resource" id="Resource_46x88"]
+script = ExtResource("3_f4j65")
+name = &"gear_nose"
+parent = &"fus_nose"
+kind = 5
+mass = 1500.0
+com = Vector3(1.36047e-07, -3.60249, -24.6074)
+inertia = Vector3(1304.11, 453.75, 1304.11)
+anchor = Vector3(1.36047e-07, -1.72649, -24.6074)
+break_force = 1.5e+06
+break_torque = 2.6e+06
+p0 = Vector3(1.36047e-07, -1.72649, -24.6074)
+p1 = Vector3(1.36047e-07, -4.40649, -24.6074)
+r0 = 0.55
+r1 = 0.121
+shape_a = 2.0
+shape_b = 0.0
+skin = 2
+drag_area = Vector3(0, 0, 0)
+fuel_kg = 0.0
+crush_depth = 0.1
+
+[sub_resource type="Resource" id="Resource_l8xgx"]
+script = ExtResource("5_enxpb")
+label = "Flight deck"
+part = &"fus_nose"
+first_row = 0
+rows = 1
+z_start = -27.1074
+pitch = 0.8
+abreast = PackedFloat32Array(-0.62, 0.62)
+floor_y = 0.573515
+is_crew = true
+
+[sub_resource type="Resource" id="Resource_5mnv1"]
+script = ExtResource("5_enxpb")
+label = "Cabin"
+part = &"fus_nose"
+first_row = 1
+rows = 6
+z_start = -23.1074
+pitch = 0.86
+abreast = PackedFloat32Array(-2.5, -2, -1.5, -0.5, 0, 0.5, 1.5, 2, 2.5)
+floor_y = 0.0235149
+is_crew = false
+
+[sub_resource type="Resource" id="Resource_cbkrf"]
+script = ExtResource("5_enxpb")
+label = "Cabin"
+part = &"fus_fwd"
+first_row = 7
+rows = 13
+z_start = -17.9474
+pitch = 0.86
+abreast = PackedFloat32Array(-2.5, -2, -1.5, -0.5, 0, 0.5, 1.5, 2, 2.5)
+floor_y = 0.0235149
+is_crew = false
+
+[sub_resource type="Resource" id="Resource_2qstr"]
+script = ExtResource("5_enxpb")
+label = "Cabin"
+part = &"fus_mid"
+first_row = 20
+rows = 16
+z_start = -6.76738
+pitch = 0.86
+abreast = PackedFloat32Array(-2.5, -2, -1.5, -0.5, 0, 0.5, 1.5, 2, 2.5)
+floor_y = 0.0235149
+is_crew = false
+
+[sub_resource type="Resource" id="Resource_hyc4m"]
+script = ExtResource("5_enxpb")
+label = "Cabin"
+part = &"fus_aft"
+first_row = 36
+rows = 3
+z_start = 6.99262
+pitch = 0.86
+abreast = PackedFloat32Array(-2.5, -2, -1.5, -0.5, 0, 0.5, 1.5, 2, 2.5)
+floor_y = 0.0235149
+is_crew = false
+
+[sub_resource type="Resource" id="Resource_xdw0o"]
+script = ExtResource("6_txnm0")
+name = &"wing_l_0"
+part = &"wing_l_in"
+airfoil = ExtResource("7_udojo")
+position = Vector3(-5.1, -0.390454, -3.98535)
+normal = Vector3(0.104528, 0.994522, 0)
+chord_dir = Vector3(-0.00452059, 0.000475128, -0.99999)
+area = 49.3764
+chord = 10.734
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.85
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_8623n"]
+script = ExtResource("6_txnm0")
+name = &"wing_l_1"
+part = &"wing_l_in"
+airfoil = ExtResource("7_udojo")
+position = Vector3(-9.7, 0.093026, -1.22139)
+normal = Vector3(0.104528, 0.994522, 0)
+chord_dir = Vector3(-0.00368469, 0.000387276, -0.999993)
+area = 42.4641
+chord = 9.23133
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.85
+spoiler_fraction = 0.6
+
+[sub_resource type="Resource" id="Resource_yuody"]
+script = ExtResource("6_txnm0")
+name = &"wing_l_2"
+part = &"wing_l_out"
+airfoil = ExtResource("7_udojo")
+position = Vector3(-16.5, 0.807735, 2.86446)
+normal = Vector3(0.104528, 0.994522, 0)
+chord_dir = Vector3(-0.00244985, 0.000257488, -0.999997)
+area = 63.09
+chord = 7.01
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.45
+spoiler_fraction = 0.6
+
+[sub_resource type="Resource" id="Resource_pyxuw"]
+script = ExtResource("6_txnm0")
+name = &"wing_l_3"
+part = &"wing_l_out"
+airfoil = ExtResource("7_udojo")
+position = Vector3(-25.5, 1.75367, 8.2722)
+normal = Vector3(0.104528, 0.994522, 0)
+chord_dir = Vector3(-0.000816484, 8.58156e-05, -1)
+area = 36.63
+chord = 4.07
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 1, 0)
+max_deflection_deg = 20.0
+effectiveness = 0.45
+trim_deg = 0.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_gvki7"]
+script = ExtResource("6_txnm0")
+name = &"wing_r_0"
+part = &"wing_r_in"
+airfoil = ExtResource("7_udojo")
+position = Vector3(5.1, -0.390454, -3.98535)
+normal = Vector3(-0.104528, 0.994522, 0)
+chord_dir = Vector3(0.00452059, 0.000475128, -0.99999)
+area = 49.3764
+chord = 10.734
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.85
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_jew4p"]
+script = ExtResource("6_txnm0")
+name = &"wing_r_1"
+part = &"wing_r_in"
+airfoil = ExtResource("7_udojo")
+position = Vector3(9.7, 0.093026, -1.22139)
+normal = Vector3(-0.104528, 0.994522, 0)
+chord_dir = Vector3(0.00368469, 0.000387276, -0.999993)
+area = 42.4641
+chord = 9.23133
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.85
+spoiler_fraction = 0.6
+
+[sub_resource type="Resource" id="Resource_iy3bw"]
+script = ExtResource("6_txnm0")
+name = &"wing_r_2"
+part = &"wing_r_out"
+airfoil = ExtResource("7_udojo")
+position = Vector3(16.5, 0.807735, 2.86446)
+normal = Vector3(-0.104528, 0.994522, 0)
+chord_dir = Vector3(0.00244985, 0.000257488, -0.999997)
+area = 63.09
+chord = 7.01
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.45
+spoiler_fraction = 0.6
+
+[sub_resource type="Resource" id="Resource_spe8j"]
+script = ExtResource("6_txnm0")
+name = &"wing_r_3"
+part = &"wing_r_out"
+airfoil = ExtResource("7_udojo")
+position = Vector3(25.5, 1.75367, 8.2722)
+normal = Vector3(-0.104528, 0.994522, 0)
+chord_dir = Vector3(0.000816484, 8.58156e-05, -1)
+area = 36.63
+chord = 4.07
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, -1, 0)
+max_deflection_deg = 20.0
+effectiveness = 0.45
+trim_deg = 0.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_qs6nt"]
+script = ExtResource("6_txnm0")
+name = &"wing_center"
+part = &"fus_mid"
+airfoil = ExtResource("7_udojo")
+position = Vector3(1.36047e-07, -0.779339, -6.20854)
+normal = Vector3(0, 1, 0)
+chord_dir = Vector3(0, 0.052336, -0.99863)
+area = 66.8789
+chord = 11.9427
+aspect_ratio = 8.0
+efficiency = 0.82
+full_span = 60.0
+control_mix = Vector3(0, 0, 0)
+max_deflection_deg = 0.0
+effectiveness = 0.5
+trim_deg = 0.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_p4v5r"]
+script = ExtResource("6_txnm0")
+name = &"hstab_l"
+part = &"hstab_l"
+airfoil = ExtResource("8_tvdcq")
+position = Vector3(-5.95, 2.40408, 33.2566)
+normal = Vector3(0.121869, 0.992546, 0)
+chord_dir = Vector3(0.00211138, -0.000259245, -0.999998)
+area = 48.825
+chord = 4.33667
+aspect_ratio = 4.51613
+efficiency = 0.85
+full_span = 21.0
+control_mix = Vector3(-1, 0, 0)
+max_deflection_deg = 25.0
+effectiveness = 0.58
+trim_deg = -9.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_ersoh"]
+script = ExtResource("6_txnm0")
+name = &"hstab_r"
+part = &"hstab_r"
+airfoil = ExtResource("8_tvdcq")
+position = Vector3(5.95, 2.40408, 33.2566)
+normal = Vector3(-0.121869, 0.992546, 0)
+chord_dir = Vector3(-0.00211138, -0.000259245, -0.999998)
+area = 48.825
+chord = 4.33667
+aspect_ratio = 4.51613
+efficiency = 0.85
+full_span = 21.0
+control_mix = Vector3(-1, 0, 0)
+max_deflection_deg = 25.0
+effectiveness = 0.58
+trim_deg = -9.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_8wxd4"]
+script = ExtResource("6_txnm0")
+name = &"fin_0"
+part = &"fin"
+airfoil = ExtResource("8_tvdcq")
+position = Vector3(1.36047e-07, 5.77351, 28.4904)
+normal = Vector3(1, 0, 0)
+chord_dir = Vector3(0, 0, -1)
+area = 38.5
+chord = 7.7
+aspect_ratio = 2.58065
+efficiency = 0.8
+full_span = 20.0
+control_mix = Vector3(0, 0, -1)
+max_deflection_deg = 25.0
+effectiveness = 0.55
+trim_deg = 0.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[sub_resource type="Resource" id="Resource_4dqqh"]
+script = ExtResource("6_txnm0")
+name = &"fin_1"
+part = &"fin"
+airfoil = ExtResource("8_tvdcq")
+position = Vector3(1.36047e-07, 10.7735, 32.6859)
+normal = Vector3(1, 0, 0)
+chord_dir = Vector3(0, 0, -1)
+area = 23.5
+chord = 4.7
+aspect_ratio = 2.58065
+efficiency = 0.8
+full_span = 20.0
+control_mix = Vector3(0, 0, -1)
+max_deflection_deg = 25.0
+effectiveness = 0.55
+trim_deg = 0.0
+flap_fraction = 0.0
+spoiler_fraction = 0.0
+
+[resource]
+script = ExtResource("4_um4x2")
+id = &"atlas_900"
+display_name = "Atlas 900"
+category = "Wide-body airliner"
+description = "Long-haul twin-aisle heavy. 345 seats and a lot of inertia: plan ahead."
+paint = Color(0.95, 0.95, 0.93, 1)
+accent = Color(0.62, 0.1, 0.14, 1)
+parts = Array[ExtResource("3_f4j65")]([SubResource("Resource_8f4kv"), SubResource("Resource_qid8c"), SubResource("Resource_x5vjr"), SubResource("Resource_qt1l4"), SubResource("Resource_qxmo4"), SubResource("Resource_cnsl3"), SubResource("Resource_q6yhn"), SubResource("Resource_bjegc"), SubResource("Resource_vvi0u"), SubResource("Resource_co48c"), SubResource("Resource_iardb"), SubResource("Resource_ic8kc"), SubResource("Resource_wbekp"), SubResource("Resource_h4lxl"), SubResource("Resource_u3arb"), SubResource("Resource_rri3h"), SubResource("Resource_46x88")])
+surfaces = Array[ExtResource("6_txnm0")]([SubResource("Resource_xdw0o"), SubResource("Resource_8623n"), SubResource("Resource_yuody"), SubResource("Resource_pyxuw"), SubResource("Resource_gvki7"), SubResource("Resource_jew4p"), SubResource("Resource_iy3bw"), SubResource("Resource_spe8j"), SubResource("Resource_qs6nt"), SubResource("Resource_p4v5r"), SubResource("Resource_ersoh"), SubResource("Resource_8wxd4"), SubResource("Resource_4dqqh")])
+wing_area = 450.0
+wing_span = 60.0
+flap_steps_deg = PackedFloat32Array(0, 5, 15, 25, 35)
+flap_cl_gain = 1.1
+flap_cd_gain = 0.07
+flap_cm_gain = -0.11
+flap_time = 16.0
+spoiler_cl_loss = 0.6
+spoiler_cd_gain = 0.08
+control_rate = 1.6
+trim_rate = 0.08
+cruise_trim = 0.0
+engines = Array[ExtResource("1_axusn")]([SubResource("Resource_8hp0o"), SubResource("Resource_qvn4r")])
+gear = Array[ExtResource("2_oced0")]([SubResource("Resource_5j4v7"), SubResource("Resource_mxwnr"), SubResource("Resource_t00cc")])
+gear_time = 6.0
+seat_blocks = Array[ExtResource("5_enxpb")]([SubResource("Resource_l8xgx"), SubResource("Resource_5mnv1"), SubResource("Resource_cbkrf"), SubResource("Resource_2qstr"), SubResource("Resource_hyc4m")])
+fred_seats = PackedInt32Array(0, 173, 4, 339, 89, 262, 129, 212, 43, 306, 155, 184)
+v_rotate = 84.0
+v_cruise = 150.0
+v_never_exceed = 260.0
+ground_clearance = 6.17351

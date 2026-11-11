@@ -11,6 +11,10 @@ run/main_scene="res://scenes/boot/boot.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 config/icon="res://icon.svg"
 
+[autoload]
+
+Settings="*res://scripts/core/settings.gd"
+
 [display]
 
 window/size/viewport_width=1280
@@ -37,3 +41,17 @@ common/physics_interpolation=true
 renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="mobile"
 textures/vram_compression/import_etc2_astc=true
+
+[shader_globals]
+
+cutaway_amount={
+"type": "float",
+"value": 0.0
+}
+
+[layer_names]
+
+3d_physics/layer_1="world"
+3d_physics/layer_2="airframe"
+3d_physics/layer_3="debris"
+3d_physics/layer_4="occupants"
