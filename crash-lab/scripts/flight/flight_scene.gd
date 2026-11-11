@@ -8,6 +8,7 @@ var world: World
 var aircraft: Aircraft
 var camera_rig: CameraRig
 var hud: FlightHud
+var director: CrashDirector
 var def: AircraftDef
 
 var _game: GameState
@@ -28,6 +29,13 @@ func _ready() -> void:
 	add_child(aircraft)
 	_spawn(_game.start_mode)
 	aircraft.auto_trim = _settings.auto_trim
+
+	director = CrashDirector.new()
+	director.name = "CrashDirector"
+	add_child(director)
+	director.setup(aircraft, _settings.graphics_quality, _settings.max_debris())
+	director.crash_started.connect(_on_crash_started)
+	director.crash_settled.connect(_on_crash_settled)
 
 	camera_rig = CameraRig.new()
 	camera_rig.name = "CameraRig"
@@ -92,6 +100,18 @@ func _eye_point() -> Vector3:
 
 func _process(_delta: float) -> void:
 	camera_rig.target_velocity = aircraft.root_part.lin_vel
+
+
+func _on_crash_started() -> void:
+	hud.show_message("IMPACT", 2.0)
+	# Chase and cockpit views are useless on a tumbling wreck.
+	if camera_rig.mode != CameraRig.Mode.FLYBY:
+		camera_rig.set_mode(CameraRig.Mode.ORBIT)
+		hud.set_camera_mode_name(camera_rig.mode_name())
+
+
+func _on_crash_settled() -> void:
+	hud.show_message("WRECK AT REST", 3.0)
 
 
 func _on_camera_cycle() -> void:

@@ -24,6 +24,8 @@ instance uniform vec4 dent_b = vec4(0.0);
 instance uniform vec3 dent_a_push = vec3(0.0);
 instance uniform vec3 dent_b_push = vec3(0.0);
 instance uniform float scorch = 0.0;
+// Multiplies the vertex colour; used by debris, which shares this material.
+instance uniform vec3 tint : source_color = vec3(1.0);
 
 varying vec3 local_pos;
 varying float dent_weight;
@@ -54,7 +56,7 @@ void fragment() {
 			&& local_pos.x > cut_plane_x + (1.0 - cutaway_amount) * 40.0) {
 		discard;
 	}
-	vec3 base = COLOR.rgb * texture(atlas, UV).rgb;
+	vec3 base = COLOR.rgb * tint * texture(atlas, UV).rgb;
 	base = mix(base, base * 0.5, dent_weight * 0.7);
 	base = mix(base, vec3(0.025), scorch);
 	ALBEDO = base;

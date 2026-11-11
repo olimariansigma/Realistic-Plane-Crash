@@ -147,6 +147,13 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 	body.continuous_cd = true
 	body.physics_material_override = physics_material()
 	body.anchor_local = part.anchor - part.com
+	match part.kind:
+		PartDef.Kind.FUSELAGE, PartDef.Kind.ENGINE:
+			body.crumple_limit = maxf(part.r0, part.r1) * 0.85
+		PartDef.Kind.GEAR:
+			body.crumple_limit = 0.0
+		_:
+			body.crumple_limit = (part.r0 + part.r1) * 0.5 * 0.3
 
 	var shape := CollisionShape3D.new()
 	shape.name = "Collider"

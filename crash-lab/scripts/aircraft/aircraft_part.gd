@@ -38,11 +38,28 @@ var hit_position: Vector3
 var hit_impulse: Vector3
 var hit_speed: float = 0.0
 
-## Accumulated crush energy absorbed by this part (J) and fire state.
+## Crush energy absorbed so far (J) and the deepest dent (m).
 var crush_energy: float = 0.0
+var crush_depth: float = 0.0
+## Deepest a dent may go on this part (set by the builder from its size).
+var crumple_limit: float = 1.0
+## Fire intensity 0..1 (0 = not burning) and seconds alight.
 var burning: float = 0.0
-## Dent slots written to the crumple shader.
-var dent_count: int = 0
+var burn_time: float = 0.0
+## Physics tick of the last impact event raised for this part.
+var last_hit_tick: int = -1000
+var pending_hit_energy: float = 0.0
+
+# Two dent slots mirrored into the crumple shader: centre, push vector (both
+# part-local), radius and depth.
+var _dent_a_pos: Vector3
+var _dent_a_push: Vector3
+var _dent_a_radius: float = 0.0
+var _dent_a_depth: float = 0.0
+var _dent_b_pos: Vector3
+var _dent_b_push: Vector3
+var _dent_b_radius: float = 0.0
+var _dent_b_depth: float = 0.0
 
 var visual: Node3D
 var mesh_near: MeshInstance3D
@@ -82,6 +99,60 @@ func angular_momentum() -> Vector3:
 	var b := xf.basis
 	var w_local := b.transposed() * ang_vel
 	return b * (w_local * inertia)
+
+
+## Records a dent of `depth` metres centred at `local_pos`, pushed along
+## `local_dir`. Hits near an existing dent deepen it; otherwise the shallower
+## of the two slots is reused. Only touches the shader when something changes.
+func add_dent(local_pos: Vector3, local_dir: Vector3, depth: float) -> void:
+	if mesh_near == null or depth < 0.02:
+		return
+	depth = minf(depth, crumple_limit)
+	crush_depth = maxf(crush_depth, depth)
+	var radius := clampf(depth * 2.5 + 0.8, 0.8, crumple_limit * 3.5)
+	if _dent_a_radius > 0.0 and local_pos.distance_to(_dent_a_pos) < _dent_a_radius * 0.8:
+		_dent_a_depth = minf(_dent_a_depth + depth * 0.6, crumple_limit)
+		_dent_a_radius = maxf(_dent_a_radius, clampf(_dent_a_depth * 2.5 + 0.8, 0.8, crumple_limit * 3.5))
+		_dent_a_push = (_dent_a_push.normalized() + local_dir * 0.5).normalized() * _dent_a_depth
+		crush_depth = maxf(crush_depth, _dent_a_depth)
+	elif _dent_b_radius > 0.0 and local_pos.distance_to(_dent_b_pos) < _dent_b_radius * 0.8:
+		_dent_b_depth = minf(_dent_b_depth + depth * 0.6, crumple_limit)
+		_dent_b_radius = maxf(_dent_b_radius, clampf(_dent_b_depth * 2.5 + 0.8, 0.8, crumple_limit * 3.5))
+		_dent_b_push = (_dent_b_push.normalized() + local_dir * 0.5).normalized() * _dent_b_depth
+		crush_depth = maxf(crush_depth, _dent_b_depth)
+	elif _dent_a_radius <= 0.0 or (_dent_b_radius > 0.0 and _dent_a_depth <= _dent_b_depth
+			and depth > _dent_a_depth):
+		_dent_a_pos = local_pos
+		_dent_a_push = local_dir * depth
+		_dent_a_radius = radius
+		_dent_a_depth = depth
+	elif _dent_b_radius <= 0.0 or depth > _dent_b_depth:
+		_dent_b_pos = local_pos
+		_dent_b_push = local_dir * depth
+		_dent_b_radius = radius
+		_dent_b_depth = depth
+	else:
+		return
+	_push_dents(mesh_near)
+	_push_dents(mesh_far)
+
+
+func _push_dents(mesh: MeshInstance3D) -> void:
+	if mesh == null:
+		return
+	mesh.set_instance_shader_parameter(&"dent_a",
+			Vector4(_dent_a_pos.x, _dent_a_pos.y, _dent_a_pos.z, _dent_a_radius))
+	mesh.set_instance_shader_parameter(&"dent_a_push", _dent_a_push)
+	mesh.set_instance_shader_parameter(&"dent_b",
+			Vector4(_dent_b_pos.x, _dent_b_pos.y, _dent_b_pos.z, _dent_b_radius))
+	mesh.set_instance_shader_parameter(&"dent_b_push", _dent_b_push)
+
+
+func set_scorch(amount: float) -> void:
+	if mesh_near != null:
+		mesh_near.set_instance_shader_parameter(&"scorch", amount)
+	if mesh_far != null:
+		mesh_far.set_instance_shader_parameter(&"scorch", amount)
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:

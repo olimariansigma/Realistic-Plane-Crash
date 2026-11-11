@@ -30,7 +30,7 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 1. **Toolchain + APK skeleton** - done
 2. **Flight model + controls (one plane)** - done
 3. **Hangar + 3 planes** - done
-4. Fracture crash
+4. **Fracture crash** - done
 5. FRED + cutaway
 6. Telemetry + survival report
 7. Optimization pass
@@ -102,12 +102,28 @@ built is marked *(planned)*.
   meshes on a worker thread, then swaps a physics-free display model in.
   Planes are discovered by listing `data/aircraft/`, so dropping in a `.tres`
   adds one. Wall and floor lighting is baked into an unshaded shader.
-- **Crash.** *(planned, M4)* Fuselage sections, wings, tail, engines and gear
-  are separate `RigidBody3D` chunks joined by `Generic6DOFJoint3D`. Joint load
-  is computed every physics frame and compared with the part's threshold;
-  over-threshold joints break and spawn pooled debris and fire/smoke.
-  Deformation is pre-fractured crumple chunks plus a vertex-shader crumple
-  driven by impact energy and direction. No `SoftBody3D`.
+- **Crash** (`scripts/crash/`).
+  - `StructureMonitor` computes every joint's force and moment each physics
+    tick by inverse dynamics (Godot's Jolt does not expose joint impulses):
+    the residual `m a - F_applied - m g` summed over the subtree outboard of a
+    joint is the joint load plus that subtree's contact force. It is exact
+    when at most one side of the joint is touching something, and falls back
+    to Jolt's estimated contact impulses (taking the smaller answer)
+    otherwise. The header comment in the file has the derivation.
+  - A joint breaks when its filtered load passes the part's `break_force` or
+    `break_torque`. `Aircraft.detach()` frees the joint, relabels assemblies,
+    flames out orphaned engines and ignites ruptured tanks.
+  - Measured margins: normal flight peaks at ~55 % of break (outer wing in a
+    roll), a 2.5 m/s touchdown at ~30 %. Full aileron or a hard pull-up well
+    above cruise speed will fold the wings; that is intended.
+  - Deformation: the airframe is pre-fractured along its parts, and each part
+    carries two dent slots driven into the `airframe.gdshader` vertex stage.
+    Dent depth is `energy / (m g * 12)`, i.e. structure crushing at 12 g,
+    pushed along the contact impulse. No `SoftBody3D`.
+  - `DebrisPool`: fixed set of fragment bodies, oldest recycled first, frozen
+    to static with collisions off 0.6 s after they stop. `FxPool`: pooled
+    fire/smoke/dust emitters. `CrashDirector` maps structural events to both
+    and decides when the wreck is at rest.
 - **Occupants.** *(planned, M5)* FRED dummies are Jolt-jointed ragdolls with
   per-limb G tracking, seated from the def's seat layout. The cutaway uses a
   clip-plane shader on a separate lower-poly interior shell.
@@ -178,6 +194,13 @@ Made without asking, per the brief. Revisit if they stop fitting.
 - **"Jolt job system exceeded the maximum number of jobs"** appears now and
   then in headless fixed-fps runs, where steps run back to back with no frame
   pacing. Non-deterministic, harmless there; investigate if seen on device.
+
+- **Spawn height sign.** `ground_clearance` was once computed with the CG
+  offset subtracted instead of added; the aircraft spawned 0.5 m high and the
+  drop alone loaded the gear to 57 % of break. If parked joint loads are not
+  flat from the first tick, check the spawn pose.
+- **Retracted gear has its collider disabled.** A leg torn off in that state
+  fell through the ground until `detach()` re-enabled it.
 
 ## Not verifiable in this environment
 

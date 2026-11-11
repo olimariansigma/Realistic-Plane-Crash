@@ -8,9 +8,24 @@ extends Node3D
 ## whatever Jolt integrates from the forces.
 
 signal part_detached(part: AircraftPart, parent: AircraftPart, load_ratio: float)
+## A hard contact: where, the contact impulse (N s), and the energy absorbed (J).
+signal part_impacted(part: AircraftPart, world_pos: Vector3, impulse: Vector3, energy: float)
+signal fire_started(source: FireSource)
+## Raised once, on the first structural failure or hard impact.
+signal crashed
 
 const GRAVITY := 9.80665
 const RHO0 := 1.225
+## Closing speed (m/s) below which a contact is a scrape, not an impact.
+const IMPACT_MIN_SPEED := 2.5
+## Structure crushes at about this many g: depth = energy / (m g N_CRUSH).
+const N_CRUSH := 12.0
+## Rolling (1/s on angular momentum) and ploughing (1/s on velocity) losses of
+## detached wreckage in ground contact.
+const WRECK_ROLL_DRAG := 2.5
+const WRECK_SLIDE_DRAG := 0.35
+## Minimum ticks between impact events from one part.
+const IMPACT_EVENT_TICKS := 6
 
 var def: AircraftDef
 var controls := ControlState.new()
@@ -22,8 +37,12 @@ var surfaces: Array[AeroSurface] = []
 var engines: Array[EngineUnit] = []
 var gears: Array[GearUnit] = []
 var root_part: AircraftPart
-## Set by the crash milestone; null means joints never break.
 var structure: StructureMonitor
+## Active fires, oldest first. Read by FX and by the survival model.
+var fires: Array[FireSource] = []
+## Simulation time since setup (s) and the time of the first crash event.
+var sim_time: float = 0.0
+var crash_time: float = -1.0
 
 var auto_trim: bool = true
 var trim: float = 0.0
@@ -72,6 +91,9 @@ func setup(aircraft_def: AircraftDef) -> void:
 			gear.wheel_visual = gear.leg_visual.get_node_or_null("Wheels") as Node3D
 		gears.append(gear)
 
+	structure = StructureMonitor.new()
+	structure.setup(parts)
+
 	_agl_ray = RayCast3D.new()
 	_agl_ray.name = "AglRay"
 	_agl_ray.enabled = false
@@ -81,6 +103,22 @@ func setup(aircraft_def: AircraftDef) -> void:
 	add_child(_agl_ray)
 	for part: AircraftPart in parts:
 		part.begin_tick()
+
+
+## Moves the whole airframe rigidly so the root part lands on `root_xf`, with
+## every part given `velocity`. For spawning and test set-up only: flight
+## never moves bodies this way.
+func teleport(root_xf: Transform3D, velocity: Vector3) -> void:
+	var delta := root_xf * root_part.global_transform.affine_inverse()
+	for part: AircraftPart in parts:
+		part.global_transform = delta * part.global_transform
+		part.linear_velocity = velocity
+		part.angular_velocity = Vector3.ZERO
+		part.has_prev = false
+		part.reset_physics_interpolation()
+		part.begin_tick()
+	_prev_root_vel = velocity
+	_has_prev_vel = true
 
 
 ## Gives every part the same initial velocity (use right after setup()).
@@ -118,8 +156,16 @@ func _physics_process(dt: float) -> void:
 	var count := parts.size()
 	for i: int in count:
 		parts[i].begin_tick()
-	if structure != null:
-		structure.update(dt)
+	sim_time += dt
+	structure.update(dt)
+	if structure.broken.size() > 0:
+		for k: int in structure.broken.size():
+			var idx := structure.broken[k]
+			# An inboard joint breaking this tick may have been reported first;
+			# the outboard one is then no longer overloaded in fact, but it was
+			# measured so, and both letting go is the physical outcome.
+			detach(idx, structure.load_ratio[idx])
+	_process_impacts(dt)
 	for i: int in count:
 		var part := parts[i]
 		part.ext_force = Vector3.ZERO
@@ -163,6 +209,114 @@ func _physics_process(dt: float) -> void:
 	_update_telemetry(dt)
 
 
+## Cuts the joint holding part `index` to its parent.
+func detach(index: int, load_ratio: float) -> void:
+	var part := parts[index]
+	if part.joint == null:
+		return
+	part.joint.queue_free()
+	part.joint = null
+	joints_alive -= 1
+	var parent := parts[part.parent_index]
+	# Re-label assemblies: a part belongs to its parent's assembly if its joint
+	# is intact, otherwise it is the root of its own. Parents precede children.
+	for i: int in parts.size():
+		var p := parts[i]
+		p.assembly_root = parts[p.parent_index].assembly_root if p.joint != null else i
+	for i: int in parts.size():
+		var p := parts[i]
+		if p.assembly_root != 0:
+			p.can_sleep = true
+	for engine: EngineUnit in engines:
+		# Torn from the fuel system: the engine runs down.
+		if engine.part.assembly_root != 0:
+			engine.running = false
+	if part.def.kind == PartDef.Kind.GEAR:
+		# A retracted leg has its collider off; torn loose it must hit the ground.
+		(part.get_node(^"Collider") as CollisionShape3D).set_deferred(&"disabled", false)
+		for gear: GearUnit in gears:
+			if gear.part == part and gear.leg_visual != null:
+				gear.leg_visual.visible = true
+				gear.leg_visual.rotation.x = 0.0
+	_mark_crashed()
+	part_detached.emit(part, parent, load_ratio)
+
+	# Ruptured tanks and hot engines catch fire.
+	var speed := part.lin_vel.length()
+	if part.def.kind == PartDef.Kind.ENGINE:
+		for engine: EngineUnit in engines:
+			if engine.part == part and engine.spool > 0.25:
+				ignite(part, Vector3.ZERO, 0.7)
+	elif part.def.fuel_kg > 0.0 and (speed > 18.0 or load_ratio > 2.5):
+		ignite(part, part.anchor_local, clampf(part.def.fuel_kg / 3000.0, 0.35, 1.0))
+		if parent.def.fuel_kg > 0.0:
+			ignite(parent, part.def.anchor - parent.def.com, clampf(parent.def.fuel_kg / 3000.0, 0.35, 1.0))
+
+
+## Starts (or intensifies) a fire on a part at a part-local position.
+func ignite(part: AircraftPart, local_pos: Vector3, intensity: float) -> void:
+	if part.burning > 0.0:
+		part.burning = maxf(part.burning, intensity)
+		return
+	part.burning = intensity
+	var source := FireSource.new()
+	source.part = part
+	source.local_pos = local_pos
+	source.intensity = intensity
+	source.start_time = sim_time
+	fires.append(source)
+	fire_started.emit(source)
+
+
+func _mark_crashed() -> void:
+	if crash_time >= 0.0:
+		return
+	crash_time = sim_time
+	telemetry.crashed = true
+	crashed.emit()
+
+
+## Turns hard contacts into dents, damage and events.
+func _process_impacts(dt: float) -> void:
+	for i: int in parts.size():
+		var part := parts[i]
+		if part.burning > 0.0:
+			part.burn_time += dt
+			if (_ticks + i) % 20 == 0:
+				part.set_scorch(minf(part.burn_time / 25.0, 0.85) * part.burning)
+		if part.contact_count == 0 or part.sleeping:
+			continue
+		if part.assembly_root != 0:
+			# Wreckage on the ground: rolling and ploughing resistance, so loose
+			# wheels and nacelles do not trundle on forever. Applied as explicit
+			# forces so the structure monitor still accounts for them.
+			part.push_torque(part.angular_momentum() * -WRECK_ROLL_DRAG)
+			part.push_central_force(part.lin_vel * (-WRECK_SLIDE_DRAG * part.mass))
+		if part.hit_speed < IMPACT_MIN_SPEED:
+			continue
+		# Energy absorbed at the contact: impulse times mean closing speed.
+		var energy := 0.5 * part.hit_impulse.length() * part.hit_speed
+		part.pending_hit_energy += energy
+		part.crush_energy += energy
+		if _ticks - part.last_hit_tick < IMPACT_EVENT_TICKS:
+			continue
+		part.last_hit_tick = _ticks
+		energy = part.pending_hit_energy
+		part.pending_hit_energy = 0.0
+		var kind := part.def.kind
+		if kind != PartDef.Kind.GEAR:
+			var depth := energy / (part.mass * GRAVITY * N_CRUSH)
+			var basis := part.xf.basis
+			var local_pos := (part.hit_position - part.xf.origin) * basis
+			var dir := part.hit_impulse.normalized() * basis
+			part.add_dent(local_pos, dir, depth)
+			if part.hit_speed > 4.0:
+				_mark_crashed()
+			if part.def.fuel_kg > 0.0 and part.hit_speed > 22.0:
+				ignite(part, local_pos, clampf(part.def.fuel_kg / 3000.0, 0.35, 1.0))
+		part_impacted.emit(part, part.hit_position, part.hit_impulse, energy)
+
+
 func _update_actuators(dt: float) -> void:
 	var c := controls
 	var rate := def.control_rate * dt
@@ -192,13 +346,15 @@ func _update_actuators(dt: float) -> void:
 func _apply_gear_state() -> void:
 	var colliders_on := gear_ratio > 0.5
 	for gear: GearUnit in gears:
-		if gear.leg_visual != null:
+		if gear.leg_visual != null and gear.part.joint != null:
 			gear.leg_visual.visible = gear_ratio > 0.02
 			gear.leg_visual.rotation.x = (1.0 - gear_ratio) * -1.45
 	if colliders_on != _gear_colliders_on:
 		_gear_colliders_on = colliders_on
 		for gear: GearUnit in gears:
-			var collider := gear.part.get_node("Collider") as CollisionShape3D
+			if gear.part.joint == null:
+				continue
+			var collider := gear.part.get_node(^"Collider") as CollisionShape3D
 			collider.set_deferred(&"disabled", not colliders_on)
 
 

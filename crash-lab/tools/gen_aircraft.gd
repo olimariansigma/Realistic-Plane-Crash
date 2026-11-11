@@ -97,7 +97,7 @@ func _narrow_body() -> Dictionary:
 			incidence = 3.0, washout = -2.5, airfoil = "transport",
 			mass_in = 6000.0, mass_out = 2500.0, fuel_in = 3600.0, fuel_out = 1300.0,
 			break_force_in = 2.6e6, break_torque_in = 7.5e6,
-			break_force_out = 9.0e5, break_torque_out = 1.6e6,
+			break_force_out = 2.0e6, break_torque_out = 3.5e6,
 			flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.80,
 			cg_mac = 0.24,
 		},
@@ -152,7 +152,7 @@ func _wide_body() -> Dictionary:
 			incidence = 3.0, washout = -3.0, airfoil = "transport",
 			mass_in = 22000.0, mass_out = 9000.0, fuel_in = 15000.0, fuel_out = 5000.0,
 			break_force_in = 9.5e6, break_torque_in = 5.2e7,
-			break_force_out = 3.2e6, break_torque_out = 1.1e7,
+			break_force_out = 7.0e6, break_torque_out = 2.4e7,
 			flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.82,
 			cg_mac = 0.25,
 		},
@@ -220,7 +220,7 @@ func _fighter() -> Dictionary:
 		fins = [{
 			x = 0.0, cant = 0.0, root_c = 3.3, tip_c = 1.1, height = 3.0, sweep = 45.0,
 			y = 0.75, z_c4 = 4.2, thick = 0.05, mass = 190.0,
-			break_force = 2.6e5, break_torque = 2.4e5, rudder_deg = 28.0, effectiveness = 0.5,
+			break_force = 5.5e5, break_torque = 5.5e5, rudder_deg = 28.0, effectiveness = 0.5,
 		}],
 		engines = [{
 			x = 0.0, y = 0.0, z_off = 0.0, z_abs = 4.9, length = 3.6, r = 0.62, mass = 1700.0,
@@ -287,7 +287,8 @@ func _build(p: Dictionary) -> AircraftDef:
 	# Re-origin everything on the centre of mass so "aircraft origin" == CG.
 	var cg := def.center_of_mass()
 	_translate(def, -cg)
-	def.ground_clearance = float(p.gear.clearance) - cg.y
+	# `clearance` was the height of the pre-shift origin; the CG sits cg.y above it.
+	def.ground_clearance = float(p.gear.clearance) + cg.y
 	_size_gear(def)
 	def.wing_area = _wing_area(w)
 	def.wing_span = float(w.semi) * 2.0

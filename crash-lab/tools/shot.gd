@@ -1,7 +1,7 @@
 extends SceneTree
 ## Developer tool: renders the flight scene offscreen and saves a PNG.
 ## Needs a display and a Vulkan driver; on a headless box use Xvfb + lavapipe:
-##   xvfb-run -a godot --path . -s res://tools/shot.gd -- <id> <runway|air|approach|hangar> <seconds> <out.png> [cam_mode] [yaw] [pitch] [zoom]
+##   xvfb-run -a godot --path . -s res://tools/shot.gd -- <id> <runway|air|approach|dive|hangar> <seconds> <out.png> [cam_mode] [yaw] [pitch] [zoom]
 
 var _scene: FlightScene
 var _t := 0.0
@@ -19,7 +19,7 @@ func _process(delta: float) -> bool:
 		var game := GameState.instance()
 		game.selected_id = args[0] if args.size() > 0 else "meridian_220"
 		var mode: String = args[1] if args.size() > 1 else "runway"
-		game.start_mode = GameState.StartMode.AIRBORNE if mode == "air" else (
+		game.start_mode = GameState.StartMode.AIRBORNE if mode in ["air", "dive"] else (
 				GameState.StartMode.APPROACH if mode == "approach" else GameState.StartMode.RUNWAY)
 		_seconds = float(args[2]) if args.size() > 2 else 1.0
 		_out = args[3] if args.size() > 3 else _out
@@ -30,6 +30,12 @@ func _process(delta: float) -> bool:
 			return false
 		_scene = (load("res://scenes/flight/flight.tscn") as PackedScene).instantiate() as FlightScene
 		root.add_child(_scene)
+		if mode == "dive":
+			# 25 degree dive from 120 m: hits the ground about 2 s in.
+			var basis := Basis(Vector3.RIGHT, deg_to_rad(-25.0)) * Basis(Vector3.FORWARD, deg_to_rad(12.0))
+			var v := _scene.def.v_cruise * 0.75
+			_scene.aircraft.teleport(Transform3D(basis, World.RUNWAY_START + Vector3(0.0, 120.0, -300.0)),
+					basis * Vector3(0.0, 0.0, -v))
 		return false
 	_t += delta
 	if _hangar != null and args.size() > 4 and _t > 0.6:

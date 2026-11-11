@@ -7,7 +7,8 @@ extends SceneTree
 ##  2. full thrust accelerates it, it rotates and climbs away within the runway;
 ##  3. in the air, each control axis moves the aircraft the right way;
 ##  4. trimmed for level flight then released, it holds attitude and height;
-##  5. in steady flight total lift is close to weight (the force model adds up).
+##  5. in steady flight total lift is close to weight (the force model adds up);
+##  6. no structural joint gets near its break load anywhere in the flight.
 
 enum Phase { SETTLE, TAKEOFF, CLIMB, ROLL_CHECK, RECOVER, YAW_CHECK, TRIM, HANDS_OFF, DONE }
 
@@ -169,6 +170,20 @@ func _physics_process(dt: float) -> bool:
 				var ratio := _lift_ratio_sum / float(_lift_samples)
 				if absf(ratio - 1.0) > 0.08:
 					return _fail("mean lift / weight = %.2f in level flight, expected ~1" % ratio)
+				# Structural margin: nothing in a normal flight may come near breaking.
+				var worst := 0.0
+				var worst_name := ""
+				var monitor := _aircraft.structure
+				for i: int in range(1, _aircraft.parts.size()):
+					if monitor.peak_ratio[i] > worst:
+						worst = monitor.peak_ratio[i]
+						worst_name = String(_aircraft.parts[i].name)
+				if OS.has_environment("CRASHLAB_LOADS"):
+					for i: int in range(1, _aircraft.parts.size()):
+						print("    %-14s peak load ratio %.2f" % [_aircraft.parts[i].name, monitor.peak_ratio[i]])
+				if worst > 0.7:
+					return _fail("joint %s reached %.0f %% of its break load in normal flight" % [worst_name, worst * 100.0])
+				print("    peak joint load %.0f %% of break (%s)" % [worst * 100.0, worst_name])
 				print("SMOKE PASS: %s lifted off at %.0f m in %.0f s, controls respond, holds level hands-off (trim %.2f, throttle %.2f at %.0f m/s), L/W %.2f"
 						% [_def.display_name, World.RUNWAY_START.z - _liftoff_z, _liftoff_t - 4.0,
 						_trim_found, c.throttle, _def.v_cruise, ratio])
