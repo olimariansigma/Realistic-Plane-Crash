@@ -37,3 +37,10 @@ extends Resource
 @export var flap_fraction: float = 0.0
 ## Fraction of the strip that carries spoilers / lift dumpers (0..1).
 @export var spoiler_fraction: float = 0.0
+
+@export_group("Interference")
+## True for the inboard wing strips whose lift sets the downwash at the tail.
+@export var downwash_source: bool = false
+## How much of the wing's downwash this strip sits in (0 = none, 1 = a
+## tailplane directly behind the wing).
+@export var downwash: float = 0.0

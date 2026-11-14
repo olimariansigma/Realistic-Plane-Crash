@@ -4,8 +4,12 @@ extends Control
 
 signal closed
 
+const PANEL_WIDTH: float = 720.0
+const PANEL_HEIGHT: float = 640.0
+
 var _settings: SettingsStore = SettingsStore.instance()
 
+@onready var _panel: PanelContainer = %Panel
 @onready var _stick_sens: HSlider = %StickSensitivity
 @onready var _deadzone: HSlider = %StickDeadzone
 @onready var _smoothing: HSlider = %StickSmoothing
@@ -30,10 +34,28 @@ func _ready() -> void:
 	_metric.toggled.connect(_on_bool.bind(&"units_metric"))
 	_fps.toggled.connect(_on_bool.bind(&"show_fps"))
 	_quality.item_selected.connect(_on_quality)
+	UiStyle.style_button(%ResetButton)
+	UiStyle.style_button(%DoneButton)
 	%ResetButton.pressed.connect(_on_reset)
 	%DoneButton.pressed.connect(_on_done)
 	visibility_changed.connect(_on_visibility_changed)
+	get_viewport().size_changed.connect(_fit_panel)
 	_refresh()
+	_fit_panel()
+
+
+## Centres the panel on the screen and keeps it inside the safe area; the row
+## list scrolls when the window is too short for all of it.
+func _fit_panel() -> void:
+	var m: Vector4 = UiStyle.safe_margins(self)
+	var vp: Vector2 = get_viewport_rect().size
+	var panel: Control = _panel
+	var w: float = minf(PANEL_WIDTH, vp.x - 2.0 * maxf(m.x, m.z))
+	var h: float = minf(PANEL_HEIGHT, vp.y - 2.0 * maxf(m.y, m.w))
+	panel.offset_left = -w * 0.5
+	panel.offset_right = w * 0.5
+	panel.offset_top = -h * 0.5
+	panel.offset_bottom = h * 0.5
 
 
 func _refresh() -> void:
@@ -52,6 +74,7 @@ func _refresh() -> void:
 func _on_visibility_changed() -> void:
 	if visible:
 		_refresh()
+		_fit_panel()
 
 
 func _on_float(v: float, key: StringName) -> void:

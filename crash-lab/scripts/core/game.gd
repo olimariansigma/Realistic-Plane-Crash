@@ -4,9 +4,12 @@ extends Node
 ## GameState.instance() for the same reason as SettingsStore: autoload globals
 ## are not visible to --check-only.
 ##
-## Scene changes are asynchronous: the next scene and the selected aircraft
-## load on the resource loader's threads and the aircraft's meshes are
-## generated on a worker thread, all behind a loading overlay.
+## Loading is deliberately single-threaded. Aircraft definitions are small and
+## load synchronously (and stay cached); their meshes are generated a few
+## milliseconds per frame behind the loading overlay. An earlier version used
+## ResourceLoader threads and a WorkerThreadPool task: it worked on desktop
+## and failed to load aircraft on phones, and its races were not reproducible
+## enough to fix with confidence.
 
 enum StartMode { RUNWAY, AIRBORNE, APPROACH }
 
@@ -14,6 +17,8 @@ const AIRCRAFT_DIR := "res://data/aircraft/"
 const FLIGHT_SCENE := "res://scenes/flight/flight.tscn"
 const HANGAR_SCENE := "res://scenes/hangar/hangar.tscn"
 const START_MODE_NAMES: Array[String] = ["Runway", "In flight", "Final approach"]
+## Mesh generation time per frame while loading (microseconds).
+const MESH_BUDGET_USEC := 7000
 
 static var _instance: GameState
 
@@ -24,22 +29,11 @@ var start_mode: StartMode = StartMode.RUNWAY
 ## Result of the most recent crash, for the report screen.
 var last_report: RefCounted
 
-## Script classes referenced by the resources that load on background threads.
-## Holding them here compiles them once on the main thread at startup; left to
-## the loader threads, two resources that share a script race to compile it
-## and one of the loads fails.
-var _warm_scripts: Array[Script] = [
-	AircraftDef, PartDef, SurfaceDef, AirfoilDef, EngineDef, GearDef, SeatBlockDef,
-]
-
-var _pending_scene: String = ""
-var _pending_def: String = ""
-var _mesh_task: int = -1
-var _scene_requested: bool = false
+var _defs: Dictionary = {}
+var _busy: bool = false
 var _overlay: CanvasLayer
 var _bar: ProgressBar
 var _label: Label
-var _progress: Array = []
 
 
 static func instance() -> GameState:
@@ -58,7 +52,6 @@ func _ready() -> void:
 	_instance = self
 	_scan_aircraft()
 	_build_overlay()
-	set_process(false)
 	var settings := SettingsStore.instance()
 	settings.changed.connect(apply_quality)
 	apply_quality()
@@ -81,39 +74,35 @@ func _scan_aircraft() -> void:
 			found.append(clean.get_basename())
 	found.sort()
 	aircraft_ids = PackedStringArray(found)
-	if selected_id == "" and not found.is_empty():
-		selected_id = "meridian_220" if found.has("meridian_220") else found[0]
+	if (selected_id == "" or not found.has(selected_id)) and not found.is_empty():
+		selected_id = found[0]
 
 
 func aircraft_path(id: String = "") -> String:
 	return AIRCRAFT_DIR + (selected_id if id == "" else id) + ".tres"
 
 
+## The definition of aircraft `id` (default: the selected one), loaded once
+## and kept. Returns null, with an error logged, if the file is unusable.
+func get_def(id: String = "") -> AircraftDef:
+	var key := selected_id if id == "" else id
+	var cached: AircraftDef = _defs.get(key)
+	if cached != null:
+		return cached
+	var path := aircraft_path(key)
+	if not ResourceLoader.exists(path):
+		push_error("Aircraft definition missing: %s" % path)
+		return null
+	var def := load(path) as AircraftDef
+	if def == null or def.parts.is_empty():
+		push_error("Aircraft definition unreadable: %s" % path)
+		return null
+	_defs[key] = def
+	return def
+
+
 func load_selected() -> AircraftDef:
-	return load(aircraft_path()) as AircraftDef
-
-
-## Loads `scene_path` (and, for the flight scene, the selected aircraft) in
-## the background, then switches to it. The two loads run one after the other:
-## both compile GDScript classes the other depends on, and Godot 4.4 fails
-## such loads intermittently when they race on separate loader threads.
-func change_scene_async(scene_path: String) -> void:
-	if _pending_scene != "":
-		return
-	get_tree().paused = false
-	_pending_scene = scene_path
-	_pending_def = aircraft_path() if scene_path == FLIGHT_SCENE else ""
-	_mesh_task = -1
-	_scene_requested = false
-	_label.text = "LOADING"
-	_bar.value = 0.0
-	_overlay.visible = true
-	if _pending_def != "":
-		ResourceLoader.load_threaded_request(_pending_def)
-	else:
-		ResourceLoader.load_threaded_request(scene_path)
-		_scene_requested = true
-	set_process(true)
+	return get_def()
 
 
 func goto_flight() -> void:
@@ -124,53 +113,52 @@ func goto_hangar() -> void:
 	change_scene_async(HANGAR_SCENE)
 
 
-func _process(_delta: float) -> void:
-	if _pending_scene == "":
+## Switches to `scene_path` behind the loading overlay. For the flight scene
+## the selected aircraft's meshes are generated first, a slice per frame, so
+## the progress bar moves and the frame never stalls for long.
+func change_scene_async(scene_path: String) -> void:
+	if _busy:
 		return
-	if not _scene_requested:
-		# Stage 1: the aircraft definition, then its meshes on a worker thread.
-		var def_status := ResourceLoader.load_threaded_get_status(_pending_def, _progress)
-		_bar.value = (_progress[0] as float) * 30.0 if _progress.size() > 0 else 0.0
-		if def_status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+	_busy = true
+	get_tree().paused = false
+	_label.text = "LOADING"
+	_bar.value = 0.0
+	_overlay.visible = true
+	# Two frames so the overlay is actually on screen before any heavy work.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if scene_path == FLIGHT_SCENE:
+		var def := get_def()
+		if def == null:
+			await _fail("COULD NOT LOAD AIRCRAFT")
 			return
-		if def_status == ResourceLoader.THREAD_LOAD_LOADED:
-			var def := ResourceLoader.load_threaded_get(_pending_def) as AircraftDef
-			_mesh_task = WorkerThreadPool.add_task(AirframeBuilder.prebuild_meshes.bind(def))
-		else:
-			push_error("Failed to load %s" % _pending_def)
-		ResourceLoader.load_threaded_request(_pending_scene)
-		_scene_requested = true
+		while true:
+			var progress := AirframeBuilder.prebuild_some(def, MESH_BUDGET_USEC)
+			_bar.value = progress * 80.0
+			if progress >= 1.0:
+				break
+			await get_tree().process_frame
+	var packed := load(scene_path) as PackedScene
+	if packed == null:
+		await _fail("COULD NOT LOAD SCENE")
 		return
-	# Stage 2: the scene itself, while the mesh task finishes.
-	var status := ResourceLoader.load_threaded_get_status(_pending_scene, _progress)
-	var fraction: float = _progress[0] if _progress.size() > 0 else 0.0
-	_bar.value = 30.0 + fraction * 50.0 if _pending_def != "" else fraction * 100.0
-	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-		return
-	if status != ResourceLoader.THREAD_LOAD_LOADED:
-		push_error("Failed to load %s" % _pending_scene)
-		_finish_loading()
-		return
-	if _mesh_task != -1:
-		if not WorkerThreadPool.is_task_completed(_mesh_task):
-			return
-		WorkerThreadPool.wait_for_task_completion(_mesh_task)
-	_bar.value = 100.0
-	var packed := ResourceLoader.load_threaded_get(_pending_scene) as PackedScene
+	_bar.value = 90.0
+	await get_tree().process_frame
 	get_tree().change_scene_to_packed(packed)
-	_finish_loading()
-
-
-func _finish_loading() -> void:
-	_pending_scene = ""
-	_pending_def = ""
-	_mesh_task = -1
-	set_process(false)
-	# Leave the overlay up for two frames so the new scene's first heavy frame
-	# is hidden behind it.
-	await get_tree().process_frame
-	await get_tree().process_frame
+	# Keep the overlay up while the new scene builds itself on its first frames.
+	for _i: int in 3:
+		await get_tree().process_frame
+	_bar.value = 100.0
 	_overlay.visible = false
+	_busy = false
+
+
+## Shows `message` on the overlay for a moment, then gives control back.
+func _fail(message: String) -> void:
+	_label.text = message
+	await get_tree().create_timer(2.0, true).timeout
+	_overlay.visible = false
+	_busy = false
 
 
 func _build_overlay() -> void:
@@ -183,13 +171,14 @@ func _build_overlay() -> void:
 	bg.color = Color(0.07, 0.086, 0.11)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(bg)
+	# A CenterContainer keeps the box centred at any aspect ratio.
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.custom_minimum_size = Vector2(420.0, 0.0)
-	box.position = Vector2(-210.0, -40.0)
-	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	box.grow_vertical = Control.GROW_DIRECTION_BOTH
-	bg.add_child(box)
+	box.add_theme_constant_override(&"separation", 14)
+	center.add_child(box)
 	_label = Label.new()
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_font_size_override(&"font_size", 28)

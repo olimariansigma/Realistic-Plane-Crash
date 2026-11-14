@@ -91,8 +91,22 @@ func _ready() -> void:
 	%RestartButton.pressed.connect(_on_restart_pressed)
 	%SettingsButton.pressed.connect(_settings_panel.show)
 	%HangarButton.pressed.connect(_on_hangar_pressed)
+	for b: Button in [%ResumeButton, %RestartButton, %SettingsButton, %HangarButton]:
+		UiStyle.style_button(b)
 	_update_flap_label()
 	_refresh_telemetry()
+	_apply_safe_area()
+	get_viewport().size_changed.connect(_apply_safe_area)
+
+
+## Keeps every flight widget inside the display's safe area. The widgets are
+## anchored to the edges of FlightLayer, so insetting it moves them all.
+func _apply_safe_area() -> void:
+	var m: Vector4 = UiStyle.safe_margins(self)
+	_flight_layer.offset_left = m.x
+	_flight_layer.offset_top = m.y
+	_flight_layer.offset_right = -m.z
+	_flight_layer.offset_bottom = -m.w
 
 
 func bind(controls: ControlState, telemetry: FlightTelemetry, def: AircraftDef) -> void:
@@ -274,10 +288,10 @@ func _refresh_telemetry() -> void:
 			else ("UP" if t.gear_ratio < 0.01 else "MOVING")
 	var title: String = _def.display_name if _def != null else ""
 	_telemetry_label.text = (
-		"%s\nSPD  %d %s\nALT  %d %s\nV/S  %+.1f %s\nAoA  %.1f deg\nG  %.1f\nHDG  %03d\n"
+		"%s\nSPD  %d %s\nMACH  %.2f\nALT  %d %s\nV/S  %+.1f %s\nAoA  %.1f deg\nG  %.1f\nHDG  %03d\n"
 		+ "THR  %d%%\nFLAPS  %d%%\nGEAR  %s\nTRIM  %+.2f") % [
 			title,
-			roundi(spd), "km/h" if metric else "kt",
+			roundi(spd), "km/h" if metric else "kt", t.mach,
 			roundi(alt), "m" if metric else "ft",
 			vs if metric else float(roundi(vs)), "m/s" if metric else "fpm",
 			t.aoa_deg, t.g_load, posmod(roundi(t.heading_deg), 360),

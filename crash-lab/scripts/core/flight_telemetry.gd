@@ -30,6 +30,8 @@ var gear_ratio: float = 1.0
 var trim: float = 0.0
 var on_ground: bool = false
 var stall_warning: bool = false
+## Indicated airspeed is above the never-exceed speed: the airframe is being damaged.
+var overspeed: bool = false
 ## Fraction of the airframe's structural joints still intact.
 var integrity: float = 1.0
 var crashed: bool = false

@@ -76,6 +76,8 @@ var spoiler_ratio: float = 0.0
 ## Height of the terrain under the root part (world Y).
 var ground_y: float = 0.0
 var air_density: float = RHO0
+## Local speed of sound (m/s).
+var sound_speed: float = 340.3
 
 var _act := Vector3.ZERO
 var _agl_ray: RayCast3D
@@ -85,6 +87,7 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+var _downwash_sources: Array[AeroSurface] = []
 var _body_contact_time: float = 0.0
 var _vel_history: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
 var _attitude_before := Vector2.ZERO
@@ -112,6 +115,8 @@ func setup(aircraft_def: AircraftDef) -> void:
 		var surface := AeroSurface.new()
 		surface.setup(s, parts[def.find_part(s.part)])
 		surfaces.append(surface)
+		if s.downwash_source:
+			_downwash_sources.append(surface)
 	for e: EngineDef in def.engines:
 		var engine := EngineUnit.new()
 		engine.setup(e, parts[def.find_part(e.part)])
@@ -247,11 +252,26 @@ func _physics_process(dt: float) -> void:
 	air_density = RHO0 * pow(maxf(1.0 - 2.2558e-5 * maxf(origin.y, 0.0), 0.1), 4.2559)
 	var rho := air_density
 
+	# Speed of sound falls with temperature (ISA lapse to the tropopause).
+	sound_speed = 340.3 * sqrt(maxf(1.0 - 2.2558e-5 * clampf(origin.y, 0.0, 11000.0), 0.5))
+	var mach := root_part.lin_vel.length() / sound_speed
+
+	# Downwash at the tail: twice the induced angle of the inboard wing, from
+	# the lift those strips made last tick. A wing that is gone, or stripped,
+	# makes less lift and so less downwash.
+	var downwash := 0.0
+	if _downwash_sources.size() > 0:
+		for i: int in _downwash_sources.size():
+			var src := _downwash_sources[i]
+			if src.part.assembly_root == 0:
+				downwash += src.cl * src.induced_k
+		downwash *= 2.0 / float(_downwash_sources.size())
+
 	for i: int in surfaces.size():
-		surfaces[i].apply(rho, _act, trim, flap_ratio, spoiler_ratio, ground_y, def)
+		surfaces[i].apply(rho, _act, trim, flap_ratio, spoiler_ratio, ground_y, def, mach, downwash)
 	var throttle := clampf(controls.throttle, 0.0, 1.0)
 	for i: int in engines.size():
-		engines[i].apply(throttle, rho, dt)
+		engines[i].apply(throttle, rho, dt, sound_speed)
 	var brake := clampf(controls.brake, 0.0, 1.0)
 	for i: int in gears.size():
 		var gear := gears[i]
@@ -259,6 +279,8 @@ func _physics_process(dt: float) -> void:
 		if gear_ratio > 0.02:
 			var v := gear.part.lin_vel
 			gear.part.push_central_force(v * (-0.5 * rho * gear.def.drag_area * gear_ratio * v.length()))
+	# Transonic drag rise on the fuselage and nacelles.
+	var body_drag_factor := 1.0 + def.body_wave_drag * smoothstep(0.85, 1.1, mach)
 	for i: int in count:
 		var part := parts[i]
 		var area := part.def.drag_area
@@ -266,10 +288,12 @@ func _physics_process(dt: float) -> void:
 			continue
 		var basis := part.xf.basis
 		var v_local := part.lin_vel * basis
+		# Skin torn off a body exposes frames and cabin: more drag.
+		var rough := body_drag_factor * (1.0 + 1.5 * (1.0 - part.skin_fraction))
 		var f_local := Vector3(
 				-area.x * absf(v_local.x) * v_local.x,
 				-area.y * absf(v_local.y) * v_local.y,
-				-area.z * absf(v_local.z) * v_local.z) * (0.5 * rho)
+				-area.z * absf(v_local.z) * v_local.z) * (0.5 * rho * rough)
 		part.push_central_force(basis * f_local)
 
 	_update_telemetry(dt)
@@ -390,6 +414,15 @@ func _process_impacts(dt: float) -> void:
 			part.burn_time += dt
 			if (_ticks + i) % 20 == 0:
 				part.set_scorch(minf(part.burn_time / 25.0, 0.85) * part.burning)
+		# Past the never-exceed speed flutter and air loads start taking the
+		# airframe apart: control surfaces and wing skin first.
+		if telemetry.overspeed and part.pieces_left > 0 and part.def.kind != PartDef.Kind.FUSELAGE \
+				and (_ticks + i * 7) % 20 == 0:
+			var excess := telemetry.ias / def.v_never_exceed - 1.0
+			if _rng.randf() < clampf(excess * 2.5, 0.0, 0.5):
+				var victim := part.pieces[_rng.randi() % part.pieces.size()].center
+				shed_pieces(part, victim, 1000.0, 1, 4.0)
+				_mark_crashed()
 		# Broken structure in a fast airstream keeps coming apart, panel by panel.
 		if part.pieces_left > 0 and (part.stripped or part.assembly_root != 0) and (_ticks + i * 3) % 12 == 0:
 			var q := 0.5 * air_density * part.lin_vel.length_squared()
@@ -540,7 +573,8 @@ func _update_telemetry(dt: float) -> void:
 	var speed := v.length()
 	t.tas = speed
 	t.ias = speed * sqrt(air_density / RHO0)
-	t.mach = speed / 340.0
+	t.mach = speed / sound_speed
+	t.overspeed = t.ias > def.v_never_exceed
 	if speed > 1.0:
 		t.aoa_deg = rad_to_deg(atan2(-v.dot(up), v.dot(fwd)))
 		t.sideslip_deg = rad_to_deg(asin(clampf(v.dot(right) / speed, -1.0, 1.0)))

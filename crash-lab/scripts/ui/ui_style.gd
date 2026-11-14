@@ -25,3 +25,60 @@ static func panel_box(bg: Color = PANEL_BG, border: Color = OUTLINE) -> StyleBox
 	box.set_content_margin_all(10.0)
 	box.anti_aliasing = true
 	return box
+
+
+## Minimum distance (canvas units) kept clear on every screen edge.
+const SAFE_MIN: float = 24.0
+
+
+## Inset of the display's safe area (notch, rounded corners, gesture bars) as
+## (left, top, right, bottom) in canvas units, never below SAFE_MIN. The OS
+## reports the safe area in physical pixels, so it is divided by the canvas
+## scale (window px per canvas unit). Falls back to SAFE_MIN when the safe area
+## is unavailable, covers the whole screen, or the window is not full screen.
+static func safe_margins(control: Control) -> Vector4:
+	var result := Vector4(SAFE_MIN, SAFE_MIN, SAFE_MIN, SAFE_MIN)
+	if control == null or not control.is_inside_tree():
+		return result
+	var safe: Rect2i = DisplayServer.get_display_safe_area()
+	var window: Window = control.get_window()
+	var screen: int = window.current_screen
+	var screen_pos: Vector2i = DisplayServer.screen_get_position(screen)
+	var screen_size: Vector2i = DisplayServer.screen_get_size(screen)
+	if safe.size.x <= 0 or safe.size.y <= 0 or screen_size.x <= 0 or screen_size.y <= 0:
+		return result
+	# A desktop window smaller than its screen has no cutout of its own.
+	var win_size: Vector2i = window.size
+	if win_size.x < screen_size.x - 2 or win_size.y < screen_size.y - 2:
+		return result
+	var scale: Vector2 = control.get_viewport().get_final_transform().get_scale()
+	if scale.x <= 0.0 or scale.y <= 0.0:
+		return result
+	var left: float = float(safe.position.x - screen_pos.x)
+	var top: float = float(safe.position.y - screen_pos.y)
+	var right: float = float(screen_pos.x + screen_size.x - safe.end.x)
+	var bottom: float = float(screen_pos.y + screen_size.y - safe.end.y)
+	result.x = maxf(SAFE_MIN, left / scale.x)
+	result.y = maxf(SAFE_MIN, top / scale.y)
+	result.z = maxf(SAFE_MIN, right / scale.x)
+	result.w = maxf(SAFE_MIN, bottom / scale.y)
+	return result
+
+
+
+## Gives a Button the translucent panel look used by the touch widgets.
+static func style_button(button: Button, accent: Color = Color(0, 0, 0, 0)) -> void:
+	var tinted: bool = accent.a > 0.0
+	var normal: StyleBoxFlat = panel_box(accent.darkened(0.15) if tinted else PANEL_BG, OUTLINE)
+	var hover: StyleBoxFlat = panel_box(accent if tinted else ACTIVE_BG, TEXT)
+	var pressed: StyleBoxFlat = panel_box(ACTIVE_BG if not tinted else accent.darkened(0.35), ACCENT)
+	var disabled: StyleBoxFlat = panel_box(Color(PANEL_BG, 0.4), Color(OUTLINE, 0.2))
+	button.add_theme_stylebox_override(&"normal", normal)
+	button.add_theme_stylebox_override(&"hover", hover)
+	button.add_theme_stylebox_override(&"pressed", pressed)
+	button.add_theme_stylebox_override(&"hover_pressed", pressed)
+	button.add_theme_stylebox_override(&"disabled", disabled)
+	button.add_theme_stylebox_override(&"focus", StyleBoxEmpty.new())
+	button.add_theme_color_override(&"font_color", TEXT)
+	button.add_theme_color_override(&"font_hover_color", TEXT)
+	button.add_theme_color_override(&"font_pressed_color", TEXT)

@@ -1,8 +1,8 @@
 class_name Hangar
 extends Node3D
 ## Showroom: a turntable with the selected aircraft, an orbit camera and the
-## select/launch UI. Aircraft definitions and their meshes load in the
-## background, so flicking through the fleet never stalls the frame.
+## select/launch UI. A newly selected aircraft's meshes are generated a few
+## milliseconds per frame, so flicking through the fleet never stalls.
 
 const UI_SCENE_PATH := "res://scenes/ui/hangar_ui.tscn"
 const TURN_RATE := 0.22
@@ -25,10 +25,8 @@ var _cutaway: float = 0.0
 var _cutaway_target: float = 0.0
 var _cabin_nodes: Array[Node3D] = []
 
-# Background loading state.
-var _loading_path: String = ""
-var _mesh_task: int = -1
-var _loaded_def: AircraftDef
+## The aircraft whose meshes are still being generated, if any.
+var _pending_def: AircraftDef
 var _autolaunch: bool = false
 
 
@@ -138,33 +136,21 @@ func _request(index: int) -> void:
 	if _game.aircraft_ids.is_empty():
 		return
 	_game.selected_id = _game.aircraft_ids[index]
-	_loading_path = _game.aircraft_path()
-	_mesh_task = -1
-	_loaded_def = null
-	ui.set_loading(true)
-	ResourceLoader.load_threaded_request(_loading_path)
+	_pending_def = _game.get_def()
+	# Selecting again while one is building simply replaces the pending one.
+	ui.set_loading(_pending_def != null)
+	if _pending_def == null:
+		push_error("Hangar: could not load %s" % _game.selected_id)
 
 
 func _poll_loading() -> void:
-	if _loading_path == "":
+	if _pending_def == null:
 		return
-	if _loaded_def == null:
-		var status := ResourceLoader.load_threaded_get_status(_loading_path)
-		if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-			return
-		if status != ResourceLoader.THREAD_LOAD_LOADED:
-			push_error("Failed to load %s" % _loading_path)
-			_loading_path = ""
-			ui.set_loading(false)
-			return
-		_loaded_def = ResourceLoader.load_threaded_get(_loading_path) as AircraftDef
-		_mesh_task = WorkerThreadPool.add_task(AirframeBuilder.prebuild_meshes.bind(_loaded_def))
+	if AirframeBuilder.prebuild_some(_pending_def, GameState.MESH_BUDGET_USEC) < 1.0:
 		return
-	if not WorkerThreadPool.is_task_completed(_mesh_task):
-		return
-	WorkerThreadPool.wait_for_task_completion(_mesh_task)
-	_loading_path = ""
-	_show(_loaded_def)
+	var def := _pending_def
+	_pending_def = null
+	_show(def)
 
 
 func _show(def: AircraftDef) -> void:
@@ -195,8 +181,10 @@ func _show(def: AircraftDef) -> void:
 
 
 func _launch() -> void:
-	if _def == null:
+	# Only launch what is actually on the turntable.
+	if _def == null or _pending_def != null:
 		return
+	_game.selected_id = String(_def.id)
 	_game.goto_flight()
 
 

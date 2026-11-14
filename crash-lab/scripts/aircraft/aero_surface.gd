@@ -7,6 +7,9 @@ extends RefCounted
 const STEP_DEG := 0.5
 const TABLE_SIZE := 721
 const RHO0 := 1.225
+## Drag coefficient (on the strip's planform) of a wing stripped to its
+## ribs and spars.
+const BARE_STRUCTURE_CD := 0.3
 
 var def: SurfaceDef
 var part: AircraftPart
@@ -26,6 +29,8 @@ var stall_deg: float = 15.0
 var max_deflection: float = 0.0
 var trim_rad: float = 0.0
 var cm0: float = 0.0
+var mach_crit: float = 0.8
+var wave_drag: float = 0.08
 
 # Outputs of the last apply(), read by telemetry.
 var aoa_deg: float = 0.0
@@ -45,6 +50,8 @@ func setup(surface: SurfaceDef, owner: AircraftPart) -> void:
 	max_deflection = deg_to_rad(surface.max_deflection_deg)
 	trim_rad = deg_to_rad(surface.trim_deg)
 	cm0 = surface.airfoil.cm0
+	mach_crit = surface.airfoil.mach_crit
+	wave_drag = surface.airfoil.wave_drag
 	_build_tables(surface.airfoil)
 
 
@@ -78,9 +85,10 @@ func _build_tables(airfoil: AirfoilDef) -> void:
 			stall_deg = aoa
 
 
-## `act` is the actuator state (pitch, roll, yaw) in [-1, 1].
+## `act` is the actuator state (pitch, roll, yaw) in [-1, 1]. `mach` is the
+## flight Mach number and `downwash_rad` the wing's downwash angle at the tail.
 func apply(rho: float, act: Vector3, trim: float, flap_ratio: float, spoiler: float,
-		ground_y: float, adef: AircraftDef) -> void:
+		ground_y: float, adef: AircraftDef, mach: float, downwash_rad: float) -> void:
 	var p := part
 	var basis := p.xf.basis
 	var pos := p.xf.origin + basis * local_pos
@@ -98,9 +106,12 @@ func apply(rho: float, act: Vector3, trim: float, flap_ratio: float, spoiler: fl
 	var aoa := atan2(-v2.dot(normal), v2.dot(chord))
 	aoa_deg = rad_to_deg(aoa)
 
-	var deflection := clampf(def.control_mix.dot(act), -1.0, 1.0) * max_deflection
-	var lookup := wrapf(aoa_deg + rad_to_deg(def.effectiveness * deflection + trim * trim_rad),
-			-180.0, 179.999)
+	# A control surface that has been torn off no longer deflects anything.
+	var deflection := 0.0
+	if p.controls_alive:
+		deflection = clampf(def.control_mix.dot(act), -1.0, 1.0) * max_deflection
+	var lookup := wrapf(aoa_deg + rad_to_deg(def.effectiveness * deflection + trim * trim_rad
+			- def.downwash * downwash_rad), -180.0, 179.999)
 	var t := (lookup + 180.0) / STEP_DEG
 	var i := int(t)
 	var f := t - float(i)
@@ -110,6 +121,12 @@ func apply(rho: float, act: Vector3, trim: float, flap_ratio: float, spoiler: fl
 	# Attached-flow weight: flap/spoiler increments and induced drag fade out
 	# past the stall, where the table's flat-plate regime takes over.
 	var attached := 1.0 - smoothstep(stall_deg, stall_deg + 12.0, absf(aoa_deg))
+
+	# Compressibility (Prandtl-Glauert on the swept-wing normal Mach number):
+	# the lift slope steepens toward Mach 1.
+	if mach > 0.3:
+		var m_n := minf(mach * 0.8, 0.76)
+		c_l *= lerpf(1.0, 1.0 / sqrt(1.0 - m_n * m_n), attached)
 
 	# Ground effect (McCormick): the ground suppresses downwash, so induced
 	# angle and induced drag shrink by phi within about one span of the surface.
@@ -122,7 +139,7 @@ func apply(rho: float, act: Vector3, trim: float, flap_ratio: float, spoiler: fl
 		c_l *= lerpf(1.0, (1.0 + sk) / (1.0 + sk * phi), attached)
 
 	var cm := cm0
-	if def.flap_fraction > 0.0 and flap_ratio > 0.0:
+	if def.flap_fraction > 0.0 and flap_ratio > 0.0 and p.controls_alive:
 		var fr := def.flap_fraction * flap_ratio * attached
 		c_l += adef.flap_cl_gain * fr
 		c_d += adef.flap_cd_gain * def.flap_fraction * flap_ratio * flap_ratio
@@ -130,7 +147,20 @@ func apply(rho: float, act: Vector3, trim: float, flap_ratio: float, spoiler: fl
 	if def.spoiler_fraction > 0.0 and spoiler > 0.0:
 		c_l -= adef.spoiler_cl_loss * def.spoiler_fraction * spoiler * attached
 		c_d += adef.spoiler_cd_gain * def.spoiler_fraction * spoiler
+
+	# Skin damage. A wing only makes lift over the skin it still has, and
+	# holes spoil the flow over what is left, so lift falls faster than area;
+	# the exposed ribs and spars are pure drag.
+	var skin := p.skin_fraction
+	if skin < 1.0:
+		c_l *= skin * sqrt(skin)
+		cm *= skin
+		c_d += (1.0 - skin) * BARE_STRUCTURE_CD
+
 	c_d += induced_k * phi * c_l * c_l * attached
+	# Transonic wave drag above the critical Mach number.
+	if mach > mach_crit:
+		c_d += wave_drag * smoothstep(mach_crit, mach_crit + 0.25, mach)
 
 	var q := 0.5 * rho * speed_sq
 	var qs := q * def.area

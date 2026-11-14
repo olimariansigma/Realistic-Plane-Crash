@@ -72,6 +72,14 @@ var far_node: MeshInstance3D
 var core_always_visible: bool = false
 ## True once any skin has been lost.
 var stripped: bool = false
+## Share of the skin (by mass) still attached, 1 = whole. Drives how much
+## lift the part's aero strips still make.
+var skin_fraction: float = 1.0
+## False once every hinged control surface on this part has been torn off.
+var controls_alive: bool = true
+var _skin_mass_total: float = 0.0
+var _skin_mass_left: float = 0.0
+var _hinged_left: int = -1
 ## Hidden nodes of pieces already torn off, by piece index (for the replay).
 var _released_nodes: Dictionary = {}
 
@@ -224,6 +232,21 @@ func release_piece(index: int) -> MeshInstance3D:
 	piece_nodes[index] = null
 	_released_nodes[index] = node
 	pieces_left -= 1
+	if _hinged_left < 0:
+		# First loss: take stock of what the part had.
+		_hinged_left = 0
+		for piece: SkinPiece in pieces:
+			_skin_mass_total += piece.mass
+			if piece.control != SkinPiece.Surface.NONE:
+				_hinged_left += 1
+		_skin_mass_left = _skin_mass_total
+		if _hinged_left == 0:
+			_hinged_left = 1 << 20  # all-moving or fixed: nothing to lose
+	_skin_mass_left -= pieces[index].mass
+	skin_fraction = clampf(_skin_mass_left / maxf(_skin_mass_total, 1.0), 0.0, 1.0)
+	if pieces[index].control != SkinPiece.Surface.NONE:
+		_hinged_left -= 1
+		controls_alive = _hinged_left > 0
 	node.visible = false
 	mass = maxf(mass - pieces[index].mass, def.mass * 0.4)
 	if not stripped:

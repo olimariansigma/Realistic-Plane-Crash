@@ -15,6 +15,10 @@ extends Resource
 @export var cm0: float = 0.0
 ## Positive stall angle of the section. Used for stall warning and flap fade.
 @export var stall_deg: float = 15.0
+## Critical Mach number: above it shock waves form and drag rises steeply.
+@export var mach_crit: float = 0.8
+## Wave drag coefficient reached a quarter of a Mach number above critical.
+@export var wave_drag: float = 0.08
 
 
 static func aoa_to_x(aoa_deg: float) -> float:

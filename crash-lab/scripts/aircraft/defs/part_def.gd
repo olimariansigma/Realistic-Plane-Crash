@@ -55,6 +55,13 @@ enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR, CANOPY }
 @export var squash: Vector2 = Vector2.ONE
 ## Height of a winglet on the tip of this panel (0 = none).
 @export var winglet: float = 0.0
+## 0 = blended/sharklet (up), 1 = raked tip (out and back), 2 = fence (up and down).
+@export var winglet_style: int = 0
+## Crown height scale at p0 and p1 (upper half only): above 1 gives a hump.
+@export var top_scale0: float = 1.0
+@export var top_scale1: float = 1.0
+## Rows of cabin windows painted on this fuselage part (0, 1 or 2).
+@export var window_rows: int = 1
 
 @export_group("Aerodynamics")
 ## Bluff-body drag area Cd*A (m^2) along the part's local X, Y and Z axes.

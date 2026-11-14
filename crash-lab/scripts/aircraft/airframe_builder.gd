@@ -17,17 +17,37 @@ static var detail: int = 1
 static var _material: ShaderMaterial
 static var _interior_material: ShaderMaterial
 static var _physics_material: PhysicsMaterial
-## PartMeshes keyed by "<aircraft id>/<part name>/<detail>". Filled off the
-## main thread by prebuild_meshes() during loading; part_meshes() falls back
-## to generating inline on a miss.
+## PartMeshes keyed by "<aircraft id>/<part name>/<detail>". Filled a slice
+## per frame by prebuild_some() during loading; part_meshes() generates
+## inline on a miss.
 static var _mesh_cache: Dictionary = {}
 static var _cache_mutex := Mutex.new()
 
 
-## Generates every mesh of an aircraft. Safe to call from a worker thread.
+## Generates every mesh of an aircraft in one go.
 static func prebuild_meshes(adef: AircraftDef) -> void:
 	for part: PartDef in adef.parts:
 		part_meshes(adef, part)
+
+
+## Generates meshes for parts not built yet until `budget_usec` is spent, and
+## returns the fraction of the aircraft now ready (1.0 = done). Call once a
+## frame from a loading screen.
+static func prebuild_some(adef: AircraftDef, budget_usec: int) -> float:
+	var start := Time.get_ticks_usec()
+	var total := adef.parts.size()
+	var done := 0
+	for part: PartDef in adef.parts:
+		if _mesh_cache.has("%s/%s/%d" % [adef.id, part.name, detail]):
+			done += 1
+			continue
+		if Time.get_ticks_usec() - start > budget_usec and done > 0:
+			break
+		part_meshes(adef, part)
+		done += 1
+		if Time.get_ticks_usec() - start > budget_usec:
+			break
+	return float(done) / float(maxi(total, 1))
 
 
 static func part_meshes(adef: AircraftDef, part: PartDef) -> PartMeshes:

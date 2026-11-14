@@ -24,6 +24,7 @@ const IMPACT_ROWS: Array[String] = [
 ]
 const PROB_ROWS: Array[String] = ["Deceleration", "Head impact", "Structure", "Fire"]
 const LIMB_COUNT: int = 9
+const IMPACT_VALUE_SIZE: int = 18
 
 var _report: CrashReport
 var _selected: int = -1
@@ -31,8 +32,8 @@ var _suppress_seek: bool = false
 var _named: Array[Node] = []
 
 var _backdrop: ColorRect
-var _report_panel: Control
-var _replay_bar: Control
+var _report_panel: MarginContainer
+var _replay_bar: MarginContainer
 var _aircraft_label: Label
 var _verdict_label: Label
 var _overall_label: Label
@@ -66,6 +67,20 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_build()
 	show_replay_controls(false)
+	_apply_safe_area()
+	get_viewport().size_changed.connect(_apply_safe_area)
+
+
+## Insets the report and the replay bar by the display's safe area.
+func _apply_safe_area() -> void:
+	var m: Vector4 = UiStyle.safe_margins(self)
+	_report_panel.add_theme_constant_override("margin_left", roundi(m.x))
+	_report_panel.add_theme_constant_override("margin_top", roundi(m.y))
+	_report_panel.add_theme_constant_override("margin_right", roundi(m.z))
+	_report_panel.add_theme_constant_override("margin_bottom", roundi(m.w))
+	_replay_bar.add_theme_constant_override("margin_left", roundi(m.x))
+	_replay_bar.add_theme_constant_override("margin_right", roundi(m.z))
+	_replay_bar.add_theme_constant_override("margin_bottom", roundi(m.w))
 
 
 func show_report(report: CrashReport) -> void:
@@ -234,14 +249,20 @@ func _build_header() -> Control:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(col)
 	col.add_child(_label("CRASH REPORT", 30, UiStyle.ACCENT))
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 20)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(line)
 	_aircraft_label = _label("", UiStyle.FONT_SIZE, UiStyle.TEXT)
-	_add(col, _aircraft_label, "AircraftLabel")
-	_verdict_label = _label("", UiStyle.FONT_SIZE, UiStyle.TEXT)
-	_add(col, _verdict_label, "VerdictLabel")
+	_add(line, _aircraft_label, "AircraftLabel")
+	_verdict_label = _label("", UiStyle.FONT_SIZE, Color(UiStyle.TEXT, 0.8))
+	_verdict_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_verdict_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_add(line, _verdict_label, "VerdictLabel")
 	var right := VBoxContainer.new()
 	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(right)
-	_overall_label = _label("0%", 64, COLOR_BAD)
+	_overall_label = _label("0%", 56, COLOR_BAD)
 	_overall_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_add(right, _overall_label, "OverallLabel")
 	var cap := _label("OVERALL SURVIVAL", UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
@@ -267,19 +288,25 @@ func _panel(title: String, min_width: float, expand: bool) -> Array:
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_theme_constant_override("separation", 6)
+	box.add_theme_constant_override("separation", 4)
 	scroll.add_child(box)
 	box.add_child(_label(title, UiStyle.FONT_SIZE, UiStyle.ACCENT))
 	return [panel, box]
 
 
 func _build_impact() -> Control:
-	var p: Array = _panel("IMPACT", 270.0, false)
+	var p: Array = _panel("IMPACT", 330.0, false)
 	var box := p[1] as VBoxContainer
 	for i: int in IMPACT_ROWS.size():
-		box.add_child(_label(IMPACT_ROWS[i], UiStyle.SMALL_FONT_SIZE, Color(UiStyle.TEXT, 0.65)))
-		var v := _label("-", UiStyle.FONT_SIZE, UiStyle.TEXT)
-		_add(box, v, "ImpactValue%d" % i)
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(row)
+		var name_label := _label(IMPACT_ROWS[i], UiStyle.SMALL_FONT_SIZE, Color(UiStyle.TEXT, 0.65))
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(name_label)
+		var v := _label("-", IMPACT_VALUE_SIZE, UiStyle.TEXT)
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_add(row, v, "ImpactValue%d" % i)
 		_impact_values.append(v)
 	return p[0] as Control
 
@@ -312,30 +339,40 @@ func _build_map() -> Control:
 
 
 func _build_detail() -> Control:
-	var p: Array = _panel("SEAT DETAIL", 330.0, false)
+	var p: Array = _panel("SEAT DETAIL", 420.0, false)
 	var box := p[1] as VBoxContainer
-	_detail_title = _label("-", 26, UiStyle.TEXT)
+	_detail_title = _label("-", 24, UiStyle.TEXT)
 	_add(box, _detail_title, "DetailTitle")
+	var survival_row := HBoxContainer.new()
+	survival_row.add_theme_constant_override("separation", 16)
+	survival_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(survival_row)
 	_detail_survival = _label("", UiStyle.FONT_SIZE, UiStyle.TEXT)
-	_add(box, _detail_survival, "DetailSurvival")
+	_add(survival_row, _detail_survival, "DetailSurvival")
 	_detail_cause = _label("", UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
-	_add(box, _detail_cause, "DetailCause")
+	_detail_cause.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_add(survival_row, _detail_cause, "DetailCause")
 	_detail_g = _label("", UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
 	_detail_g.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_add(box, _detail_g, "DetailG")
+	var stat_row := HBoxContainer.new()
+	stat_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(stat_row)
 	_detail_hic = _label("", UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
-	_add(box, _detail_hic, "DetailHic")
+	_detail_hic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_add(stat_row, _detail_hic, "DetailHic")
 	_detail_intrusion = _label("", UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
-	_add(box, _detail_intrusion, "DetailIntrusion")
+	_detail_intrusion.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_add(stat_row, _detail_intrusion, "DetailIntrusion")
 	_detail_fire = _label("", UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
-	_add(box, _detail_fire, "DetailFire")
+	_add(stat_row, _detail_fire, "DetailFire")
 	box.add_child(_label("Fatal injury probability", UiStyle.SMALL_FONT_SIZE, Color(UiStyle.TEXT, 0.65)))
 	for name: String in PROB_ROWS:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		box.add_child(row)
 		var l := _label(name, UiStyle.SMALL_FONT_SIZE, UiStyle.TEXT)
-		l.custom_minimum_size.x = 110.0
+		l.custom_minimum_size.x = 100.0
 		row.add_child(l)
 		var bar := ProgressBar.new()
 		bar.min_value = 0.0
@@ -358,7 +395,9 @@ func _build_detail() -> Control:
 	_add(box, _fred_box, "FredBox")
 	_fred_box.add_child(_label("FRED DUMMY", UiStyle.SMALL_FONT_SIZE, UiStyle.ACCENT))
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.columns = 6
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 2)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fred_box.add_child(grid)
 	for i: int in LIMB_COUNT:
@@ -412,6 +451,7 @@ func _build_replay_bar() -> void:
 		b.button_group = group
 		b.custom_minimum_size = Vector2(84.0, 56.0)
 		b.add_theme_font_size_override("font_size", UiStyle.FONT_SIZE)
+		UiStyle.style_button(b)
 		var speed: float = SPEEDS[i]
 		b.pressed.connect(func() -> void: replay_speed_changed.emit(speed))
 		_add(row, b, "Speed%d" % i)
@@ -421,6 +461,7 @@ func _build_replay_bar() -> void:
 	_report_button.text = "REPORT"
 	_report_button.custom_minimum_size = Vector2(130.0, 56.0)
 	_report_button.add_theme_font_size_override("font_size", UiStyle.FONT_SIZE)
+	UiStyle.style_button(_report_button)
 	_report_button.pressed.connect(func() -> void: replay_closed.emit())
 	_add(row, _report_button, "ReportButton")
 
@@ -437,9 +478,10 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 func _button(text: String, parent: Node, node_name: String) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(200.0, 72.0)
+	b.custom_minimum_size = Vector2(200.0, 64.0)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.add_theme_font_size_override("font_size", 26)
+	UiStyle.style_button(b)
 	_add(parent, b, node_name)
 	return b
 

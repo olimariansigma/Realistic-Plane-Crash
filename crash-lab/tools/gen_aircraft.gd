@@ -14,15 +14,25 @@ const AIRFOIL_DIR := "res://data/airfoils/"
 const AIRCRAFT_DIR := "res://data/aircraft/"
 
 var _airfoils: Dictionary = {}
+var _calibration: Dictionary = {}
 
 
 func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(AIRFOIL_DIR)
 	DirAccess.make_dir_recursive_absolute(AIRCRAFT_DIR)
-	_make_airfoil("transport", "Supercritical transport", 0.28, 0.105, 17.0, 13.0, 0.0068, 0.0055, 0.8, -0.04)
-	_make_airfoil("tail", "Symmetric tail", 0.0, 0.100, 15.0, 15.0, 0.0060, 0.0060, 0.8, 0.0)
-	_make_airfoil("fighter", "Thin high-alpha", 0.06, 0.092, 24.0, 20.0, 0.0055, 0.0090, 0.35, -0.01)
-	for params: Dictionary in [_narrow_body(), _wide_body(), _fighter()]:
+	_load_calibration()
+	_make_airfoil("transport", "Supercritical transport", 0.28, 0.105, 17.0, 13.0, 0.0068, 0.0055, 0.8, -0.04, 0.80, 0.085)
+	_make_airfoil("tail", "Symmetric tail", 0.0, 0.100, 15.0, 15.0, 0.0060, 0.0060, 0.8, 0.0, 0.84, 0.05)
+	_make_airfoil("fighter", "Thin high-alpha", 0.06, 0.092, 24.0, 20.0, 0.0055, 0.0090, 0.35, -0.01, 0.92, 0.022)
+	# Start from a clean directory so removed aircraft do not linger.
+	for file: String in DirAccess.get_files_at(AIRCRAFT_DIR):
+		if file.ends_with(".tres"):
+			DirAccess.remove_absolute(AIRCRAFT_DIR + file)
+	var fleet: Array[Dictionary] = []
+	for spec: Dictionary in _airliner_specs():
+		fleet.append(_airliner(spec))
+	fleet.append(_fighter())
+	for params: Dictionary in fleet:
 		var def := _build(params)
 		var path := AIRCRAFT_DIR + String(def.id) + ".tres"
 		var err := ResourceSaver.save(def, path)
@@ -33,6 +43,18 @@ func _initialize() -> void:
 		_report(def, params)
 	print("GEN PASS")
 	quit(0)
+
+
+## Cruise trim and throttle per aircraft, measured by tools/calibrate.sh and
+## stored in data/aircraft/calibration.json. Missing entries get a neutral
+## guess; the in-flight start then takes a few seconds to settle.
+func _load_calibration() -> void:
+	var path := AIRCRAFT_DIR + "calibration.json"
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if parsed is Dictionary:
+		_calibration = parsed
 
 
 # ---------------------------------------------------------------- airfoils
@@ -53,7 +75,8 @@ func _section(aoa_deg: float, cl0: float, slope: float, stall_pos: float, stall_
 
 
 func _make_airfoil(key: String, title: String, cl0: float, slope: float, stall_pos: float,
-		stall_neg: float, cd_min: float, k_cd: float, blend: float, cm0: float) -> void:
+		stall_neg: float, cd_min: float, k_cd: float, blend: float, cm0: float, mach_crit: float,
+		wave_drag: float) -> void:
 	var cl := Curve.new()
 	cl.min_value = -3.0
 	cl.max_value = 3.0
@@ -73,6 +96,8 @@ func _make_airfoil(key: String, title: String, cl0: float, slope: float, stall_p
 	af.cd_curve = cd
 	af.cm0 = cm0
 	af.stall_deg = stall_pos
+	af.mach_crit = mach_crit
+	af.wave_drag = wave_drag
 	var path := AIRFOIL_DIR + key + ".tres"
 	ResourceSaver.save(af, path)
 	_airfoils[key] = load(path)
@@ -80,144 +105,351 @@ func _make_airfoil(key: String, title: String, cl0: float, slope: float, stall_p
 
 # ---------------------------------------------------------------- parameter tables
 
-func _narrow_body() -> Dictionary:
+## Real aircraft, by their published dimensions and typical operating
+## weights (not maximum take-off weight). Maker names are the game's own.
+func _airliner_specs() -> Array[Dictionary]:
+	var abius := Color(0.94, 0.95, 0.97)
+	var bing := Color(0.95, 0.95, 0.93)
+	return [
+		{
+			id = &"abius_a320", name = "Abius A320-200", category = "Narrow-body twin",
+			desc = "The single-aisle workhorse. 180 seats, fly-by-wire, forgiving low-speed handling.",
+			paint = abius, accent = Color(0.06, 0.2, 0.52), nose_power = 0.58,
+			length = 37.57, width = 3.95, mass = 66000.0, span = 34.1, area = 122.6, sweep = 25.0,
+			taper = 0.24, winglet = 2.4, winglet_style = 0,
+			engines = [0.34], thrust = 120000.0, engine_d = 2.2, engine_len = 4.4, engine_mass = 3400.0,
+			rows = 30, groups = [3, 3], wheels = 2,
+			v_rotate = 74.0, v_cruise = 128.6, v_ne = 196.0,
+		},
+		{
+			id = &"abius_a330", name = "Abius A330-300", category = "Wide-body twin",
+			desc = "Medium-to-long-haul twin-aisle. 296 seats on a long, slender wing.",
+			paint = abius, accent = Color(0.07, 0.24, 0.5), nose_power = 0.58,
+			length = 63.69, width = 5.64, mass = 195000.0, span = 60.3, area = 361.6, sweep = 30.0,
+			taper = 0.25, winglet = 2.7, winglet_style = 0,
+			engines = [0.31], thrust = 316000.0, engine_d = 3.1, engine_len = 6.2, engine_mass = 7800.0,
+			rows = 37, groups = [2, 4, 2], wheels = 4,
+			v_rotate = 80.0, v_cruise = 128.6, v_ne = 185.0,
+		},
+		{
+			id = &"abius_a350", name = "Abius A350-900", category = "Wide-body twin",
+			desc = "Composite long-hauler with curved wingtips. 315 seats, a lot of wing for its weight.",
+			paint = abius, accent = Color(0.1, 0.12, 0.16), nose_power = 0.6,
+			length = 66.8, width = 5.96, mass = 230000.0, span = 64.75, area = 443.0, sweep = 32.0,
+			taper = 0.22, winglet = 3.0, winglet_style = 0,
+			engines = [0.3], thrust = 374000.0, engine_d = 3.6, engine_len = 6.8, engine_mass = 9300.0,
+			rows = 35, groups = [3, 3, 3], wheels = 4,
+			v_rotate = 79.0, v_cruise = 128.6, v_ne = 190.0,
+		},
+		{
+			id = &"abius_a380", name = "Abius A380-800", category = "Double-deck four-engine",
+			desc = "The largest airliner built. Two full decks, 536 seats, four engines, 80 m of wing.",
+			paint = abius, accent = Color(0.05, 0.16, 0.45), nose_power = 0.56,
+			length = 72.72, width = 7.14, height = 8.41, mass = 480000.0, span = 79.75, area = 845.0,
+			sweep = 33.5, taper = 0.22, winglet = 2.3, winglet_style = 2, double_deck = true,
+			engines = [0.33, 0.61], thrust = 311000.0, engine_d = 3.5, engine_len = 6.0, engine_mass = 8200.0,
+			rows = 36, groups = [3, 4, 3], upper_rows = 22, upper_groups = [2, 4, 2], wheels = 6,
+			v_rotate = 82.0, v_cruise = 128.6, v_ne = 190.0,
+		},
+		{
+			id = &"bing_737", name = "Bing 737-800", category = "Narrow-body twin",
+			desc = "The best-selling jetliner. 186 seats, low-slung engines, blended winglets.",
+			paint = bing, accent = Color(0.0, 0.33, 0.55), nose_power = 0.7,
+			length = 39.5, width = 3.76, mass = 66000.0, span = 34.3, area = 124.6, sweep = 25.0,
+			taper = 0.22, winglet = 2.5, winglet_style = 0,
+			engines = [0.33], thrust = 121000.0, engine_d = 2.05, engine_len = 4.2, engine_mass = 3300.0,
+			rows = 31, groups = [3, 3], wheels = 2,
+			v_rotate = 75.0, v_cruise = 128.6, v_ne = 190.0,
+		},
+		{
+			id = &"bing_747", name = "Bing 747-400", category = "Four-engine jumbo",
+			desc = "The original jumbo, hump and all. 388 seats, four engines, a heavily swept wing.",
+			paint = bing, accent = Color(0.02, 0.2, 0.42), nose_power = 0.66,
+			length = 70.66, width = 6.5, mass = 330000.0, span = 64.4, area = 541.0, sweep = 37.5,
+			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.3,
+			engines = [0.36, 0.63], thrust = 282000.0, engine_d = 2.8, engine_len = 5.6, engine_mass = 5800.0,
+			rows = 34, groups = [3, 4, 3], upper_rows = 8, upper_groups = [3, 3], wheels = 4,
+			v_rotate = 84.0, v_cruise = 128.6, v_ne = 203.0,
+		},
+		{
+			id = &"bing_777", name = "Bing 777-300ER", category = "Wide-body twin",
+			desc = "The big twin: 370 seats and the largest engines ever fitted to an airliner.",
+			paint = bing, accent = Color(0.0, 0.27, 0.5), nose_power = 0.68,
+			length = 73.86, width = 6.2, mass = 300000.0, span = 64.8, area = 436.8, sweep = 31.6,
+			taper = 0.15, winglet = 2.0, winglet_style = 1,
+			engines = [0.31], thrust = 513000.0, engine_d = 3.9, engine_len = 7.3, engine_mass = 10500.0,
+			rows = 37, groups = [3, 4, 3], wheels = 6,
+			v_rotate = 86.0, v_cruise = 128.6, v_ne = 185.0,
+		},
+		{
+			id = &"bing_787", name = "Bing 787-9", category = "Wide-body twin",
+			desc = "Composite long-range twin with raked wingtips. 288 seats, very efficient wing.",
+			paint = bing, accent = Color(0.03, 0.3, 0.6), nose_power = 0.74,
+			length = 62.81, width = 5.77, mass = 210000.0, span = 60.12, area = 360.5, sweep = 32.2,
+			taper = 0.18, winglet = 2.5, winglet_style = 1,
+			engines = [0.31], thrust = 320000.0, engine_d = 3.4, engine_len = 6.0, engine_mass = 8000.0,
+			rows = 32, groups = [3, 3, 3], wheels = 4,
+			v_rotate = 80.0, v_cruise = 128.6, v_ne = 196.0,
+		},
+	]
+
+
+## Seat X positions for seat groups separated by aisles, e.g. [3, 4, 3].
+func _abreast(groups: Array, seat_width: float, aisle: float) -> Array:
+	var xs: Array = []
+	var x := 0.0
+	for g: int in groups.size():
+		for _k: int in int(groups[g]):
+			xs.append(x)
+			x += seat_width
+		x += aisle
+	var width: float = xs[xs.size() - 1]
+	for i: int in xs.size():
+		xs[i] = float(xs[i]) - width * 0.5
+	return xs
+
+
+## Expands an airliner spec into the full parameter set _build() consumes.
+## Everything not in the spec follows from scaling rules: tail size from
+## volume coefficients, structure thresholds from weight and span, gear from
+## geometry. The rules were fitted to the hand-tuned prototypes.
+func _airliner(spec: Dictionary) -> Dictionary:
+	var length: float = spec.length
+	var width: float = spec.width
+	var r := width * 0.5
+	var height: float = spec.get("height", width)
+	var squash_y := height / width
+	var mass: float = spec.mass
+	var weight := mass * G
+	var span: float = spec.span
+	var semi := span * 0.5
+	var area: float = spec.area
+	var taper: float = spec.taper
+	var sweep: float = spec.sweep
+	var root_c := 2.0 * area / (span * (1.0 + taper))
+	var tip_c := root_c * taper
+	var mac := 2.0 / 3.0 * root_c * (1.0 + taper + taper * taper) / (1.0 + taper)
+	var x_mac := semi / 3.0 * (1.0 + 2.0 * taper) / (1.0 + taper)
+	var big := mass > 120000.0
+	var huge := mass > 400000.0
+	var sections := 7 if length > 50.0 else 5
+	var mid := sections / 2
+
+	# Fuselage stations. Z = 0 is where the wing's mean quarter chord starts out.
+	var nose_z := -0.44 * length
+	var tail_z := nose_z + length
+	var nose_cap := 1.35 * width
+	var tail_cap := 2.5 * width
+	var mid_len := length * (0.26 if sections == 5 else 0.17)
+	var nose_end := nose_z + nose_cap + length * 0.03
+	var tail_start := tail_z - tail_cap - 0.5
+	var per_side := (sections - 3) / 2
+	var cuts: Array = []
+	for k: int in per_side + 1:
+		cuts.append(lerpf(nose_end, -mid_len * 0.5, float(k) / float(per_side)))
+	for k: int in per_side + 1:
+		cuts.append(lerpf(mid_len * 0.5, tail_start, float(k) / float(per_side)))
+
+	# Mass budget.
+	var engine_fracs: Array = spec.engines
+	var engine_count := engine_fracs.size() * 2
+	var engine_mass: float = spec.engine_mass
+	var wing_half := 0.13 * mass
+	var htail_mass := 0.0085 * mass
+	var fin_mass := 0.0145 * mass
+	var nose_gear_mass := 0.0068 * mass
+	var main_gear_mass := 0.02 * mass
+	var fus_total := mass - wing_half * 2.0 - engine_mass * float(engine_count) - htail_mass * 2.0 \
+			- fin_mass - nose_gear_mass - main_gear_mass * 2.0
+	var bounds: Array = [nose_z]
+	bounds.append_array(cuts)
+	bounds.append(tail_z)
+	var weights: Array[float] = []
+	var weight_sum := 0.0
+	for i: int in sections:
+		var w := float(bounds[i + 1]) - float(bounds[i])
+		w *= 0.75 if i == 0 else (0.5 if i == sections - 1 else (1.5 if i == mid else 1.0))
+		weights.append(w)
+		weight_sum += w
+	var fus_mass: Array = []
+	for i: int in sections:
+		fus_mass.append(fus_total * weights[i] / weight_sum)
+
+	# Fuselage joints: strongest next to the wing box, weaker toward the ends.
+	var fus_break_force: Array = []
+	var fus_break_torque: Array = []
+	for j: int in sections - 1:
+		var steps := (mid - j) if j < mid else (j - mid + 1)
+		var f_k: float = [2.4, 1.8, 1.4][clampi(steps - 1, 0, 2)]
+		var t_k: float = [0.37, 0.24, 0.15][clampi(steps - 1, 0, 2)]
+		fus_break_force.append(f_k * weight)
+		fus_break_torque.append(t_k * weight * length)
+
+	# Per-section crown scale (the 747's hump) and window rows.
+	var fus_top: Array = []
+	var fus_windows: Array = []
+	var hump: float = spec.get("hump", 1.0)
+	var double_deck: bool = spec.get("double_deck", false)
+	for i: int in sections:
+		var top := Vector2.ONE
+		if hump > 1.0:
+			if i < mid - 1:
+				top = Vector2(hump, hump)
+			elif i == mid - 1:
+				top = Vector2(hump, 1.0)
+		fus_top.append(top)
+		var window_rows := 1
+		if double_deck and i < sections - 1:
+			window_rows = 2
+		elif hump > 1.0 and i < mid - 1:
+			window_rows = 2
+		fus_windows.append(window_rows)
+
+	# Wing.
+	var dihedral := 5.5
+	var wing_y := -0.58 * r
+	var x_in := 0.92 * r
+	var x_kink := 0.40 * semi
+	var x_kink2 := 0.69 * semi
+	var wing := {
+		root_c = root_c, tip_c = tip_c, semi = semi, sweep = sweep, dihedral = dihedral,
+		y = wing_y, z_c4 = -tan(deg_to_rad(sweep)) * x_mac, x_in = x_in, x_kink = x_kink,
+		x_kink2 = x_kink2, thick = 0.125, winglet = spec.winglet, winglet_style = spec.winglet_style,
+		incidence = 3.0, washout = -3.0 if big else -2.5, airfoil = "transport",
+		mass_in = wing_half * 0.6, mass_mid = wing_half * 0.28, mass_out = wing_half * 0.12,
+		fuel_in = wing_half * 0.36, fuel_mid = wing_half * 0.16, fuel_out = wing_half * 0.05,
+		break_force_in = 4.25 * weight, break_torque_in = 0.75 * weight * semi,
+		break_force_mid = 3.4 * weight, break_torque_mid = 0.39 * weight * semi,
+		break_force_out = 1.25 * weight, break_torque_out = 0.095 * weight * semi,
+		flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.81, cg_mac = 0.25,
+	}
+
+	# Engines, per side, slung under the wing ahead of the leading edge.
+	var engines: Array = []
+	var engine_d: float = spec.engine_d
+	var engine_len: float = spec.engine_len
+	var lowest := -r * squash_y - (0.25 * width + 0.45)
+	for frac: float in engine_fracs:
+		var ex := frac * semi
+		var chord_x := lerpf(root_c, tip_c, frac)
+		var wing_under := wing_y + tan(deg_to_rad(dihedral)) * ex - 0.044 * chord_x
+		var ey := wing_under - 0.12 * engine_d - engine_d * 0.5
+		lowest = minf(lowest, ey - engine_d * 0.5 - 0.55)
+		engines.append({
+			x = ex, y = ey, z_off = -(0.25 * chord_x + 0.62 * engine_len), length = engine_len,
+			r = engine_d * 0.5, mass = engine_mass, thrust = spec.thrust,
+			spool = 3.2 if not big else (4.0 if not huge else 4.5), lapse = 0.62,
+			mount = "wing_in" if ex < x_kink else "wing_mid",
+			break_force = 15.0 * engine_mass * G, break_torque = 15.0 * engine_mass * G * 0.33 * engine_len,
+			fuel = 0.045 * engine_mass,
+		})
+	# Height of the fuselage centreline above the ground: enough for the belly,
+	# or more if the nacelles need it.
+	var clearance := -lowest
+
+	# Tail, sized by volume coefficients (tailplane 1.0, fin 0.085).
+	var h_sweep := sweep + 4.0
+	var h_z := tail_z - 0.40 * tail_cap
+	var h_area := 1.0 * area * mac / h_z
+	var h_span := sqrt(4.6 * h_area)
+	h_area = 1.0 * area * mac / (h_z + tan(deg_to_rad(h_sweep)) * h_span * 0.21)
+	h_span = sqrt(4.6 * h_area)
+	var h_semi := h_span * 0.5
+	var h_root := 2.0 * h_area / (h_span * 1.35)
+	var htail := {
+		root_c = h_root, tip_c = h_root * 0.35, semi = h_semi, sweep = h_sweep, dihedral = 6.0,
+		y = 0.3 * r, z_c4 = h_z, x_in = 0.45 * r, thick = 0.10, incidence = -0.5,
+		mass = htail_mass, break_force = 0.8 * weight, break_torque = 0.29 * weight * h_semi,
+		elevator_deg = 25.0, effectiveness = 0.58, trim_deg = -9.0, e = 0.85,
+	}
+	var v_z := tail_z - 0.55 * tail_cap
+	var v_area := 0.085 * area * span / (v_z * 1.05)
+	var v_height := sqrt(1.75 * v_area)
+	var v_root := 2.0 * v_area / (v_height * 1.35)
+	var fins: Array = [{
+		x = 0.0, cant = 0.0, root_c = v_root, tip_c = v_root * 0.35, height = v_height, sweep = 38.0,
+		y = 0.75 * r * squash_y, z_c4 = v_z, thick = 0.10, mass = fin_mass,
+		break_force = 0.72 * weight, break_torque = 0.36 * weight * v_height,
+		rudder_deg = 25.0, effectiveness = 0.55,
+	}]
+
+	# Landing gear.
+	var nose_y := -0.78 * r * squash_y
+	var main_y := -0.73 * r
+	var gear := {
+		nose_z = nose_z + 0.10 * length, nose_y = nose_y, main_x = 0.92 * width,
+		main_z_off = 0.37 * mac, main_y = main_y, clearance = clearance,
+		nose_mass = nose_gear_mass, main_mass = main_gear_mass, mount = "wing_in",
+		nose_wheel_r = 0.38 if not big else (0.5 if not huge else 0.6),
+		main_wheel_r = 0.58 if not big else 0.7, main_wheels = spec.wheels,
+		travel = 0.45 if not big else (0.6 if not huge else 0.7), steer = 65.0,
+		nose_break_force = 0.68 * weight, nose_break_torque = 0.43 * weight * (clearance + nose_y),
+		main_break_force = 2.1 * weight, main_break_torque = 1.45 * weight * (clearance + main_y),
+	}
+
+	# Cabin.
+	var floor_y := (-0.52 if double_deck else -0.30) * r * squash_y
+	var z_start := nose_z + nose_cap * 0.85 + 1.0
+	var rows: int = spec.rows
+	var available := (tail_z - tail_cap * 0.72) - z_start
+	var pitch := minf(0.81, available / float(rows))
+	var upper_floor := floor_y + 2.55
+	var cabin := {
+		cockpit_z = nose_z + nose_cap * 0.44, cockpit_x = 0.55 if not big else 0.62,
+		cockpit_floor = (upper_floor if hump > 1.0 else floor_y) + 0.25,
+		z_start = z_start, rows = rows, pitch = pitch, floor = floor_y, first_row = 1,
+		abreast = _abreast(spec.groups, 0.5, 0.52),
+	}
+	if spec.has("upper_rows"):
+		cabin["upper"] = {
+			rows = spec.upper_rows, z_start = z_start + (0.5 if hump > 1.0 else 3.0),
+			pitch = pitch, floor = upper_floor, abreast = _abreast(spec.upper_groups, 0.5, 0.52),
+		}
+
+	var cal: Dictionary = _calibration.get(String(spec.id), {})
 	return {
-		id = &"meridian_220", name = "Meridian 220", category = "Narrow-body airliner",
-		desc = "Twin-engine single-aisle workhorse. 182 seats, forgiving handling, long flaps.",
-		paint = Color(0.93, 0.95, 0.97), accent = Color(0.09, 0.32, 0.72),
-		# Fuselage: nose tip Z, section cut Zs, radius, cap lengths, masses per section.
-		nose_z = -17.2, tail_z = 20.4, fus_r = 1.98, nose_cap = 5.2, tail_cap = 9.5,
-		cuts = [-11.5, -5.0, 5.0, 11.5],
-		fus_mass = [4500.0, 7000.0, 13500.0, 5500.0, 3000.0],
-		fus_break_force = [1.2e6, 1.5e6, 1.7e6, 1.3e6],
-		fus_break_torque = [5.0e6, 8.0e6, 9.0e6, 6.0e6],
-		fus_crush = 0.75, nose_power = 0.62, nose_droop = 0.28, tail_ratio = 0.14,
-		tail_upsweep = 0.72, squash = Vector2(1.0, 1.0),
-		# Wing planform measured from the centreline.
-		wing = {
-			root_c = 6.1, tip_c = 1.6, semi = 17.0, sweep = 25.0, dihedral = 5.0,
-			y = -1.15, z_c4 = -3.2, x_in = 1.8, x_kink = 6.8, x_kink2 = 11.8, thick = 0.13,
-			winglet = 1.9,
-			incidence = 3.0, washout = -2.5, airfoil = "transport",
-			mass_in = 5000.0, mass_mid = 2400.0, mass_out = 1100.0,
-			fuel_in = 3000.0, fuel_mid = 1400.0, fuel_out = 500.0,
-			break_force_in = 2.6e6, break_torque_in = 7.5e6,
-			break_force_mid = 2.2e6, break_torque_mid = 4.0e6,
-			break_force_out = 8.0e5, break_torque_out = 1.0e6,
-			flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.80,
-			cg_mac = 0.24,
-		},
-		htail = {
-			root_c = 3.9, tip_c = 1.4, semi = 6.2, sweep = 28.0, dihedral = 6.0,
-			y = 0.55, z_c4 = 17.2, x_in = 0.9, thick = 0.10, incidence = -1.0,
-			mass = 520.0, break_force = 5.0e5, break_torque = 1.1e6,
-			elevator_deg = 25.0, effectiveness = 0.58, trim_deg = -9.0, e = 0.85,
-		},
-		fins = [{
-			x = 0.0, cant = 0.0, root_c = 5.4, tip_c = 1.9, height = 6.0, sweep = 35.0,
-			y = 1.5, z_c4 = 15.4, thick = 0.10, mass = 900.0,
-			break_force = 4.5e5, break_torque = 1.3e6, rudder_deg = 25.0, effectiveness = 0.55,
-		}],
-		engines = [{
-			x = 5.75, y = -2.35, z_off = -4.6, length = 4.4, r = 1.12, mass = 3400.0,
-			thrust = 120000.0, spool = 3.2, lapse = 0.42, mount = "wing_in",
-			break_force = 4.5e5, break_torque = 7.0e5, fuel = 150.0,
-		}],
-		gear = {
-			nose_z = -13.6, nose_y = -1.55, main_x = 3.8, main_z_off = 1.55, main_y = -1.45,
-			clearance = 3.45, nose_mass = 420.0, main_mass = 1250.0, mount = "wing_in",
-			nose_wheel_r = 0.38, main_wheel_r = 0.58, travel = 0.45, steer = 65.0,
-			nose_break_force = 4.2e5, nose_break_torque = 5.0e5,
-			main_break_force = 1.25e6, main_break_torque = 1.8e6,
-		},
-		flaps = [0.0, 5.0, 15.0, 25.0, 40.0], flap_cl = 1.15, flap_cd = 0.075, flap_cm = -0.12,
-		flap_time = 12.0, control_rate = 2.2, trim_rate = 0.10,
-		cabin = {
-			cockpit_z = -14.9, cockpit_x = 0.55, cockpit_floor = -0.35,
-			z_start = -12.2, rows = 30, pitch = 0.81, floor = -0.6, first_row = 1,
-			abreast = [-1.55, -1.05, -0.55, 0.55, 1.05, 1.55],
-		},
-		v_rotate = 72.0, v_cruise = 135.0, v_ne = 245.0, cruise_trim = 0.31, cruise_throttle = 0.21,
+		id = spec.id, name = spec.name, category = spec.category, desc = spec.desc,
+		paint = spec.paint, accent = spec.accent,
+		nose_z = nose_z, tail_z = tail_z, fus_r = r, nose_cap = nose_cap, tail_cap = tail_cap,
+		cuts = cuts, fus_mass = fus_mass,
+		fus_break_force = fus_break_force, fus_break_torque = fus_break_torque,
+		fus_top = fus_top, fus_windows = fus_windows,
+		fus_crush = 0.75 if not big else (1.1 if not huge else 1.3),
+		nose_power = spec.nose_power, nose_droop = 0.28, tail_ratio = 0.14, tail_upsweep = 0.72,
+		squash = Vector2(1.0, squash_y),
+		wing = wing, htail = htail, fins = fins, engines = engines, gear = gear,
+		flaps = [0.0, 5.0, 15.0, 25.0, 40.0] if not big else [0.0, 5.0, 15.0, 25.0, 35.0],
+		flap_cl = 1.15, flap_cd = 0.075, flap_cm = -0.12,
+		flap_time = 12.0 if not big else (16.0 if not huge else 20.0),
+		control_rate = 2.2 if not big else (1.6 if not huge else 1.3),
+		trim_rate = 0.10 if not big else (0.08 if not huge else 0.07),
+		cabin = cabin, body_wave_drag = 1.5,
+		v_rotate = spec.v_rotate, v_cruise = spec.v_cruise, v_ne = spec.v_ne,
+		cruise_trim = cal.get("trim", 0.3), cruise_throttle = cal.get("throttle", 0.3),
 	}
 
 
-func _wide_body() -> Dictionary:
-	return {
-		id = &"atlas_900", name = "Atlas 900", category = "Wide-body airliner",
-		desc = "Long-haul twin-aisle heavy. 345 seats and a lot of inertia: plan ahead.",
-		paint = Color(0.95, 0.95, 0.93), accent = Color(0.62, 0.10, 0.14),
-		nose_z = -30.0, tail_z = 34.0, fus_r = 3.05, nose_cap = 7.5, tail_cap = 15.0,
-		cuts = [-21.5, -13.5, -5.5, 5.5, 13.5, 22.5],
-		fus_mass = [10000.0, 17000.0, 24000.0, 34000.0, 21000.0, 15000.0, 9000.0],
-		fus_break_force = [2.8e6, 3.6e6, 5.2e6, 5.4e6, 3.8e6, 3.0e6],
-		fus_break_torque = [2.0e7, 3.0e7, 5.0e7, 5.2e7, 3.2e7, 2.2e7],
-		fus_crush = 1.1, nose_power = 0.6, nose_droop = 0.3, tail_ratio = 0.13,
-		tail_upsweep = 0.75, squash = Vector2(1.0, 1.0),
-		wing = {
-			root_c = 12.4, tip_c = 2.6, semi = 30.0, sweep = 31.0, dihedral = 6.0,
-			y = -1.7, z_c4 = -6.0, x_in = 2.8, x_kink = 12.0, x_kink2 = 21.0, thick = 0.12,
-			winglet = 2.8,
-			incidence = 3.0, washout = -3.0, airfoil = "transport",
-			mass_in = 19000.0, mass_mid = 8500.0, mass_out = 3500.0,
-			fuel_in = 13000.0, fuel_mid = 5000.0, fuel_out = 2000.0,
-			break_force_in = 9.5e6, break_torque_in = 5.2e7,
-			break_force_mid = 7.0e6, break_torque_mid = 2.6e7,
-			break_force_out = 2.5e6, break_torque_out = 6.5e6,
-			flap_in = 0.85, flap_out = 0.45, aileron_deg = 20.0, e = 0.82,
-			cg_mac = 0.25,
-		},
-		htail = {
-			root_c = 7.0, tip_c = 2.3, semi = 10.5, sweep = 33.0, dihedral = 7.0,
-			y = 0.9, z_c4 = 29.5, x_in = 1.4, thick = 0.10, incidence = -1.0,
-			mass = 1900.0, break_force = 1.8e6, break_torque = 7.0e6,
-			elevator_deg = 25.0, effectiveness = 0.58, trim_deg = -9.0, e = 0.85,
-		},
-		fins = [{
-			x = 0.0, cant = 0.0, root_c = 9.2, tip_c = 3.2, height = 10.0, sweep = 40.0,
-			y = 2.5, z_c4 = 26.5, thick = 0.10, mass = 3000.0,
-			break_force = 1.6e6, break_torque = 8.0e6, rudder_deg = 25.0, effectiveness = 0.55,
-		}],
-		engines = [{
-			x = 9.6, y = -3.25, z_off = -8.6, length = 7.2, r = 1.7, mass = 9500.0,
-			thrust = 400000.0, spool = 4.0, lapse = 0.45, mount = "wing_in",
-			break_force = 1.5e6, break_torque = 3.5e6, fuel = 400.0,
-		}],
-		gear = {
-			nose_z = -24.5, nose_y = -2.5, main_x = 5.4, main_z_off = 2.6, main_y = -2.3,
-			clearance = 5.4, nose_mass = 1500.0, main_mass = 5200.0, mount = "wing_in",
-			nose_wheel_r = 0.55, main_wheel_r = 0.72, travel = 0.6, steer = 65.0,
-			nose_break_force = 1.5e6, nose_break_torque = 2.6e6,
-			main_break_force = 4.8e6, main_break_torque = 1.0e7,
-		},
-		flaps = [0.0, 5.0, 15.0, 25.0, 35.0], flap_cl = 1.1, flap_cd = 0.07, flap_cm = -0.11,
-		flap_time = 16.0, control_rate = 1.6, trim_rate = 0.08,
-		cabin = {
-			cockpit_z = -27.0, cockpit_x = 0.62, cockpit_floor = -0.2,
-			z_start = -23.0, rows = 38, pitch = 0.86, floor = -0.75, first_row = 1,
-			abreast = [-2.5, -2.0, -1.5, -0.5, 0.0, 0.5, 1.5, 2.0, 2.5],
-		},
-		v_rotate = 84.0, v_cruise = 150.0, v_ne = 260.0, cruise_trim = 0.28, cruise_throttle = 0.31,
-	}
-
-
+## The single-engine fighter is hand-specified: a 9 g airframe does not follow
+## the airliner scaling rules.
 func _fighter() -> Dictionary:
+	var cal: Dictionary = _calibration.get("lockhid_f16", {})
 	return {
-		id = &"kestrel_f7", name = "Kestrel F7", category = "Fighter",
-		desc = "Single-seat interceptor. Thrust to spare, 9 g airframe, very little margin for error.",
-		paint = Color(0.50, 0.55, 0.60), accent = Color(0.95, 0.72, 0.12),
-		nose_z = -8.6, tail_z = 6.9, fus_r = 0.92, nose_cap = 4.6, tail_cap = 1.2,
-		cuts = [-3.0, 2.4], fus_mass = [2230.0, 3900.0, 1700.0],
+		id = &"lockhid_f16", name = "Lockhid F-16C", category = "Single-engine fighter",
+		desc = "Lightweight fighter: bubble canopy, afterburner, 9 g airframe. Supersonic at low level.",
+		paint = Color(0.52, 0.56, 0.6), accent = Color(0.36, 0.4, 0.45),
+		nose_z = -8.3, tail_z = 6.76, fus_r = 0.9, nose_cap = 4.6, tail_cap = 1.2,
+		cuts = [-3.0, 2.4], fus_mass = [2000.0, 3500.0, 1500.0],
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
 		fus_crush = 0.5, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
 		tail_upsweep = 0.0, squash = Vector2(1.22, 0.9),
-		canopy = { z0 = -6.0, z1 = -3.2, half_width = 0.44, height = 0.62, mass = 70.0 },
+		canopy = { z0 = -5.9, z1 = -3.1, half_width = 0.44, height = 0.62, mass = 70.0 },
 		wing = {
-			root_c = 5.2, tip_c = 1.1, semi = 4.9, sweep = 38.0, dihedral = 0.0,
-			y = 0.0, z_c4 = -0.9, x_in = 1.0, x_kink = 2.6, x_kink2 = 3.8, thick = 0.05,
-			winglet = 0.0,
+			root_c = 5.0, tip_c = 1.0, semi = 4.73, sweep = 32.0, dihedral = 0.0,
+			y = 0.0, z_c4 = -0.9, x_in = 1.0, x_kink = 2.5, x_kink2 = 3.7, thick = 0.045,
+			winglet = 0.0, winglet_style = 0,
 			incidence = 0.5, washout = -1.5, airfoil = "fighter",
-			mass_in = 600.0, mass_mid = 280.0, mass_out = 120.0,
-			fuel_in = 450.0, fuel_mid = 150.0, fuel_out = 0.0,
+			mass_in = 560.0, mass_mid = 260.0, mass_out = 110.0,
+			fuel_in = 420.0, fuel_mid = 140.0, fuel_out = 0.0,
 			break_force_in = 1.1e6, break_torque_in = 1.5e6,
 			break_force_mid = 6.5e5, break_torque_mid = 6.0e5,
 			break_force_out = 2.2e5, break_torque_out = 1.5e5,
@@ -225,27 +457,27 @@ func _fighter() -> Dictionary:
 			cg_mac = 0.27,
 		},
 		htail = {
-			root_c = 2.9, tip_c = 0.9, semi = 2.9, sweep = 40.0, dihedral = -2.0,
-			y = -0.1, z_c4 = 5.3, x_in = 0.75, thick = 0.045, incidence = 0.0,
-			mass = 160.0, break_force = 3.4e5, break_torque = 2.6e5,
+			root_c = 2.9, tip_c = 0.9, semi = 2.8, sweep = 40.0, dihedral = -6.0,
+			y = -0.1, z_c4 = 5.2, x_in = 0.75, thick = 0.045, incidence = 0.0,
+			mass = 150.0, break_force = 3.4e5, break_torque = 2.6e5,
 			# All-moving tailerons: pitch plus a little roll.
 			elevator_deg = 24.0, effectiveness = 1.0, trim_deg = -6.0, e = 0.8,
 			roll_mix = 0.12,
 		},
 		fins = [{
 			x = 0.0, cant = 0.0, root_c = 3.3, tip_c = 1.1, height = 3.0, sweep = 45.0,
-			y = 0.75, z_c4 = 4.2, thick = 0.05, mass = 190.0,
+			y = 0.75, z_c4 = 4.2, thick = 0.05, mass = 180.0,
 			break_force = 5.5e5, break_torque = 5.5e5, rudder_deg = 28.0, effectiveness = 0.5,
 		}],
 		engines = [{
-			x = 0.0, y = 0.0, z_off = 0.0, z_abs = 4.9, length = 3.6, r = 0.62, mass = 1700.0,
-			thrust = 128000.0, spool = 1.1, lapse = 0.08, mount = "fus_tail",
+			x = 0.0, y = 0.0, z_off = 0.0, z_abs = 4.9, length = 3.6, r = 0.6, mass = 1750.0,
+			thrust = 76300.0, afterburner = 129000.0, spool = 1.1, lapse = 0.05, mount = "fus_tail",
 			break_force = 9.0e5, break_torque = 7.0e5, fuel = 200.0,
 		}],
 		gear = {
-			nose_z = -5.4, nose_y = -0.75, main_x = 1.25, main_z_off = 0.85, main_y = -0.7,
-			clearance = 1.95, nose_mass = 110.0, main_mass = 240.0, mount = "fus_mid",
-			nose_wheel_r = 0.24, main_wheel_r = 0.34, travel = 0.32, steer = 50.0,
+			nose_z = -5.2, nose_y = -0.75, main_x = 1.2, main_z_off = 0.85, main_y = -0.7,
+			clearance = 1.95, nose_mass = 100.0, main_mass = 230.0, mount = "fus_mid",
+			nose_wheel_r = 0.24, main_wheel_r = 0.34, main_wheels = 2, travel = 0.32, steer = 50.0,
 			nose_break_force = 1.5e5, nose_break_torque = 1.1e5,
 			main_break_force = 3.6e5, main_break_torque = 2.6e5,
 		},
@@ -255,7 +487,9 @@ func _fighter() -> Dictionary:
 			cockpit_z = -4.3, cockpit_x = 0.0, cockpit_floor = -0.2,
 			rows = 0, z_start = 0.0, pitch = 1.0, floor = 0.0, first_row = 1, abreast = [],
 		},
-		v_rotate = 78.0, v_cruise = 190.0, v_ne = 420.0, cruise_trim = 0.46, cruise_throttle = 0.10,
+		body_wave_drag = 1.2,
+		v_rotate = 77.0, v_cruise = 200.0, v_ne = 410.0,
+		cruise_trim = cal.get("trim", 0.45), cruise_throttle = cal.get("throttle", 0.2),
 	}
 
 
@@ -281,6 +515,7 @@ func _build(p: Dictionary) -> AircraftDef:
 	def.v_never_exceed = p.v_ne
 	def.cruise_trim = p.cruise_trim
 	def.cruise_throttle = p.cruise_throttle
+	def.body_wave_drag = p.get("body_wave_drag", 1.5)
 
 	_add_fuselage(def, p)
 	# The wing group (wing, wing-mounted engines and gear) slides along Z until
@@ -372,6 +607,11 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 		part.tail_ratio = p.tail_ratio
 		part.tail_upsweep = p.tail_upsweep
 		part.squash = p.squash
+		if p.has("fus_top"):
+			var top: Vector2 = p.fus_top[i]
+			part.top_scale0 = top.x
+			part.top_scale1 = top.y
+		part.window_rows = int(p.fus_windows[i]) if p.has("fus_windows") else (1 if int(p.cabin.rows) > 0 else 0)
 		made.append(part)
 	# Root (mid) first, then outward so parents precede children.
 	def.parts.append(made[mid])
@@ -495,6 +735,7 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 		outer.break_force = w.break_force_out
 		outer.break_torque = w.break_torque_out
 		outer.winglet = w.winglet
+		outer.winglet_style = w.winglet_style
 		def.parts.append(inner)
 		def.parts.append(middle)
 		def.parts.append(outer)
@@ -513,6 +754,7 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 						semi * 2.0)
 				s.flap_fraction = float(w.flap_in) if k < 2 else (float(w.flap_out) if k == 2 else 0.0)
 				s.spoiler_fraction = 0.6 if k == 1 or k == 2 else 0.0
+				s.downwash_source = k == 0
 				if k == 3:
 					# Roll right (+1) raises lift on the left wing, lowers it on the right.
 					s.control_mix = Vector3(0.0, -side, 0.0)
@@ -520,12 +762,18 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 					s.effectiveness = 0.45
 				def.surfaces.append(s)
 
+		var pod := 0
+		var pods := 0
 		for e: Dictionary in p.engines:
-			if String(e.mount) != "wing_in":
+			if String(e.mount).begins_with("wing_"):
+				pods += 1
+		for e: Dictionary in p.engines:
+			if not String(e.mount).begins_with("wing_"):
 				continue
+			pod += 1
 			var eng := PartDef.new()
-			eng.name = StringName("engine_%s" % tag)
-			eng.parent = inner.name
+			eng.name = StringName("engine_%s" % tag if pods == 1 else "engine_%s%d" % [tag, pod])
+			eng.parent = inner.name if String(e.mount) == "wing_in" else middle.name
 			eng.kind = PartDef.Kind.ENGINE
 			eng.mass = e.mass
 			var wing_at := _c4(w, e.x, shift)
@@ -555,6 +803,7 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 				ed.max_thrust = e.thrust
 				ed.spool_time = e.spool
 				ed.mach_lapse = e.lapse
+				ed.afterburner_thrust = e.get("afterburner", 0.0)
 				def.engines.append(ed)
 
 		# Main gear leg.
@@ -579,6 +828,7 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 		c.chord_dir = Vector3(0.0, sin(deg_to_rad(float(w.incidence))),
 				-cos(deg_to_rad(float(w.incidence))))
 		c.area *= 2.0
+		c.downwash_source = true
 		def.surfaces.append(c)
 
 
@@ -594,7 +844,7 @@ func _fill_gear(def: AircraftDef, leg: PartDef, pivot: Vector3, gear_p: Dictiona
 	leg.p1 = pivot + Vector3(0.0, -(free_length - wheel_r), 0.0)
 	leg.r0 = wheel_r
 	leg.r1 = wheel_r * 0.22
-	leg.shape_a = 2.0 if is_nose or float(gear_p.main_mass) < 2000.0 else 4.0
+	leg.shape_a = 2.0 if is_nose else float(gear_p.get("main_wheels", 2))
 	leg.com = pivot.lerp(leg.p1, 0.7)
 	leg.anchor = pivot
 	var h := free_length
@@ -662,6 +912,7 @@ func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
 			# Count the area buried in the fuselage: the tailplane works across it.
 			s.area = h_area * 0.5
 			# Stick back (+1) must push the tail down: negative lift.
+			s.downwash = 1.0
 			s.control_mix = Vector3(-1.0, -side * float(h.get("roll_mix", 0.0)), 0.0)
 			s.max_deflection_deg = h.elevator_deg
 			s.effectiveness = h.effectiveness
@@ -752,6 +1003,7 @@ func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
 			ed.max_thrust = e.thrust
 			ed.spool_time = e.spool
 			ed.mach_lapse = e.lapse
+			ed.afterburner_thrust = e.get("afterburner", 0.0)
 			def.engines.append(ed)
 
 	var gear_p: Dictionary = p.gear
@@ -842,6 +1094,26 @@ func _add_cabin(def: AircraftDef, p: Dictionary) -> void:
 			current.abreast = PackedFloat32Array(c.abreast)
 			def.seat_blocks.append(current)
 		current.rows += 1
+
+	# Upper deck (double-deckers, the 747's hump): same rule, its own floor.
+	if c.has("upper"):
+		var u: Dictionary = c.upper
+		current = null
+		for r: int in int(u.rows):
+			var z: float = float(u.z_start) + float(u.pitch) * float(r)
+			var owner := _fuselage_part_at(def, z)
+			if current == null or current.part != owner:
+				current = SeatBlockDef.new()
+				current.label = "Upper deck"
+				current.part = owner
+				current.first_row = 70 + r
+				current.rows = 0
+				current.z_start = z
+				current.pitch = u.pitch
+				current.floor_y = u.floor
+				current.abreast = PackedFloat32Array(u.abreast)
+				def.seat_blocks.append(current)
+			current.rows += 1
 
 	# FREDs in priority order: captain, then seats spread along the cabin.
 	var picks := PackedInt32Array([0])

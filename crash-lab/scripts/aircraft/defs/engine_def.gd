@@ -13,5 +13,7 @@ extends Resource
 @export var idle_fraction: float = 0.05
 ## First-order spool time constant (s).
 @export var spool_time: float = 3.0
-## Thrust lost per unit Mach number (high-bypass ~0.45, low-bypass ~0.1).
+## Thrust lost per unit Mach number (high-bypass ~0.6, low-bypass ~0.1).
 @export var mach_lapse: float = 0.4
+## Thrust with full afterburner (N); 0 = none. Lights above 90 % throttle.
+@export var afterburner_thrust: float = 0.0

@@ -76,6 +76,31 @@ func _ready() -> void:
 	_settings_panel.closed.connect(_settings_panel.hide)
 	_settings_panel.hide()
 	_apply_accent(_accent)
+	for b: Button in [%PrevButton, %NextButton, _cutaway, %SettingsButton]:
+		UiStyle.style_button(b)
+	_apply_safe_area()
+	get_viewport().size_changed.connect(_apply_safe_area)
+
+
+## Pins the corner panels to the safe area. Everything is anchored to a screen
+## edge or the centre, so only the edge distances change with the window.
+func _apply_safe_area() -> void:
+	var m: Vector4 = UiStyle.safe_margins(self)
+	var title: Control = %TitleBox
+	title.offset_left = m.x
+	title.offset_top = m.y - 4.0
+	title.offset_right = m.x + 576.0
+	var left: Control = %LeftPanel
+	left.offset_left = m.x
+	left.offset_right = m.x + 330.0
+	left.offset_top = m.y + 126.0
+	left.offset_bottom = -m.w
+	var right: Control = %RightPanel
+	right.offset_right = -m.z
+	right.offset_left = -m.z - 220.0
+	var bar: Control = %BottomBar
+	bar.offset_top = -m.w - 88.0
+	bar.offset_bottom = -m.w
 
 
 func _build_stats() -> void:
@@ -129,6 +154,7 @@ func _build_start_buttons() -> void:
 		b.button_group = group
 		b.custom_minimum_size = Vector2(0, 64)
 		b.button_pressed = i == 0
+		UiStyle.style_button(b)
 		b.pressed.connect(_on_start_pressed.bind(i))
 		box.add_child(b)
 		b.owner = self

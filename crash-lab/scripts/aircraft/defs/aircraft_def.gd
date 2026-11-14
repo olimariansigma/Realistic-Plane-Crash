@@ -55,6 +55,11 @@ extends Resource
 ## Indices into the flattened seat list that get a FRED dummy.
 @export var fred_seats: PackedInt32Array
 
+@export_group("High speed")
+## Extra bluff-body drag (as a multiple) the fuselage and nacelles pick up
+## between Mach 0.85 and 1.1.
+@export var body_wave_drag: float = 1.5
+
 @export_group("Reference speeds")
 ## Rotation and in-flight-start speeds (m/s), for the HUD and spawn modes.
 @export var v_rotate: float = 70.0
