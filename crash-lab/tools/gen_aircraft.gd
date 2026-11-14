@@ -446,7 +446,7 @@ func _fighter() -> Dictionary:
 		wing = {
 			root_c = 5.0, tip_c = 1.0, semi = 4.73, sweep = 32.0, dihedral = 0.0,
 			y = 0.0, z_c4 = -0.9, x_in = 1.0, x_kink = 2.5, x_kink2 = 3.7, thick = 0.045,
-			winglet = 0.0, winglet_style = 0,
+			winglet = 0.0, winglet_style = 0, roll_spoiler = 0.0,
 			incidence = 0.5, washout = -1.5, airfoil = "fighter",
 			mass_in = 560.0, mass_mid = 260.0, mass_out = 110.0,
 			fuel_in = 420.0, fuel_mid = 140.0, fuel_out = 0.0,
@@ -454,7 +454,7 @@ func _fighter() -> Dictionary:
 			break_force_mid = 6.5e5, break_torque_mid = 6.0e5,
 			break_force_out = 2.2e5, break_torque_out = 1.5e5,
 			flap_in = 0.7, flap_out = 0.3, aileron_deg = 12.0, e = 0.78,
-			cg_mac = 0.27,
+			cg_mac = 0.2,
 		},
 		htail = {
 			root_c = 2.9, tip_c = 0.9, semi = 2.8, sweep = 40.0, dihedral = -6.0,
@@ -462,7 +462,7 @@ func _fighter() -> Dictionary:
 			mass = 150.0, break_force = 3.4e5, break_torque = 2.6e5,
 			# All-moving tailerons: pitch plus a little roll.
 			elevator_deg = 24.0, effectiveness = 1.0, trim_deg = -6.0, e = 0.8,
-			roll_mix = 0.12,
+			roll_mix = 0.12, downwash = 0.55,
 		},
 		fins = [{
 			x = 0.0, cant = 0.0, root_c = 3.3, tip_c = 1.1, height = 3.0, sweep = 45.0,
@@ -487,7 +487,7 @@ func _fighter() -> Dictionary:
 			cockpit_z = -4.3, cockpit_x = 0.0, cockpit_floor = -0.2,
 			rows = 0, z_start = 0.0, pitch = 1.0, floor = 0.0, first_row = 1, abreast = [],
 		},
-		body_wave_drag = 1.2,
+		body_wave_drag = 1.2, yaw_damper = 3.0,
 		v_rotate = 77.0, v_cruise = 200.0, v_ne = 410.0,
 		cruise_trim = cal.get("trim", 0.45), cruise_throttle = cal.get("throttle", 0.2),
 	}
@@ -516,6 +516,7 @@ func _build(p: Dictionary) -> AircraftDef:
 	def.cruise_trim = p.cruise_trim
 	def.cruise_throttle = p.cruise_throttle
 	def.body_wave_drag = p.get("body_wave_drag", 1.5)
+	def.yaw_damper = p.get("yaw_damper", 1.5)
 
 	_add_fuselage(def, p)
 	# The wing group (wing, wing-mounted engines and gear) slides along Z until
@@ -754,6 +755,7 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 						semi * 2.0)
 				s.flap_fraction = float(w.flap_in) if k < 2 else (float(w.flap_out) if k == 2 else 0.0)
 				s.spoiler_fraction = 0.6 if k == 1 or k == 2 else 0.0
+				s.roll_spoiler = float(w.get("roll_spoiler", 0.6)) if k == 1 or k == 2 else 0.0
 				s.downwash_source = k == 0
 				if k == 3:
 					# Roll right (+1) raises lift on the left wing, lowers it on the right.
@@ -912,7 +914,9 @@ func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
 			# Count the area buried in the fuselage: the tailplane works across it.
 			s.area = h_area * 0.5
 			# Stick back (+1) must push the tail down: negative lift.
-			s.downwash = 1.0
+			# Twice the induced angle overstates downwash behind a low-aspect
+			# wing; such designs give their own factor.
+			s.downwash = h.get("downwash", 1.0)
 			s.control_mix = Vector3(-1.0, -side * float(h.get("roll_mix", 0.0)), 0.0)
 			s.max_deflection_deg = h.elevator_deg
 			s.effectiveness = h.effectiveness
@@ -972,7 +976,7 @@ func _add_tail(def: AircraftDef, p: Dictionary, with_surfaces: bool) -> void:
 
 	# Fuselage-mounted engines and the nose gear ride with the body.
 	for e: Dictionary in p.engines:
-		if String(e.mount) == "wing_in":
+		if String(e.mount).begins_with("wing_"):
 			continue
 		var eng := PartDef.new()
 		eng.name = &"engine_c"

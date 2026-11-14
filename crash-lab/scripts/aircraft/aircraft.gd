@@ -35,6 +35,8 @@ const SCRAPE_SPEED := 12.0
 const STRIP_DYN_PRESSURE := 2200.0
 ## Seconds of fuselage/wing/engine ground contact that make a belly landing a crash.
 const BODY_CONTACT_CRASH_TIME := 0.8
+## Time constant of the yaw damper's washout filter (s).
+const YAW_WASHOUT_TIME := 2.0
 ## The cabin is armed this many seconds before a predicted impact.
 const ARM_LEAD_TIME := 1.2
 ## Minimum ticks between impact events from one part.
@@ -87,6 +89,7 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+var _yaw_rate_slow: float = 0.0
 var _downwash_sources: Array[AeroSurface] = []
 var _body_contact_time: float = 0.0
 var _vel_history: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
@@ -424,9 +427,14 @@ func _process_impacts(dt: float) -> void:
 				shed_pieces(part, victim, 1000.0, 1, 4.0)
 				_mark_crashed()
 		# Broken structure in a fast airstream keeps coming apart, panel by panel.
+		# Loose wreckage tumbles and sheds quickly; damaged structure still on
+		# the aircraft peels far more slowly.
 		if part.pieces_left > 0 and (part.stripped or part.assembly_root != 0) and (_ticks + i * 3) % 12 == 0:
 			var q := 0.5 * air_density * part.lin_vel.length_squared()
-			if q > STRIP_DYN_PRESSURE and _rng.randf() < minf(q / 90000.0, 0.25):
+			var chance := minf(q / 90000.0, 0.25)
+			if part.assembly_root == 0:
+				chance *= 0.1
+			if q > STRIP_DYN_PRESSURE and _rng.randf() < chance:
 				var pick := part.pieces[_rng.randi() % part.pieces.size()].center
 				shed_pieces(part, pick, 1000.0, 1, 4.0)
 		if part.contact_count == 0 or part.sleeping:
@@ -487,10 +495,17 @@ func _update_actuators(dt: float) -> void:
 	var rate := def.control_rate * dt
 	_act.x = move_toward(_act.x, clampf(c.pitch, -1.0, 1.0), rate)
 	_act.y = move_toward(_act.y, clampf(c.roll, -1.0, 1.0), rate)
-	_act.z = move_toward(_act.z, clampf(c.yaw, -1.0, 1.0), rate)
+	# Yaw damper: rudder against the washed-out yaw rate (airborne only, so it
+	# never fights nose-wheel steering).
+	var yaw_command := c.yaw
+	if def.yaw_damper > 0.0 and not telemetry.on_ground:
+		var yaw_right := -root_part.ang_vel.dot(root_part.xf.basis.y)
+		_yaw_rate_slow = lerpf(_yaw_rate_slow, yaw_right, minf(dt / YAW_WASHOUT_TIME, 1.0))
+		yaw_command -= def.yaw_damper * (yaw_right - _yaw_rate_slow)
+	_act.z = move_toward(_act.z, clampf(yaw_command, -1.0, 1.0), rate)
 
 	# Auto-trim: held stick slowly becomes trim, so releasing it holds attitude.
-	if auto_trim and not telemetry.on_ground and absf(c.pitch) > 0.01:
+	if auto_trim and not telemetry.on_ground and absf(c.pitch) > 0.003:
 		trim = clampf(trim + c.pitch * def.trim_rate * dt, -1.0, 1.0)
 
 	var steps := def.flap_steps_deg

@@ -1,0 +1,10 @@
+{
+  "abius_a320": {"trim": 0.13, "throttle": 0.18},
+  "abius_a330": {"trim": 0.18, "throttle": 0.33},
+  "abius_a350": {"trim": 0.15, "throttle": 0.33},
+  "abius_a380": {"trim": 0.15, "throttle": 0.41},
+  "bing_737": {"trim": 0.13, "throttle": 0.18},
+  "bing_747": {"trim": 0.18, "throttle": 0.15},
+  "bing_777": {"trim": 0.27, "throttle": 0.14},
+  "bing_787": {"trim": 0.21, "throttle": 0.33}
+}

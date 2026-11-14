@@ -31,6 +31,7 @@ var _trim_found := 0.0
 var _throttle_i := 0.3
 var _prev_ias := 0.0
 var _accel_f := 0.0
+var _prev_roll := 0.0
 
 
 func _start() -> void:
@@ -141,15 +142,15 @@ func _physics_process(dt: float) -> bool:
 			c.throttle = clampf(_throttle_i + speed_err * 0.03, 0.02, 1.0)
 			var accel := (tm.ias - _prev_ias) / dt
 			_accel_f = lerpf(_accel_f, accel, 0.05)
-			var steady := absf(c.pitch) < 0.02 and absf(tm.vertical_speed) < 0.8 \
-					and absf(speed_err) < 3.0 and absf(_accel_f) < 0.15
+			var steady := absf(c.pitch) < 0.008 and absf(tm.vertical_speed) < 0.8 \
+					and absf(speed_err) < 4.0 and absf(_accel_f) < 0.15
 			_trimmed_t = _trimmed_t + dt if steady else 0.0
 			if _trimmed_t > 3.0:
 				c.pitch = 0.0
 				_release_alt = tm.altitude_msl
 				_trim_found = tm.trim
 				_next(Phase.HANDS_OFF)
-			elif _phase_t > 150.0:
+			elif _phase_t > 260.0:
 				return _fail("could not trim for level flight (stick %.2f, vs %.1f, ias %.1f, accel %.2f)"
 						% [c.pitch, tm.vertical_speed, tm.ias, _accel_f])
 		Phase.HANDS_OFF:
@@ -195,8 +196,11 @@ func _physics_process(dt: float) -> bool:
 	return false
 
 
+## Wing leveller with roll-rate damping, like any pilot or autopilot.
 func _wings_level(c: ControlState, tm: FlightTelemetry) -> void:
-	c.roll = clampf(-tm.roll_deg * 0.06, -1.0, 1.0)
+	var rate := (tm.roll_deg - _prev_roll) * 60.0
+	_prev_roll = tm.roll_deg
+	c.roll = clampf(-tm.roll_deg * 0.05 - rate * 0.012, -1.0, 1.0)
 
 
 func _hold_pitch(c: ControlState, tm: FlightTelemetry, target_deg: float) -> void:

@@ -38,6 +38,10 @@ extends Resource
 @export var control_rate: float = 2.5
 ## Auto-trim rate in full trim range per second at full stick.
 @export var trim_rate: float = 0.12
+## Yaw damper gain: rudder (full = 1) per rad/s of yaw rate, washed out so
+## steady turns are not opposed. 0 = none. Every jet here has one in reality;
+## without it the Dutch roll is lightly damped.
+@export var yaw_damper: float = 1.5
 ## Trim [-1, 1] and throttle [0, 1] that hold level flight at v_cruise; preset
 ## for an in-flight start (measured by tests/smoke_flight.gd).
 @export var cruise_trim: float = 0.0

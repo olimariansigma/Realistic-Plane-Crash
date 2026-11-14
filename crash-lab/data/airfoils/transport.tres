@@ -19,3 +19,5 @@ cl_curve = SubResource("Curve_bswq7")
 cd_curve = SubResource("Curve_6iu03")
 cm0 = -0.04
 stall_deg = 17.0
+mach_crit = 0.8
+wave_drag = 0.085

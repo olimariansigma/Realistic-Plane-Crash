@@ -8,8 +8,9 @@ extends SceneTree
 ## Run: godot --headless --path . -s res://tools/gen_atlas.gd
 ##
 ## Layout (pixels):
-##   y   0..127  fuselage strip with cabin windows  (24 m long, crown -> belly)
-##   y 128..255  fuselage strip, plain panels
+##   y   0..84   fuselage strip, one row of cabin windows (24 m, crown -> belly)
+##   y  85..169  fuselage strip, two rows (double deck)
+##   y 170..254  fuselage strip, plain panels
 ##   then 256 px tiles, (column, row):
 ##   (0,1) nose + windscreen  (1,1) wing skin   (2,1) engine cowl  (3,1) fan face
 ##   (0,2) tyre               (1,2) bare metal  (2,2) seat fabric  (3,2) cabin floor
@@ -27,8 +28,9 @@ func _initialize() -> void:
 	_rng.seed = 7
 	_img = Image.create(SIZE, SIZE, false, Image.FORMAT_RGB8)
 	_img.fill(Color.WHITE)
-	_fuselage_strip(0, true)
-	_fuselage_strip(128, false)
+	_fuselage_strip(0, 1)
+	_fuselage_strip(85, 2)
+	_fuselage_strip(170, 0)
 	_nose(_tile(0, 1))
 	_wing(_tile(1, 1))
 	_cowl(_tile(2, 1))
@@ -62,34 +64,43 @@ func _noise(r: Rect2i, amount: float) -> void:
 			_img.set_pixel(x, y, Color(c.r * n, c.g * n, c.b * n))
 
 
-func _fuselage_strip(y0: int, windows: bool) -> void:
-	# 1024 px = 24 m. Skin joints every 1.2 m, stringer lines, grime on the belly.
+## One 85 px band = 24 m of fuselage, crown at the top, belly at the bottom.
+## `rows`: 0 plain, 1 one row of cabin windows, 2 two rows (double deck).
+func _fuselage_strip(y0: int, rows: int) -> void:
+	const H := 85
+	# Skin joints every 1.2 m, stringer lines, grime on the belly.
 	for i: int in 20:
-		_rect(int(float(i) * 51.2), y0, 1, 128, LINE)
-	for v: int in [18, 44, 86, 108]:
+		_rect(int(float(i) * 51.2), y0, 1, H, LINE)
+	for v: int in [12, 29, 57, 72]:
 		_rect(0, y0 + v, SIZE, 1, LINE.lightened(0.3))
-	for y: int in range(y0 + 96, y0 + 128):
-		var shade := 1.0 - 0.22 * float(y - y0 - 96) / 32.0
+	for y: int in range(y0 + 64, y0 + H):
+		var shade := 1.0 - 0.22 * float(y - y0 - 64) / 21.0
 		for x: int in SIZE:
 			var c := _img.get_pixel(x, y)
 			_img.set_pixel(x, y, Color(c.r * shade, c.g * shade, c.b * shade))
-	if windows:
-		# 45 windows: 0.53 m pitch, a little above the fuselage centreline.
+	var frame := Color(0.6, 0.62, 0.66)
+	var window_rows: Array[int] = []
+	if rows == 1:
+		window_rows = [35]
+	elif rows == 2:
+		window_rows = [21, 43]
+	for row_y: int in window_rows:
+		# 45 windows: 0.53 m pitch.
 		for i: int in 45:
 			var x := 6 + int(float(i) * 22.75)
-			_rect(x, y0 + 53, 9, 13, Color(0.6, 0.62, 0.66))
-			_rect(x + 1, y0 + 54, 7, 11, GLASS)
-			_rect(x + 1, y0 + 54, 1, 1, Color(0.6, 0.62, 0.66))
-			_rect(x + 7, y0 + 54, 1, 1, Color(0.6, 0.62, 0.66))
-			_rect(x + 1, y0 + 64, 1, 1, Color(0.6, 0.62, 0.66))
-			_rect(x + 7, y0 + 64, 1, 1, Color(0.6, 0.62, 0.66))
-		# One door outline per strip.
-		for edge: int in [40, 78]:
-			_rect(edge, y0 + 40, 1, 52, LINE.darkened(0.2))
-		_rect(40, y0 + 40, 39, 1, LINE.darkened(0.2))
-		_rect(40, y0 + 92, 39, 1, LINE.darkened(0.2))
-		_rect(54, y0 + 52, 9, 13, GLASS)
-	_noise(Rect2i(0, y0, SIZE, 128), 0.035)
+			_rect(x, y0 + row_y, 8, 10, frame)
+			_rect(x + 1, y0 + row_y + 1, 6, 8, GLASS)
+			_rect(x + 1, y0 + row_y + 1, 1, 1, frame)
+			_rect(x + 6, y0 + row_y + 1, 1, 1, frame)
+			_rect(x + 1, y0 + row_y + 8, 1, 1, frame)
+			_rect(x + 6, y0 + row_y + 8, 1, 1, frame)
+		# One door outline per band and deck.
+		for edge: int in [40, 76]:
+			_rect(edge, y0 + row_y - 8, 1, 30, LINE.darkened(0.2))
+		_rect(40, y0 + row_y - 8, 37, 1, LINE.darkened(0.2))
+		_rect(40, y0 + row_y + 22, 37, 1, LINE.darkened(0.2))
+		_rect(54, y0 + row_y, 8, 10, GLASS)
+	_noise(Rect2i(0, y0, SIZE, H), 0.035)
 
 
 func _nose(r: Rect2i) -> void:

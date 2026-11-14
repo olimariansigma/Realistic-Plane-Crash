@@ -37,6 +37,9 @@ extends Resource
 @export var flap_fraction: float = 0.0
 ## Fraction of the strip that carries spoilers / lift dumpers (0..1).
 @export var spoiler_fraction: float = 0.0
+## How far those spoilers rise to help the ailerons at full roll input, on
+## the down-going wing only (0 = they are not used for roll).
+@export var roll_spoiler: float = 0.0
 
 @export_group("Interference")
 ## True for the inboard wing strips whose lift sets the downwash at the tail.

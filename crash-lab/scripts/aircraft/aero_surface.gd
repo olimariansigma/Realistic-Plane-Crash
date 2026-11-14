@@ -29,6 +29,8 @@ var stall_deg: float = 15.0
 var max_deflection: float = 0.0
 var trim_rad: float = 0.0
 var cm0: float = 0.0
+## +1 on the right wing, -1 on the left.
+var _side: float = 1.0
 var mach_crit: float = 0.8
 var wave_drag: float = 0.08
 
@@ -50,6 +52,7 @@ func setup(surface: SurfaceDef, owner: AircraftPart) -> void:
 	max_deflection = deg_to_rad(surface.max_deflection_deg)
 	trim_rad = deg_to_rad(surface.trim_deg)
 	cm0 = surface.airfoil.cm0
+	_side = -1.0 if surface.position.x < 0.0 else 1.0
 	mach_crit = surface.airfoil.mach_crit
 	wave_drag = surface.airfoil.wave_drag
 	_build_tables(surface.airfoil)
@@ -144,9 +147,14 @@ func apply(rho: float, act: Vector3, trim: float, flap_ratio: float, spoiler: fl
 		c_l += adef.flap_cl_gain * fr
 		c_d += adef.flap_cd_gain * def.flap_fraction * flap_ratio * flap_ratio
 		cm += adef.flap_cm_gain * fr
-	if def.spoiler_fraction > 0.0 and spoiler > 0.0:
-		c_l -= adef.spoiler_cl_loss * def.spoiler_fraction * spoiler * attached
-		c_d += adef.spoiler_cd_gain * def.spoiler_fraction * spoiler
+	# Spoilers: speed brakes symmetrically, plus roll spoilers on the wing
+	# that should go down.
+	var spoil := spoiler
+	if def.roll_spoiler > 0.0 and p.controls_alive:
+		spoil = maxf(spoil, clampf(act.y * _side, 0.0, 1.0) * def.roll_spoiler)
+	if def.spoiler_fraction > 0.0 and spoil > 0.0:
+		c_l -= adef.spoiler_cl_loss * def.spoiler_fraction * spoil * attached
+		c_d += adef.spoiler_cd_gain * def.spoiler_fraction * spoil
 
 	# Skin damage. A wing only makes lift over the skin it still has, and
 	# holes spoil the flow over what is left, so lift falls faster than area;

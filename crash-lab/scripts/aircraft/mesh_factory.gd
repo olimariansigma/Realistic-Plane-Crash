@@ -102,9 +102,10 @@ class Surf:
 		return (hi - lo).max(Vector3(0.08, 0.08, 0.08))
 
 
-static func strip_uv(u: float, v: float, plain: bool) -> Vector2:
+## `kind`: 0 = one window row, 1 = two rows (double deck), 2 = plain panels.
+static func strip_uv(u: float, v: float, kind: int) -> Vector2:
 	return Vector2((2.0 + clampf(u, 0.0, 1.0) * 1020.0) / 1024.0,
-			((130.0 if plain else 2.0) + clampf(v, 0.0, 1.0) * 124.0) / 1024.0)
+			(2.0 + 85.0 * float(kind) + clampf(v, 0.0, 1.0) * 81.0) / 1024.0)
 
 
 static func tile_uv(tile: Vector2i, u: float, v: float) -> Vector2:
@@ -193,8 +194,16 @@ static func _stations(part: PartDef, length: float, step: float) -> PackedFloat3
 	return out
 
 
-static func _ring_point(center: Vector3, radius: float, angle: float, squash: Vector2) -> Vector3:
-	return center + Vector3(sin(angle) * radius * squash.x, cos(angle) * radius * squash.y, 0.0)
+## `top` scales the upper half only (a hump on the crown).
+static func _ring_point(center: Vector3, radius: float, angle: float, squash: Vector2,
+		top: float = 1.0) -> Vector3:
+	var up := cos(angle)
+	return center + Vector3(sin(angle) * radius * squash.x,
+			up * radius * squash.y * (top if up > 0.0 else 1.0), 0.0)
+
+
+static func _top_scale(part: PartDef, d: float, length: float) -> float:
+	return lerpf(part.top_scale0, part.top_scale1, clampf(d / maxf(length, 0.001), 0.0, 1.0))
 
 
 static func _floor_y(adef: AircraftDef, part: PartDef) -> float:
@@ -213,7 +222,7 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 	var per_quadrant := sides / 4
 	var stations := _stations(part, length, 1.5 if detail == 0 else 1.05)
 	var bay_length: float = [5.0, 3.3, 2.5][clampi(detail, 0, 2)]
-	var windows := adef.seat_count() > 8
+	var window_rows := part.window_rows
 	var paint := _skin_color(adef, part)
 	var squash := part.squash
 
@@ -227,7 +236,7 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 			bay_end += 1
 		var in_nose := part.shape_a > 0.0 and stations[bay_start] < part.shape_a - 0.01
 		var in_tail := part.shape_b > 0.0 and stations[bay_start] >= length - part.shape_b - 0.01
-		var plain := not windows or in_tail
+		var kind := 2 if window_rows <= 0 or in_tail else mini(window_rows, 2) - 1
 		var u_start := fposmod(stations[bay_start] + part.p0.z * 0.37, STRIP_METRES) / STRIP_METRES
 		if u_start + (stations[bay_end] - stations[bay_start]) / STRIP_METRES > 1.0:
 			u_start = 0.0
@@ -240,6 +249,8 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 				var pr1 := body_profile(part, d1, length)
 				var c0 := origin + dir * d0 + Vector3(0.0, pr0.y, 0.0)
 				var c1 := origin + dir * d1 + Vector3(0.0, pr1.y, 0.0)
+				var top0 := _top_scale(part, d0, length)
+				var top1 := _top_scale(part, d1, length)
 				var inside := (c0 + c1) * 0.5
 				for k: int in range(q * per_quadrant, (q + 1) * per_quadrant):
 					# Quadrant 0 is the crown (-45..45 deg), then right, belly, left.
@@ -265,7 +276,7 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 					var uv01: Vector2
 					var uv11: Vector2
 					var uv10: Vector2
-					if in_nose and windows:
+					if in_nose and window_rows > 0:
 						var n0 := d0 / part.shape_a
 						var n1 := d1 / part.shape_a
 						uv00 = tile_uv(TILE_NOSE, n0, v0)
@@ -275,12 +286,12 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 					else:
 						var u0 := u_start + (d0 - stations[bay_start]) / STRIP_METRES
 						var u1 := u_start + (d1 - stations[bay_start]) / STRIP_METRES
-						uv00 = strip_uv(u0, v0, plain)
-						uv01 = strip_uv(u0, v1, plain)
-						uv11 = strip_uv(u1, v1, plain)
-						uv10 = strip_uv(u1, v0, plain)
-					surf.quad(_ring_point(c0, pr0.x, a0, squash), _ring_point(c0, pr0.x, a1, squash),
-							_ring_point(c1, pr1.x, a1, squash), _ring_point(c1, pr1.x, a0, squash),
+						uv00 = strip_uv(u0, v0, kind)
+						uv01 = strip_uv(u0, v1, kind)
+						uv11 = strip_uv(u1, v1, kind)
+						uv10 = strip_uv(u1, v0, kind)
+					surf.quad(_ring_point(c0, pr0.x, a0, squash, top0), _ring_point(c0, pr0.x, a1, squash, top0),
+							_ring_point(c1, pr1.x, a1, squash, top1), _ring_point(c1, pr1.x, a0, squash, top1),
 							inside, col, uv00, uv01, uv11, uv10)
 			if not surf.empty():
 				out.pieces.append(_piece(surf, SKIN_KG_M2))
@@ -299,11 +310,12 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 		if pr.x < 0.35:
 			continue
 		var c := origin + dir * d + Vector3(0.0, pr.y, 0.0)
+		var top := _top_scale(part, d, length)
 		for k: int in frame_sides:
 			var a0 := TAU * float(k) / float(frame_sides)
 			var a1 := TAU * float(k + 1) / float(frame_sides)
-			core.flat_quad(_ring_point(c, pr.x * 0.86, a0, squash), _ring_point(c, pr.x * 0.86, a1, squash),
-					_ring_point(c, pr.x * 0.985, a1, squash), _ring_point(c, pr.x * 0.985, a0, squash),
+			core.flat_quad(_ring_point(c, pr.x * 0.86, a0, squash, top), _ring_point(c, pr.x * 0.86, a1, squash, top),
+					_ring_point(c, pr.x * 0.985, a1, squash, top), _ring_point(c, pr.x * 0.985, a0, squash, top),
 					c - dir, PRIMER, primer_uv)
 		if s == stations.size() - 1:
 			break
@@ -353,8 +365,10 @@ static func _body_far(adef: AircraftDef, part: PartDef, sides: int) -> ArrayMesh
 			var a1 := TAU * float(k + 1) / float(sides)
 			var mid := absf(wrapf((a0 + a1) * 0.5, -PI, PI))
 			var col := adef.accent if part.kind == PartDef.Kind.FUSELAGE and mid > 1.5 and mid < 1.9 else paint
-			surf.flat_quad(_ring_point(c0, pr0.x, a0, part.squash), _ring_point(c0, pr0.x, a1, part.squash),
-					_ring_point(c1, pr1.x, a1, part.squash), _ring_point(c1, pr1.x, a0, part.squash),
+			var t0 := _top_scale(part, stations[s], length)
+			var t1 := _top_scale(part, stations[s + 1], length)
+			surf.flat_quad(_ring_point(c0, pr0.x, a0, part.squash, t0), _ring_point(c0, pr0.x, a1, part.squash, t0),
+					_ring_point(c1, pr1.x, a1, part.squash, t1), _ring_point(c1, pr1.x, a0, part.squash, t1),
 					(c0 + c1) * 0.5, col, uv)
 	return surf.mesh()
 
@@ -557,7 +571,7 @@ static func _panel(adef: AircraftDef, part: PartDef, detail: int, out: PartMeshe
 		if i == segments - 1:
 			_tip_rib(box, q1, ch1, thick, normal, 0.0, REAR_SPAR, inside)
 			if part.winglet > 0.0:
-				_winglet(box, q1, ch1, thick, normal, part.winglet, paint, adef.accent)
+				_winglet(box, q1, ch1, thick, normal, part.winglet, paint, adef.accent, part.winglet_style)
 		out.pieces.append(_piece(box, SKIN_KG_M2 * 1.6))
 
 		# Trailing edge: flap / aileron / elevator / rudder, or fixed skin.
@@ -634,26 +648,43 @@ static func _tip_rib(surf: Surf, q: Vector3, ch: float, thick: float, normal: Ve
 				_foil(q, ch, thick, normal, BOX_X[k], BOX_T[k], -1.0), inside, METAL, uv)
 
 
-## Blended winglet rising from the tip of the outermost wing panel.
+## Wingtip device on the outermost wing panel.
+##   0  blended winglet / sharklet: a tall canted fin
+##   1  raked tip: the wing carries on outward, swept sharply back
+##   2  fence: a small plate above and below the tip
 static func _winglet(surf: Surf, q: Vector3, ch: float, thick: float, normal: Vector3, height: float,
-		paint: Color, accent: Color) -> void:
+		paint: Color, accent: Color, style: int = 0) -> void:
 	var outward := Vector3(signf(q.x) if absf(q.x) > 0.01 else 1.0, 0.0, 0.0)
-	var up := (normal + outward * 0.28).normalized()
-	var top := q + up * height + Vector3(0.0, 0.0, height * 0.55)
-	var top_ch := ch * 0.42
 	var half := maxf(ch * thick * 0.25, 0.03)
 	var uv := tile_uv(TILE_PLAIN, 0.5, 0.5)
 	var le0 := q + Vector3(0.0, 0.0, -0.25 * ch)
 	var te0 := q + Vector3(0.0, 0.0, 0.43 * ch)
-	var le1 := top + Vector3(0.0, 0.0, -0.25 * top_ch)
-	var te1 := top + Vector3(0.0, 0.0, 0.6 * top_ch)
-	var mid := (le0 + te0 + le1 + te1) * 0.25
-	for sx: float in [-1.0, 1.0]:
-		var off := outward * (half * sx)
-		surf.flat_quad(le0 + off, te0 + off, te1 + off * 0.5, le1 + off * 0.5, mid,
-				accent if sx > 0.0 else paint, uv)
-	surf.flat_quad(le0 - outward * half, le0 + outward * half, le1 + outward * half * 0.5,
-			le1 - outward * half * 0.5, mid, METAL, uv)
+	if style == 1:
+		# Raked: a flat triangular extension in the plane of the wing.
+		var tip := q + outward * height + normal * (height * 0.1) + Vector3(0.0, 0.0, 0.25 * ch + height * 0.9)
+		var mid := (le0 + te0 + tip) / 3.0
+		surf.tri(le0 + normal * half, te0 + normal * half, tip, mid, paint, uv, uv, uv)
+		surf.tri(le0 - normal * half, te0 - normal * half, tip, mid, paint.darkened(0.12), uv, uv, uv)
+		surf.flat_quad(le0 - normal * half, le0 + normal * half, tip, tip, mid, METAL, uv)
+		return
+	var directions: Array[float] = [1.0]
+	if style == 2:
+		directions = [1.0, -0.7]
+	for sign: float in directions:
+		var lean := 0.28 if style == 0 else 0.12
+		var up := (normal * sign + outward * lean).normalized()
+		var rise := height * absf(sign)
+		var top := q + up * rise + Vector3(0.0, 0.0, rise * (0.55 if style == 0 else 0.35))
+		var top_ch := ch * (0.42 if style == 0 else 0.5)
+		var le1 := top + Vector3(0.0, 0.0, -0.25 * top_ch)
+		var te1 := top + Vector3(0.0, 0.0, 0.6 * top_ch)
+		var mid := (le0 + te0 + le1 + te1) * 0.25
+		for sx: float in [-1.0, 1.0]:
+			var off := outward * (half * sx)
+			surf.flat_quad(le0 + off, te0 + off, te1 + off * 0.5, le1 + off * 0.5, mid,
+					accent if sx > 0.0 else paint, uv)
+		surf.flat_quad(le0 - outward * half, le0 + outward * half, le1 + outward * half * 0.5,
+				le1 - outward * half * 0.5, mid, METAL, uv)
 
 
 static func _panel_far(adef: AircraftDef, part: PartDef) -> ArrayMesh:
@@ -778,7 +809,9 @@ static func gear_wheel_mesh(part: PartDef) -> ArrayMesh:
 	var width := r * 0.62
 	_cylinder(surf, leg * 0.45, leg, part.r1, 8, Color(0.85, 0.86, 0.88), TILE_METAL, false)
 	var axles: Array[float] = [0.0]
-	if part.shape_a >= 4.0:
+	if part.shape_a >= 6.0:
+		axles = [-r * 2.2, 0.0, r * 2.2]
+	elif part.shape_a >= 4.0:
 		axles = [-r * 1.12, r * 1.12]
 	for z: float in axles:
 		var c := leg + Vector3(0.0, 0.0, z)

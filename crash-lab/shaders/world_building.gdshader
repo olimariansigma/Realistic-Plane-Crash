@@ -103,25 +103,24 @@ void fragment() {
 			vec2 id = floor(cell);
 			float aa = max(fwidth(cell.x), fwidth(cell.y));
 			float fade = smoothstep(0.25, 0.7, aa);
-			vec4 wr = vec4(0.04, 0.96, 0.1, 0.9);
+			vec4 wr = vec4(0.04, 0.08, 0.96, 0.88);
 			vec3 glassc = vec3(0.2, 0.3, 0.4);
 			float sky = 0.35 + 0.5 * clamp(v / max(H, 1.0), 0.0, 1.0);
 			float wvar = 0.8 + 0.4 * hash21(id + seed * 37.0);
 			float wfrac = 0.75;
 			if (st < 0.5) {
-				glassc = mix(vec3(0.07, 0.12, 0.18), vec3(0.42, 0.58, 0.72), sky) * wvar;
-				wrap_glass:
+				glassc = mix(vec3(0.04, 0.08, 0.13), vec3(0.3, 0.45, 0.6), sky) * wvar;
 				wfrac = 0.78;
 			} else if (st < 1.5) {
-				wr = vec4(0.2, 0.8, 0.25, 0.8);
+				wr = vec4(0.2, 0.25, 0.8, 0.8);
 				glassc = mix(vec3(0.08, 0.11, 0.15), vec3(0.3, 0.4, 0.5), sky * 0.7) * wvar;
 				wfrac = 0.33;
 			} else if (st < 2.5) {
-				wr = vec4(0.28, 0.72, 0.18, 0.85);
+				wr = vec4(0.28, 0.18, 0.72, 0.85);
 				glassc = mix(vec3(0.07, 0.1, 0.13), vec3(0.28, 0.38, 0.46), sky * 0.6) * wvar;
 				wfrac = 0.29;
 			} else {
-				wr = vec4(0.1, 0.9, 0.7, 0.86);
+				wr = vec4(0.1, 0.7, 0.9, 0.86);
 				glassc = mix(vec3(0.1, 0.13, 0.16), vec3(0.4, 0.5, 0.58), sky * 0.5) * wvar;
 				wfrac = 0.2;
 			}
@@ -144,10 +143,10 @@ void fragment() {
 			} else if (st > 0.5) {
 				wall = base * (1.0 - 0.1 * step(f.y, 0.06));
 			} else {
-				wall = base * (0.8 + 0.2 * step(0.5, f.y)) ;
+				wall = mix(base, vec3(0.62, 0.64, 0.66), 0.55);
 			}
 			vec3 gl = glassc * mix(0.55, 1.0, edge);
-			float lit = step(hash21(id + seed * 57.0), 0.16) * win;
+			float lit = step(hash21(id + seed * 57.0), 0.09) * win;
 			gl = mix(gl, vec3(0.9, 0.75, 0.5) * 0.6, lit * 0.8);
 			vec3 detail = mix(wall, gl, win);
 			vec3 avg = mix(base, glassc * 0.9, wfrac);
@@ -155,7 +154,6 @@ void fragment() {
 			emis = vec3(1.0, 0.75, 0.4) * 0.28 * lit * (1.0 - fade);
 			rough = mix(0.88, 0.22, win * (1.0 - fade));
 			spec = mix(0.12, 0.7, win * (1.0 - fade));
-			if (st > 5.5) { }
 			if (vv < 0.0) {
 				// Ground-floor shopfront: dark glazing, pillars, coloured awnings.
 				float sw = max(1.0, floor(W / 4.5 + 0.5));
