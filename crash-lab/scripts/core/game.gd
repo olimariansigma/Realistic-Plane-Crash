@@ -55,6 +55,10 @@ func _ready() -> void:
 	var settings := SettingsStore.instance()
 	settings.changed.connect(apply_quality)
 	apply_quality()
+	if OS.has_environment("CRASHLAB_AUTOPLAY"):
+		var autoplay := Autoplay.new()
+		autoplay.name = "Autoplay"
+		add_child(autoplay)
 
 
 ## Applies the graphics quality tier to everything that is not scene-specific:

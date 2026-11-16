@@ -1,36 +1,48 @@
 #!/usr/bin/env bash
-# Quality gate 2: run every headless smoke test in tests/smoke_*.gd.
+# Quality gate 2: run every headless smoke test in tests/smoke_*.gd, then play
+# the real game through from the hangar to a crash report (tools/playtest.sh).
 set -uo pipefail
 source "$(dirname "$0")/_env.sh"
-LOG="$(mktemp)"; trap 'rm -f "$LOG"' EXIT
-fail=0
-run_test() {  # run_test <res path> [user args...]
-  local rel="$1"; shift
-  run_godot --fixed-fps 60 -s "$rel" -- "$@" >"$LOG" 2>&1; local code=$?
-  grep -E "SMOKE (PASS|FAIL)|^(ERROR|SCRIPT ERROR)" "$LOG"
-  if [ "$code" -ne 0 ] || ! grep -q "SMOKE PASS" "$LOG" \
-      || grep -qE "^(ERROR|SCRIPT ERROR)" "$LOG"; then
-    echo "FAIL $rel $* (exit $code)"; fail=1
-  fi
-}
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+JOBS="${SMOKE_JOBS:-3}"
+
+# One line per job: "<test file> <aircraft id or ->". The flight, crash and
+# damage tests run once for every shipped aircraft.
+: > "$TMP/jobs"
 for t in "$PROJECT_DIR"/tests/smoke_*.gd; do
-  rel="res://tests/$(basename "$t")"
-  case "$(basename "$t")" in
-    smoke_flight.gd|smoke_crash.gd)
-      # Per-aircraft tests: every shipped plane must pass.
+  name="$(basename "$t")"
+  case "$name" in
+    smoke_flight.gd|smoke_crash.gd|smoke_damage.gd)
       for def in "$PROJECT_DIR"/data/aircraft/*.tres; do
-        run_test "$rel" "$(basename "$def" .tres)"
+        echo "$name $(basename "$def" .tres)" >> "$TMP/jobs"
       done ;;
-    *) run_test "$rel" ;;
+    *) echo "$name -" >> "$TMP/jobs" ;;
   esac
 done
-# The real boot -> hangar -> loading screen -> flight path, at real-time pacing
-# (CRASHLAB_AUTOLAUNCH makes the hangar press LAUNCH by itself). Threaded
-# resource loading misbehaves under --fixed-fps, so this one runs without it.
-CRASHLAB_AUTOLAUNCH=1 run_godot --quit-after 480 >"$LOG" 2>&1
-grep -E "Hangar ready|Flight ready|^(ERROR|SCRIPT ERROR)" "$LOG"
-if ! grep -q "Hangar ready" "$LOG" || ! grep -q "Flight ready" "$LOG" \
-    || grep -qE "^(ERROR|SCRIPT ERROR)" "$LOG"; then
-  echo "FAIL boot flow"; fail=1
-fi
+
+run_job() {  # run_job <test file> <id or ->
+  local name="$1" id="$2" log="$TMP/$1.$2.log" code=0
+  if [ "$id" = "-" ]; then
+    "$GODOT" --headless --path "$PROJECT_DIR" --fixed-fps 60 -s "res://tests/$name" >"$log" 2>&1 || code=$?
+  else
+    "$GODOT" --headless --path "$PROJECT_DIR" --fixed-fps 60 -s "res://tests/$name" -- "$id" >"$log" 2>&1 || code=$?
+  fi
+  echo "$code" > "$log.code"
+}
+export -f run_job
+export GODOT PROJECT_DIR TMP
+xargs -P "$JOBS" -L 1 bash -c 'run_job "$0" "$1"' < "$TMP/jobs"
+
+fail=0
+while read -r name id; do
+  log="$TMP/$name.$id.log"
+  code="$(cat "$log.code" 2>/dev/null || echo 1)"
+  grep -E "SMOKE (PASS|FAIL)|^(ERROR|SCRIPT ERROR)" "$log" | cut -c1-400
+  if [ "$code" -ne 0 ] || ! grep -q "SMOKE PASS" "$log" \
+      || grep -qE "^(ERROR|SCRIPT ERROR)" "$log"; then
+    echo "FAIL $name $id (exit $code)"; fail=1
+  fi
+done < "$TMP/jobs"
+
+"$(dirname "$0")/playtest.sh" || fail=1
 [ "$fail" -eq 0 ] && echo "SMOKE PASS (all)" || { echo "SMOKE FAIL"; exit 1; }

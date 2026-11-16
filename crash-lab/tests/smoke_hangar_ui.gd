@@ -42,9 +42,9 @@ func _run() -> void:
 	var ui := (load("res://scenes/ui/hangar_ui.tscn") as PackedScene).instantiate() as Control
 	root.add_child(ui)
 	await _frames(1)
-	var def := load("res://data/aircraft/meridian_220.tres") as AircraftDef
+	var def := load("res://data/aircraft/abius_a320.tres") as AircraftDef
 	if def == null:
-		_fail = "meridian_220.tres missing"
+		_fail = "abius_a320.tres missing"
 		_finish()
 		return
 	ui.call("show_aircraft", def, 0, 3)

@@ -18,7 +18,7 @@ func _process(delta: float) -> bool:
 	if not _started:
 		_started = true
 		var game := GameState.instance()
-		game.selected_id = args[0] if args.size() > 0 else "meridian_220"
+		game.selected_id = args[0] if args.size() > 0 else "abius_a320"
 		var mode: String = args[1] if args.size() > 1 else "runway"
 		game.start_mode = GameState.StartMode.AIRBORNE if mode in ["air", "dive"] else (
 				GameState.StartMode.APPROACH if mode == "approach" else GameState.StartMode.RUNWAY)

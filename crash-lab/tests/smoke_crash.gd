@@ -35,7 +35,7 @@ var _replay_frames := -1
 
 func _start() -> void:
 	var args := OS.get_cmdline_user_args()
-	var id := args[0] if args.size() > 0 else "meridian_220"
+	var id := args[0] if args.size() > 0 else "abius_a320"
 	_def = load("res://data/aircraft/%s.tres" % id) as AircraftDef
 	_world = World.new()
 	root.add_child(_world)

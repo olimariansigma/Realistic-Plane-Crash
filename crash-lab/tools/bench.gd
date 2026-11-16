@@ -31,7 +31,7 @@ var _peak_bodies := 0
 
 func _start() -> void:
 	var args := OS.get_cmdline_user_args()
-	var id := args[0] if args.size() > 0 else "atlas_900"
+	var id := args[0] if args.size() > 0 else "abius_a330"
 	_def = load("res://data/aircraft/%s.tres" % id) as AircraftDef
 	root.add_child(World.new())
 	_aircraft = Aircraft.new()

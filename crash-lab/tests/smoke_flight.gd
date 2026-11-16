@@ -36,7 +36,7 @@ var _prev_roll := 0.0
 
 func _start() -> void:
 	var args := OS.get_cmdline_user_args()
-	var id := args[0] if args.size() > 0 else "meridian_220"
+	var id := args[0] if args.size() > 0 else "abius_a320"
 	root.add_child(World.new())
 	_def = load("res://data/aircraft/%s.tres" % id) as AircraftDef
 	_aircraft = Aircraft.new()

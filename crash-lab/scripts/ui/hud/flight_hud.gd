@@ -191,7 +191,11 @@ func _process(delta: float) -> void:
 			_toast_label.hide()
 	if _telemetry != null:
 		_attitude.set_attitude(_telemetry.pitch_deg, _telemetry.roll_deg)
-		if _telemetry.stall_warning:
+		if _telemetry.stall_warning or _telemetry.overspeed:
+			# Past the never-exceed speed the airstream starts stripping the skin.
+			var warning := "STALL" if _telemetry.stall_warning else "OVERSPEED"
+			if _stall_label.text != warning:
+				_stall_label.text = warning
 			_stall_phase += delta
 			_stall_label.visible = fmod(_stall_phase, 0.5) < 0.3
 		else:

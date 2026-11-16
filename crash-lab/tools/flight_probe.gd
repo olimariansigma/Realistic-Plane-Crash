@@ -12,7 +12,7 @@ var _started := false
 
 func _start() -> void:
 	var args := OS.get_cmdline_user_args()
-	var id := args[0] if args.size() > 0 else "meridian_220"
+	var id := args[0] if args.size() > 0 else "abius_a320"
 	_mode = args[1] if args.size() > 1 else "takeoff"
 	var world := World.new()
 	root.add_child(world)

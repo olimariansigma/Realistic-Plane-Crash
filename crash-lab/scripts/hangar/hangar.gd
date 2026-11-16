@@ -33,6 +33,9 @@ var _autolaunch: bool = false
 func _ready() -> void:
 	_game = GameState.instance()
 	_autolaunch = OS.has_environment("CRASHLAB_AUTOLAUNCH")
+	# Nothing here is simulated: the turntable and camera move per rendered
+	# frame, which physics interpolation would fight (and warn about).
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_build_room()
 	_turntable = Node3D.new()
 	_turntable.name = "Turntable"

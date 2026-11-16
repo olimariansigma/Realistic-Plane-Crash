@@ -6,6 +6,10 @@ extends Node3D
 enum Mode { CHASE, ORBIT, COCKPIT, FLYBY }
 
 const MODE_NAMES: Array[String] = ["CHASE", "ORBIT", "COCKPIT", "FLYBY"]
+const BASE_FOV := 62.0
+## Extra field of view at SPEED_FOV_AT m/s and above.
+const SPEED_FOV := 16.0
+const SPEED_FOV_AT := 260.0
 
 var camera: Camera3D
 var mode: Mode = Mode.CHASE
@@ -29,10 +33,13 @@ var _initialized: bool = false
 func _ready() -> void:
 	camera = Camera3D.new()
 	camera.name = "Camera"
-	camera.fov = 65.0
+	camera.fov = BASE_FOV
 	camera.near = 0.4
 	camera.far = 40000.0
 	camera.top_level = true
+	# Placed every rendered frame from the target's interpolated transform;
+	# interpolating the camera as well would smooth it twice and make it judder.
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(camera)
 	camera.make_current()
 
@@ -121,4 +128,6 @@ func _process(delta: float) -> void:
 			camera.look_at(origin, Vector3.UP)
 			camera.fov = clampf(rad_to_deg(2.0 * atan(size * 1.4 / maxf(_flyby_pos.distance_to(origin), 1.0))), 12.0, 65.0)
 			return
-	camera.fov = 65.0
+	# A wider view at speed: the ground streams past faster at the edges.
+	var want_fov := BASE_FOV + SPEED_FOV * clampf(target_velocity.length() / SPEED_FOV_AT, 0.0, 1.0)
+	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-delta * 2.0))

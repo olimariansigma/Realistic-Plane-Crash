@@ -15,7 +15,9 @@ All commands run from `crash-lab/` (the Godot project root).
 |---|---|
 | `tools/setup_toolchain.sh` | Idempotent. Installs anything missing: Godot 4.4.1, export templates, JDK 17, Android SDK/NDK, debug keystore, editor settings. |
 | `tools/check.sh` | Gate 1. `--import` plus `--check-only` on every `.gd`; any error fails. |
-| `tools/smoke.sh` | Gate 2. Runs every `tests/smoke_*.gd` headless at fixed 60 FPS. |
+| `tools/smoke.sh` | Gate 2. Runs every `tests/smoke_*.gd` headless at fixed 60 FPS (flight, crash and damage tests once per aircraft, `SMOKE_JOBS` at a time, default 3), then `tools/playtest.sh`. |
+| `tools/playtest.sh [next-taps] [shot dir]` | Plays the real game with synthetic touches: hangar, launch, take-off, crash, report, replay, restart, hangar. With a shot dir it renders under xvfb at a phone aspect ratio and saves a picture per stage. |
+| `tools/calibrate.sh` | Flies every aircraft, writes the level-flight trim and throttle to `data/aircraft/calibration.json` and regenerates the defs. Run after changing aerodynamics or the fleet. |
 | `tools/export_apk.sh [debug\|release]` | Gate 3. Exports `build/crash-lab-<mode>.apk`, verifies the signature and the 150 MB budget. |
 | `tools/gate.sh` | Runs gates 1-3 in order. **Must pass before a milestone is committed.** |
 | `godot --headless --path . -s res://tools/gen_aircraft.gd` | Regenerates `data/airfoils/*.tres` and `data/aircraft/*.tres` from the parameter tables in the script. |
@@ -37,6 +39,9 @@ Release export needs `GODOT_ANDROID_KEYSTORE_RELEASE_{PATH,USER,PASSWORD}` set.
 5. **FRED + cutaway** - done (plus piece-by-piece skin breakup and the visual overhaul)
 6. **Telemetry + survival report** - done
 7. **Optimization pass** - done
+8. **First device feedback** - done: nine real types (Abius/Bing/Lockhid),
+   damage aerodynamics, Mach effects, rolling replay, incident recovery,
+   detailed world, single-threaded loading, end-to-end playtest.
 
 Each milestone ends with `tools/gate.sh` green, a commit, and a 5-line status.
 
@@ -50,7 +55,8 @@ data/airfoils/      AirfoilDef .tres: section CL/CD curves
 docs/               INJURY_MODEL.md
 scenes/             boot, hangar, flight, ui/*.tscn
 scripts/
-  core/             GameState and SettingsStore autoloads, ControlState, FlightTelemetry
+  core/             GameState and SettingsStore autoloads, ControlState, FlightTelemetry,
+                    Autoplay (scripted play-through, test only)
   aircraft/         defs/, MeshFactory, AirframeBuilder, Aircraft, AircraftPart,
                     AeroSurface, EngineUnit, GearUnit, SkinPiece
   crash/            StructureMonitor, CrashDirector, ChunkPool, DebrisPool, FxPool, FireSource
@@ -58,9 +64,11 @@ scripts/
   telemetry/        InjuryModel, CrashReport (+ SeatResult, FredResult), CrashRecorder
   flight/           FlightScene, CameraRig
   hangar/           Hangar
-  world/            World
+  world/            World (sky, ground, runway, lake, ridge), WorldAirport, WorldCity,
+                    WorldBoxes / WorldTrees (MultiMesh batches), WorldColliders, WorldMeshBuilder
   ui/               controls/, hud/, hangar/, report/, settings
-shaders/            airframe (crumple, cutaway, atlas), interior, ground, runway, hangar_wall
+shaders/            airframe (crumple, cutaway, atlas), interior, ground, runway, hangar_wall,
+                    world_* (buildings, city blocks, paved areas, hills, water)
 tests/              smoke_*.gd headless tests (SceneTree scripts)
 tools/              gates, toolchain, generators, probes, benchmark
 build/              export output (git-ignored)
@@ -76,7 +84,12 @@ built is marked *(planned)*.
   airfoil, control mix), engines, gear and seat blocks. `AirframeBuilder`
   turns it into rigid bodies, colliders, joints and procedural meshes
   (`MeshFactory`). The runtime has no per-type code; a new plane is a new
-  `.tres`. The three shipped planes are written by `tools/gen_aircraft.gd`.
+  `.tres`. The nine shipped planes are written by `tools/gen_aircraft.gd`
+  from one spec table of real dimensions and masses (length, fuselage width,
+  span, wing area, operating mass, thrust, seat rows): Abius A320, A330,
+  A350, A380, Bing 737, 747, 777, 787 and the Lockhid F-16. Joint strengths,
+  tail sizes and gear are scaled from weight and geometry by the rules in
+  `_airliner()`, so a new airliner is one more spec entry.
 - **Airframe is multi-body from the start.** Every part is an `AircraftPart`
   (`RigidBody3D`, origin at its own centre of mass, explicit inertia) held to
   its parent by a locked `Generic6DOFJoint3D`. Parts collide with the world
@@ -95,19 +108,36 @@ built is marked *(planned)*.
     `phi = (16h/b)^2 / (1 + (16h/b)^2)`.
   - Controls shift the lookup angle by `effectiveness * deflection`; trim
     shifts tailplane incidence. Auto-trim integrates held stick into trim.
-  - Engines: first-order spool, density and Mach lapse, thrust at the nacelle.
+  - Engines: first-order spool, density and Mach lapse, thrust at the nacelle;
+    afterburner on the fighter above 90 % throttle.
+  - Wing downwash on the tailplane (from the inboard strips' lift), which is
+    what makes the trim change with flaps and speed realistic.
+  - Compressibility: Prandtl-Glauert lift rise, wave drag past each
+    section's critical Mach number, fuselage wave drag. Top speed comes out
+    of thrust against drag, not a clamp. Past `v_never_exceed` the HUD warns
+    and the airstream starts taking skin off.
+  - Yaw damper (washed-out yaw rate to rudder) and roll spoilers on the
+    airliners, as on the real aircraft.
+  - Damage changes the aerodynamics: a strip only makes lift in proportion
+    to the skin it still has, bare structure adds drag, a control surface
+    that has torn off stops responding, and a detached part takes its
+    surfaces with it. Lose a wing and the aircraft rolls and cannot be held
+    (`tests/smoke_damage.gd` checks each case).
   - Gear: ray-cast oleo (spring + damper) and a slip-angle tyre model, applied
     to the gear leg's own body so landing loads go through its joint.
   - Bluff-body drag per part from `drag_area`, ISA density with altitude.
-  - Not modelled: wing downwash on the tail, compressibility, propwash, wind.
-- **Scene flow.** `Game` autoload (`GameState`) loads the next scene and the
-  aircraft def on loader threads and pre-generates meshes on a worker thread
-  behind a loading overlay. `FlightScene` builds world, aircraft, `CameraRig`
+  - Not modelled: propwash, wind, Reynolds effects, aeroelasticity.
+- **Scene flow.** `Game` autoload (`GameState`) shows a loading overlay,
+  generates the aircraft's meshes a 7 ms slice per frame, then loads and
+  switches scene. Everything is on the main thread: threaded loading was
+  removed after the first device test reported aircraft that never loaded.
+  A load that fails says so on the overlay instead of hanging. `FlightScene` builds world, aircraft, `CameraRig`
   and the touch HUD (`FlightHud` writes `ControlState`, reads
   `FlightTelemetry`).
 - **Hangar** (`scripts/hangar/hangar.gd`, `HangarUi`). Turntable showroom with
-  an orbit camera. Selecting a plane loads its def on a loader thread and its
-  meshes on a worker thread, then swaps a physics-free display model in.
+  an orbit camera. Selecting a plane builds its meshes in per-frame slices, then
+  swaps a physics-free display model in; LAUNCH only works once the plane on
+  the turntable is the one selected.
   Planes are discovered by listing `data/aircraft/`, so dropping in a `.tres`
   adds one. Wall and floor lighting is baked into an unshaded shader.
 - **Crash** (`scripts/crash/`).
@@ -132,6 +162,10 @@ built is marked *(planned)*.
     to static with collisions off 0.6 s after they stop. `FxPool`: pooled
     fire/smoke/dust emitters. `CrashDirector` maps structural events to both
     and decides when the wreck is at rest.
+  - A hit is an *incident* first. If the airframe is still in one piece and
+    flies clear of the ground for 4 s (a tail strike, a wingtip scrape), the
+    incident is cancelled and the flight goes on with the damage. The report
+    only comes up when the wreck has actually stopped; there is no time limit.
 - **Skin pieces** (`mesh_factory.gd`, `SkinPiece`, `ChunkPool`). A part is
   drawn as separate skin pieces over a core: fuselage panels (bay x
   quadrant), wing box segments, control surfaces, cowl halves, pylons.
@@ -176,12 +210,22 @@ built is marked *(planned)*.
     derivation and every constant: `docs/INJURY_MODEL.md`.
   - Measured outcomes, in order of severity: firm landing 100 %, gear-up
     belly landing 99-100 %, 30 m flat drop 23-80 % by type, cruise dive 0 %.
-  - `CrashRecorder` records from cabin arming for up to 14 s: one keyframe
-    track per body, keyed only while that body is moving, plus timed events
-    for skin tearing, dents and fires. Replay turns the physics server off
-    and writes interpolated transforms, at 0.1x to 1x with scrubbing.
+  - `CrashRecorder` records the whole flight into per-body ring buffers
+    holding the last 45 s (keyed only while a body is moving), plus timed
+    events for skin tearing, dents and fires. The replay starts 3 s before
+    the *last* major impact and runs to the wreck at rest, so an early scrape
+    cannot use the recording up. Replay turns the physics server off and
+    writes interpolated transforms, at 0.1x to 1x with scrubbing.
   - `CrashReportScreen` shows impact figures, a tappable seat map coloured
     by survival, per-seat detail with FRED limb readings, and the replay bar.
+
+- **World** (`scripts/world/`). Built in code, static colliders only. An
+  airfield (tower, terminal with jet bridges, hangars, apron, taxiways,
+  approach lights), a city grid of textured blocks east of the departure
+  path, farmland, forests, a lake and a ridge. Buildings and trees are
+  MultiMesh batches drawn with procedural shaders (windows, roofs, road
+  markings), so the whole world is about a dozen draw calls and adds nothing
+  to the APK. The runway corridor is kept clear of obstacles.
 
 ## Performance
 
@@ -273,13 +317,17 @@ Made without asking, per the brief. Revisit if they stop fitting.
   and damper forces computed from the 1 t gear leg's velocity overshot every
   step and made the legs fight the joint solver (the aircraft crept sideways).
   `GearUnit` takes contact velocity from the assembly's root part instead.
-- **Threaded resource loading fails under `--fixed-fps`** (random "Parse
-  Error" on scripts/resources). It is a test-mode artifact: headless tests
-  build scenes directly, and the real boot flow is checked without the flag.
-  Even so, `Game` loads the def and the scene one after the other and keeps
-  the def script classes compiled on the main thread.
-- **No `preload()` in scripts reachable from a threaded scene load** (same
-  class of failure). Use `load()` at runtime.
+- **No threaded resource loading.** It failed at random under `--fixed-fps`
+  ("Parse Error" on scripts/resources) and the first device test reported
+  aircraft that never loaded. Loading is main-thread, sliced across frames.
+- **A node placed in `_process` must not be physics-interpolated.** The
+  camera was, and the engine warned on every frame ("Interpolated Camera3D
+  triggered from outside physics process"): on a device that is judder.
+  The camera has interpolation off and reads the target's interpolated
+  transform.
+- **Clamp what the OS says about the safe area.** A wrong-orientation safe
+  rect would push the flight controls off screen; `UiStyle.safe_margins`
+  caps each margin at 7 % of the display.
 - **Autoload globals are invisible to `--check-only`.** Autoload scripts carry
   a `class_name` and a static `instance()`; use that, not the bare global.
 - **`SceneTree._initialize()` runs before the root is in the tree.** Tests
@@ -322,5 +370,10 @@ No Android device or emulator is attached to the build machine, so:
 - Touch feel, safe-area fit and the gyro axis signs are untested.
 - Visuals were checked in software-rendered screenshots (lavapipe), which
   use the same Mobile renderer but say nothing about speed.
-- The replay is tested for playing, seeking and rewinding without error; it
-  has not been watched.
+- The replay is tested for playing, seeking, covering the final crash and
+  restoring the wreck; it has been looked at in software-rendered stills, not
+  watched in motion.
+- The first on-device report (aircraft not loading, off-centre loading
+  screen) could not be reproduced on desktop. The suspected causes were
+  removed; whether that fixed it on the phone is not known until it is
+  installed again.

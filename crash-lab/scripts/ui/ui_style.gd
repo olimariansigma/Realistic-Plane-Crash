@@ -32,6 +32,9 @@ const SAFE_MIN: float = 24.0
 
 
 ## Inset of the display's safe area (notch, rounded corners, gesture bars) as
+## Largest share of a display edge a cutout margin may take.
+const SAFE_MAX_FRACTION := 0.07
+
 ## (left, top, right, bottom) in canvas units, never below SAFE_MIN. The OS
 ## reports the safe area in physical pixels, so it is divided by the canvas
 ## scale (window px per canvas unit). Falls back to SAFE_MIN when the safe area
@@ -58,10 +61,15 @@ static func safe_margins(control: Control) -> Vector4:
 	var top: float = float(safe.position.y - screen_pos.y)
 	var right: float = float(screen_pos.x + screen_size.x - safe.end.x)
 	var bottom: float = float(screen_pos.y + screen_size.y - safe.end.y)
-	result.x = maxf(SAFE_MIN, left / scale.x)
-	result.y = maxf(SAFE_MIN, top / scale.y)
-	result.z = maxf(SAFE_MIN, right / scale.x)
-	result.w = maxf(SAFE_MIN, bottom / scale.y)
+	# Some devices report the safe area for the wrong orientation while the
+	# display is rotating; a margin that large would push the controls off the
+	# screen, so no margin may exceed a real cutout's share of the display.
+	var cap_x: float = float(screen_size.x) * SAFE_MAX_FRACTION
+	var cap_y: float = float(screen_size.y) * SAFE_MAX_FRACTION
+	result.x = maxf(SAFE_MIN, clampf(left, 0.0, cap_x) / scale.x)
+	result.y = maxf(SAFE_MIN, clampf(top, 0.0, cap_y) / scale.y)
+	result.z = maxf(SAFE_MIN, clampf(right, 0.0, cap_x) / scale.x)
+	result.w = maxf(SAFE_MIN, clampf(bottom, 0.0, cap_y) / scale.y)
 	return result
 
 
