@@ -58,6 +58,7 @@ var _event_data: Array = []
 var _event_cursor: int = 0
 var _event_start: int = 0
 var _crash_frame: int = -1
+var _stop_frame: int = -1
 
 var _first_frame: int = 0
 var _time: float = 0.0
@@ -115,7 +116,15 @@ func start_recording() -> void:
 
 func stop_recording() -> void:
 	recording = false
+	_stop_frame = -1
 	set_physics_process(false)
+
+
+## Keeps recording for `seconds` more, then stops: the wreck is still creeping
+## when it is declared at rest, and the replay should end where it ends up.
+func stop_recording_after(seconds: float) -> void:
+	if recording:
+		_stop_frame = frames + int(seconds * _tick_rate)
 
 
 func _add_event(kind: EventKind, data: Variant) -> void:
@@ -147,6 +156,9 @@ func _physics_process(_dt: float) -> void:
 		return
 	var frame := frames
 	frames += 1
+	if _stop_frame >= 0 and frame >= _stop_frame:
+		stop_recording()
+		return
 	_record_range(0, _parts_end, frame)
 	if frame % LOOSE_EVERY != 0:
 		return

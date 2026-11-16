@@ -129,9 +129,19 @@ static func build_report(aircraft: Aircraft, director: CrashDirector) -> CrashRe
 		per_row[seat.row] = int(per_row.get(seat.row, 0)) + 1
 
 	var total := 0.0
+	# Deck and fore-aft station, for the seat map: an upper deck sits a full
+	# cabin height above the lowest passenger floor.
+	var lowest_floor := INF
+	var foremost := INF
+	for seat: Seat in cabin.seats:
+		foremost = minf(foremost, seat.def_pos.z)
+		if not seat.is_crew:
+			lowest_floor = minf(lowest_floor, seat.def_pos.y)
 	for seat: Seat in cabin.seats:
 		var part := seat.part
 		var r := SeatResult.new()
+		r.station = seat.def_pos.z - foremost
+		r.deck = 1 if not seat.is_crew and seat.def_pos.y > lowest_floor + 1.2 else 0
 		r.label = seat.label
 		r.row = seat.row
 		r.column = seat.column

@@ -29,6 +29,7 @@ var _trimmed_t := 0.0
 var _release_alt := 0.0
 var _trim_found := 0.0
 var _throttle_i := 0.3
+var _throttle_f := 0.3
 var _prev_ias := 0.0
 var _accel_f := 0.0
 var _prev_roll := 0.0
@@ -140,6 +141,8 @@ func _physics_process(dt: float) -> bool:
 			if absf(speed_err) < 8.0:  # anti-windup: integrate only near the target
 				_throttle_i = clampf(_throttle_i + speed_err * 0.0001, 0.0, 1.0)
 			c.throttle = clampf(_throttle_i + speed_err * 0.03, 0.02, 1.0)
+			# The setting that holds this speed is the average, not the instant value.
+			_throttle_f = lerpf(_throttle_f, c.throttle, 0.008)
 			var accel := (tm.ias - _prev_ias) / dt
 			_accel_f = lerpf(_accel_f, accel, 0.05)
 			var steady := absf(c.pitch) < 0.008 and absf(tm.vertical_speed) < 0.8 \
@@ -147,6 +150,7 @@ func _physics_process(dt: float) -> bool:
 			_trimmed_t = _trimmed_t + dt if steady else 0.0
 			if _trimmed_t > 3.0:
 				c.pitch = 0.0
+				c.throttle = _throttle_f
 				_release_alt = tm.altitude_msl
 				_trim_found = tm.trim
 				_next(Phase.HANDS_OFF)

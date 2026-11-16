@@ -4,6 +4,8 @@ extends Node3D
 
 const HUD_SCENE_PATH := "res://scenes/ui/flight_hud.tscn"
 const REPORT_SCENE_PATH := "res://scenes/ui/crash_report.tscn"
+## Seconds the recorder keeps running after the wreck is declared at rest.
+const RECORD_TAIL := 4.0
 
 var world: World
 var aircraft: Aircraft
@@ -143,7 +145,7 @@ func _on_crash_cancelled() -> void:
 
 
 func _on_crash_settled() -> void:
-	recorder.stop_recording()
+	recorder.stop_recording_after(RECORD_TAIL)
 	report = InjuryModel.build_report(aircraft, director)
 	_game.last_report = report
 	hud.show_message("WRECK AT REST", 1.5)

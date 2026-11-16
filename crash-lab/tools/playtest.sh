@@ -18,7 +18,7 @@ if [ -n "$SHOTS" ]; then
   mkdir -p "$SHOTS"
   RES="${PLAYTEST_RES:-1600x720}"
   CRASHLAB_AUTOPLAY="$TAPS" CRASHLAB_AUTOPLAY_SHOTS="$(cd "$SHOTS" && pwd)" timeout 3000 \
-    xvfb-run -a -s "-screen 0 ${RES}x24" "$GODOT" --path "$PROJECT_DIR" --resolution "$RES" >"$LOG" 2>&1
+    xvfb-run -a -s "-screen 0 ${RES}x24" "$GODOT" --audio-driver Dummy --path "$PROJECT_DIR" --resolution "$RES" >"$LOG" 2>&1
 else
   CRASHLAB_AUTOPLAY="$TAPS" timeout 900 "$GODOT" --headless --path "$PROJECT_DIR" >"$LOG" 2>&1
 fi

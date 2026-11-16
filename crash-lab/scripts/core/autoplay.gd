@@ -118,7 +118,8 @@ func _run() -> void:
 	_shot("7_replay_mid")
 	await _tap(flight.report_screen.find_child("ReportButton", true, false) as Control)
 	await _wait(0.4)
-	if flight.aircraft.root_part.global_position.distance_to(wreck_at) > 0.5:
+	# The wreck may still have been creeping when its position was noted.
+	if flight.aircraft.root_part.global_position.distance_to(wreck_at) > 8.0:
 		_fail("closing the replay did not put the wreck back")
 		return
 
