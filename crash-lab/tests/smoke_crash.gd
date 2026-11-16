@@ -84,6 +84,7 @@ func _begin(index: int) -> void:
 	_recorder = CrashRecorder.new()
 	root.add_child(_recorder)
 	_recorder.setup(_aircraft, _director)
+	_recorder.start_recording()
 
 
 func _physics_process(dt: float) -> bool:
@@ -94,8 +95,6 @@ func _physics_process(dt: float) -> bool:
 	_t += dt
 	if _replay_frames >= 0:
 		return _check_replay()
-	if _aircraft.cabin.armed and not _recorder.recording and _recorder.frames == 0:
-		_recorder.start_recording()
 	for part: AircraftPart in _aircraft.parts:
 		var p := part.xf.origin
 		if not (is_finite(p.x) and is_finite(p.y) and is_finite(p.z)):

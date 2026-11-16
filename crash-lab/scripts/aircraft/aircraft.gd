@@ -16,8 +16,11 @@ signal part_dented(part: AircraftPart)
 ## A skin piece has been torn off `part` (already hidden there). `node` is the
 ## mesh node that showed it; `kick` is the speed (m/s) to throw it clear at.
 signal piece_shed(part: AircraftPart, piece: SkinPiece, node: MeshInstance3D, kick: float)
-## Raised once, on the first structural failure or hard impact.
+## Raised once per crash, on the first structural failure or hard impact.
 signal crashed
+## A fresh hard impact after time in the air, while already crashed (for
+## example the ground, after a mid-air break-up).
+signal major_impact
 
 const GRAVITY := 9.80665
 const RHO0 := 1.225
@@ -65,6 +68,8 @@ var sim_time: float = 0.0
 var crash_time: float = -1.0
 ## True once the wreck has settled and simulation of it has stopped.
 var resting: bool = false
+## True while any part other than the gear is touching something.
+var body_contact: bool = false
 ## Root-part state on the last tick before the crash began.
 var impact_velocity := Vector3.ZERO
 var impact_pitch_deg: float = 0.0
@@ -89,6 +94,7 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+var _airborne_time: float = 0.0
 var _yaw_rate_slow: float = 0.0
 var _downwash_sources: Array[AeroSurface] = []
 var _body_contact_time: float = 0.0
@@ -227,7 +233,9 @@ func _physics_process(dt: float) -> void:
 	for i: int in count:
 		parts[i].begin_tick()
 	sim_time += dt
-	if crash_time < 0.0:
+	# Rolling record of the state before any impact (frozen during contact so
+	# it keeps describing the approach, not the tumble).
+	if not body_contact:
 		_vel_history[_ticks % 4] = root_part.lin_vel
 		if _ticks % 4 == 0:
 			_attitude_before = Vector2(telemetry.pitch_deg, telemetry.roll_deg)
@@ -392,10 +400,8 @@ func ignite(part: AircraftPart, local_pos: Vector3, intensity: float) -> void:
 	fire_started.emit(source)
 
 
-func _mark_crashed() -> void:
-	if crash_time >= 0.0:
-		return
-	crash_time = sim_time
+## Records the velocity and attitude the aircraft had going into an impact.
+func _snapshot_impact() -> void:
 	# The fastest of the last few ticks: the tick that raised the alarm has
 	# usually already been slowed by the contact.
 	impact_velocity = _vel_history[0]
@@ -404,13 +410,29 @@ func _mark_crashed() -> void:
 			impact_velocity = v
 	impact_pitch_deg = _attitude_before.x
 	impact_roll_deg = _attitude_before.y
+
+
+## Withdraws the crash state after a contact the aircraft flew away from.
+## Damage stays; a later impact starts a new crash with its own snapshot.
+func clear_incident() -> void:
+	crash_time = -1.0
+	telemetry.crashed = false
+	_body_contact_time = 0.0
+	cabin.disarm()
+
+
+func _mark_crashed() -> void:
+	if crash_time >= 0.0:
+		return
+	crash_time = sim_time
+	_snapshot_impact()
 	telemetry.crashed = true
 	crashed.emit()
 
 
 ## Turns hard contacts into dents, damage and events.
 func _process_impacts(dt: float) -> void:
-	var body_contact := false
+	var touching := false
 	for i: int in parts.size():
 		var part := parts[i]
 		if part.burning > 0.0:
@@ -433,14 +455,16 @@ func _process_impacts(dt: float) -> void:
 			var q := 0.5 * air_density * part.lin_vel.length_squared()
 			var chance := minf(q / 90000.0, 0.25)
 			if part.assembly_root == 0:
-				chance *= 0.1
+				# A scraped but intact hull holds together; damaged wings and
+				# tails on the aircraft peel slowly.
+				chance *= 0.0 if part.def.kind == PartDef.Kind.FUSELAGE else 0.1
 			if q > STRIP_DYN_PRESSURE and _rng.randf() < chance:
 				var pick := part.pieces[_rng.randi() % part.pieces.size()].center
 				shed_pieces(part, pick, 1000.0, 1, 4.0)
 		if part.contact_count == 0 or part.sleeping:
 			continue
 		if part.def.kind != PartDef.Kind.GEAR:
-			body_contact = true
+			touching = true
 		if part.assembly_root != 0:
 			# Wreckage on the ground: rolling and ploughing resistance, so loose
 			# wheels and nacelles do not trundle on forever. Applied as explicit
@@ -475,19 +499,26 @@ func _process_impacts(dt: float) -> void:
 			shed_pieces(part, local_pos, clampf(1.2 + depth * 2.0, 1.5, 5.0),
 					clampi(int(depth * 2.5), 0, 4), 3.0 + minf(part.hit_speed * 0.2, 8.0))
 			if part.hit_speed > 4.0:
+				# A fresh hard impact after time in the air is the one the
+				# report should describe, even if an earlier scrape began it.
+				if crash_time >= 0.0 and _airborne_time > 1.0 and part.assembly_root == 0:
+					_snapshot_impact()
+					major_impact.emit()
 				_mark_crashed()
 			if part.def.fuel_kg > 0.0 and part.hit_speed > 22.0:
 				ignite(part, local_pos, clampf(part.def.fuel_kg / 3000.0, 0.35, 1.0))
 		part_impacted.emit(part, part.hit_position, part.hit_impulse, energy)
 	# Airframe on the ground: arm the cabin at once, and call it a crash if it
 	# stays there (a brief tail scrape on rotation is not one).
-	if body_contact:
+	if touching:
 		cabin.arm(sim_time)
 		_body_contact_time += dt
 		if _body_contact_time > BODY_CONTACT_CRASH_TIME:
 			_mark_crashed()
 	else:
 		_body_contact_time = maxf(_body_contact_time - dt * 0.5, 0.0)
+	_airborne_time = 0.0 if body_contact else _airborne_time + dt
+	body_contact = touching
 
 
 func _update_actuators(dt: float) -> void:

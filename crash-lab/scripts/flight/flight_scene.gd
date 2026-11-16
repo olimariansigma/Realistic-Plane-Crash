@@ -19,6 +19,7 @@ var _game: GameState
 var _settings: SettingsStore
 var _cutaway: float = 0.0
 var _cutaway_target: float = 0.0
+var _wreck_view: bool = false
 
 
 func _ready() -> void:
@@ -43,11 +44,14 @@ func _ready() -> void:
 	director.setup(aircraft, _settings.graphics_quality, _settings.max_debris())
 	director.crash_started.connect(_on_crash_started)
 	director.crash_settled.connect(_on_crash_settled)
+	director.crash_cancelled.connect(_on_crash_cancelled)
 
 	recorder = CrashRecorder.new()
 	recorder.name = "CrashRecorder"
 	add_child(recorder)
 	recorder.setup(aircraft, director)
+	# Records all flight; only the last CrashRecorder.WINDOW_SECONDS are kept.
+	recorder.start_recording()
 
 	camera_rig = CameraRig.new()
 	camera_rig.name = "CameraRig"
@@ -132,10 +136,10 @@ func _process(delta: float) -> void:
 
 func _on_crash_started() -> void:
 	hud.show_message("IMPACT", 2.0)
-	# Chase and cockpit views are useless on a tumbling wreck.
-	if camera_rig.mode != CameraRig.Mode.FLYBY:
-		camera_rig.set_mode(CameraRig.Mode.ORBIT)
-		hud.set_camera_mode_name(camera_rig.mode_name())
+
+
+func _on_crash_cancelled() -> void:
+	hud.show_message("DAMAGED - STILL FLYING", 2.5)
 
 
 func _on_crash_settled() -> void:
@@ -167,9 +171,13 @@ func _on_replay_closed() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	# The recorder starts with the cabin: about 1.2 s before the impact.
-	if aircraft.cabin.armed and not recorder.recording and recorder.frames == 0:
-		recorder.start_recording()
+	# Chase and cockpit views are useless on a tumbling or stationary wreck, but
+	# a scrape the aircraft flies away from should not take the view away.
+	if director.crash_active and not _wreck_view and camera_rig.mode != CameraRig.Mode.FLYBY \
+			and (aircraft.telemetry.integrity < 0.9 or aircraft.root_part.lin_vel.length() < 25.0):
+		_wreck_view = true
+		camera_rig.set_mode(CameraRig.Mode.ORBIT)
+		hud.set_camera_mode_name(camera_rig.mode_name())
 
 
 func _on_camera_cycle() -> void:

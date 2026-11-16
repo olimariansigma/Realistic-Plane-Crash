@@ -6,12 +6,18 @@ extends Node3D
 
 signal crash_started
 signal crash_settled
+## The aircraft flew away from a minor contact: the crash state is cleared.
+signal crash_cancelled
 
-## Seconds the wreck must be still before the crash counts as settled, and the
-## longest a crash may run before it is called settled anyway.
+## Seconds everything must be still before the crash counts as settled.
 const REST_TIME := 2.5
 const REST_SPEED := 1.2
-const MAX_CRASH_TIME := 45.0
+## Seconds the main wreck alone must be still, if loose parts keep moving.
+const ROOT_REST_TIME := 10.0
+## Intact, off the ground and faster than this (m/s) for RECOVERY_TIME: the
+## contact was an incident, not a crash.
+const FLYING_SPEED := 30.0
+const RECOVERY_TIME := 4.0
 ## Chunk spawn queue length and how many are released per physics tick.
 const QUEUE_SIZE := 256
 const SPAWNS_PER_TICK := 6
@@ -27,6 +33,8 @@ var crash_clock: float = 0.0
 var breaks: int = 0
 
 var _still_time: float = 0.0
+var _root_still_time: float = 0.0
+var _flying_time: float = 0.0
 var _q_piece: Array[SkinPiece] = []
 var _q_node: Array[MeshInstance3D] = []
 var _q_xf: Array[Transform3D] = []
@@ -65,6 +73,7 @@ func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 func _on_crashed() -> void:
 	crash_active = true
 	crash_clock = 0.0
+	_flying_time = 0.0
 	crash_started.emit()
 
 
@@ -126,8 +135,29 @@ func _physics_process(dt: float) -> void:
 	for part: AircraftPart in aircraft.parts:
 		if not part.sleeping:
 			fastest = maxf(fastest, part.lin_vel.length_squared())
+	var root_speed := aircraft.root_part.lin_vel.length()
+
+	# An incident, not a crash: nothing structural failed and the aircraft is
+	# flying again. Stand down so the flight simply carries on.
+	var intact := aircraft.joints_alive == aircraft.parts.size() - 1
+	if intact and root_speed > FLYING_SPEED and not aircraft.body_contact \
+			and not aircraft.telemetry.on_ground:
+		_flying_time += dt
+		if _flying_time >= RECOVERY_TIME:
+			crash_active = false
+			_flying_time = 0.0
+			_still_time = 0.0
+			aircraft.clear_incident()
+			crash_cancelled.emit()
+			return
+	else:
+		_flying_time = 0.0
+
+	# Settled: everything still, or the main wreck still for a long while
+	# with only stragglers rolling. There is no time limit while it moves.
 	_still_time = _still_time + dt if fastest < REST_SPEED * REST_SPEED else 0.0
-	if _still_time >= REST_TIME or crash_clock >= MAX_CRASH_TIME:
+	_root_still_time = _root_still_time + dt if root_speed < REST_SPEED else 0.0
+	if _still_time >= REST_TIME or _root_still_time >= ROOT_REST_TIME:
 		settled = true
 		aircraft.rest()
 		crash_settled.emit()

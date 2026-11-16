@@ -23,6 +23,11 @@ void vertex() {
 	float n = vnoise(w0.xz * 0.006 + w0.y * 0.004);
 	// Only ever pull inward so the mesh stays inside the convex collider.
 	VERTEX.xz *= 1.0 - 0.06 * n;
+	// Instance scale is non-uniform, so rebuild the cone normal explicitly.
+	vec2 dir = normalize(VERTEX.xz + vec2(0.00001));
+	float sx = length(MODEL_MATRIX[0].xyz);
+	float sy = length(MODEL_MATRIX[1].xyz);
+	NORMAL = vec3(dir.x * sy / sx, sx / sy, dir.y * sy / sx);
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
@@ -38,7 +43,7 @@ void fragment() {
 	vec3 scree = vec3(0.52, 0.48, 0.42);
 	vec3 snow = vec3(0.92, 0.94, 0.97);
 	vec3 col = mix(grass, forest, smoothstep(120.0, 260.0, h + n1 * 80.0));
-	float rock_m = smoothstep(260.0, 340.0, h + n1 * 100.0) + smoothstep(0.16, 0.28, slope + n2 * 0.06);
+	float rock_m = smoothstep(260.0, 340.0, h + n1 * 100.0) + smoothstep(0.1, 0.2, slope + n2 * 0.05);
 	col = mix(col, mix(rock, scree, n2), clamp(rock_m, 0.0, 1.0));
 	col *= 0.85 + 0.3 * n2;
 	float snow_m = smoothstep(380.0, 410.0, h + (n1 - 0.5) * 60.0 - slope * 120.0);

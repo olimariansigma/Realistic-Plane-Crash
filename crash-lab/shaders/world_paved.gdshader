@@ -42,7 +42,7 @@ void fragment() {
 		col = mix(col, vec3(0.9, 0.72, 0.1), line(abs(across), 0.15, px));
 		col = mix(col, vec3(0.9, 0.72, 0.1), line(abs(abs(across) - (hw - 0.8)), 0.12, px) * 0.9);
 	} else if (kind < 1.5) {
-		col = vec3(0.5, 0.5, 0.48) * (0.88 + 0.2 * n);
+		col = vec3(0.38, 0.38, 0.37) * (0.88 + 0.2 * n);
 		float j = min(line(abs(fract(UV.x / 25.0 + 0.5) - 0.5) * 25.0, 0.04, px),
 				1.0) + line(abs(fract(UV.y / 25.0 + 0.5) - 0.5) * 25.0, 0.04, px);
 		col *= 1.0 - 0.25 * clamp(j, 0.0, 1.0);

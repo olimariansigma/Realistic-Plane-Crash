@@ -36,6 +36,7 @@ var _parts: Array[AircraftPart] = []
 var _visible: bool = false
 var _wake_next: int = 1 << 30
 var _finished: bool = false
+var _woken_once: bool = false
 
 
 ## Flattens the def's seat blocks into seats (aircraft-frame positions only).
@@ -185,7 +186,17 @@ func arm(sim_time: float) -> void:
 	var dt := 1.0 / float(Engine.physics_ticks_per_second)
 	for seat: Seat in seats:
 		seat.filter_alpha = 1.0 - exp(-dt / filter_tau(seat.part.def.crush_depth))
-	_wake_next = 0
+		# Start each armed period from a clean velocity sample.
+		seat.has_prev = false
+	if not _woken_once:
+		_wake_next = 0
+		_woken_once = true
+
+
+## Stops seat logging after an incident the aircraft flew away from. Peak
+## readings are kept and dummies stay awake; arm() resumes logging.
+func disarm() -> void:
+	armed = false
 
 
 ## Stops all tracking once the wreck has come to rest.
@@ -194,26 +205,26 @@ func stand_down() -> void:
 
 
 func tick(dt: float) -> void:
-	if not armed:
-		# Dormant dummies only need posing when someone can see them.
-		if _visible:
-			for fred: Fred in freds:
-				fred.sync_pose()
-		return
 	if _finished:
 		return
-	# Waking a dummy unfreezes nine bodies and wires nine joints; doing them
-	# all on one tick is a visible hitch, so they wake a few per tick.
-	var woken := 0
-	while _wake_next < freds.size() and woken < WAKE_PER_TICK:
-		freds[_wake_next].activate()
-		_wake_next += 1
-		woken += 1
-	var inv_dt := 1.0 / dt
-	for i: int in seats.size():
-		track_seat(seats[i], seats[i].filter_alpha, inv_dt)
+	if armed:
+		# Waking a dummy unfreezes nine bodies and wires nine joints; doing them
+		# all on one tick is a visible hitch, so they wake a few per tick.
+		var woken := 0
+		while _wake_next < freds.size() and woken < WAKE_PER_TICK:
+			freds[_wake_next].activate()
+			_wake_next += 1
+			woken += 1
+		var inv_dt := 1.0 / dt
+		for i: int in seats.size():
+			track_seat(seats[i], seats[i].filter_alpha, inv_dt)
 	for fred: Fred in freds:
-		fred.tick(dt)
+		if fred.active:
+			# Awake dummies always need their seat-mount forces, armed or not.
+			fred.tick(dt)
+		elif _visible:
+			# Dormant dummies only need posing when someone can see them.
+			fred.sync_pose()
 
 
 ## Advances one seat's acceleration log by a tick.
