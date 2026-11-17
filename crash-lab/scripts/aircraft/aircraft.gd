@@ -104,6 +104,9 @@ var _gear_colliders_on: bool = true
 var _ticks: int = 0
 var _airborne_time: float = 0.0
 var _fbw_pitch_i: float = 0.0
+var _strobes: Array[Node3D] = []
+var _beacons: Array[Node3D] = []
+var _light_time: float = 0.0
 var _fbw_active: bool = false
 var _fbw_out: float = 0.0
 ## Seconds left of the weight-on-wheels hold: a bounce must not retract the gear.
@@ -160,6 +163,16 @@ func setup(aircraft_def: AircraftDef) -> void:
 				_hinged_nodes.append(part.piece_nodes[i])
 				_hinged_pieces.append(part.pieces[i])
 				_hinged_parts.append(part)
+	for part: AircraftPart in parts:
+		var visual := part.get_node_or_null(^"Visual")
+		if visual == null:
+			continue
+		for child: Node in visual.get_children():
+			var light_name := String(child.name)
+			if light_name.begins_with("Strobe"):
+				_strobes.append(child as Node3D)
+			elif light_name.begins_with("Beacon"):
+				_beacons.append(child as Node3D)
 	structure = StructureMonitor.new()
 	structure.setup(parts)
 	cabin = Cabin.new()
@@ -237,6 +250,21 @@ func rest() -> void:
 	cabin.stand_down()
 	for part: AircraftPart in parts:
 		part.can_sleep = true
+
+
+## Anti-collision lights: a double white strobe every 1.2 s at the wingtips
+## and a red beacon flash every second. Visual only.
+func _process(delta: float) -> void:
+	_light_time += delta
+	var strobe_t := fmod(_light_time, 1.2)
+	var strobe := strobe_t < 0.05 or (strobe_t > 0.16 and strobe_t < 0.21)
+	for light: Node3D in _strobes:
+		if light.visible != strobe:
+			light.visible = strobe
+	for i: int in _beacons.size():
+		var on := fmod(_light_time + 0.5 * float(i), 1.0) < 0.12
+		if _beacons[i].visible != on:
+			_beacons[i].visible = on
 
 
 func _physics_process(dt: float) -> void:

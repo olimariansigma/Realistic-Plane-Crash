@@ -1177,6 +1177,14 @@ func _add_extras(def: AircraftDef, p: Dictionary) -> void:
 	var le := root.p0.z - 0.25 * root.r0
 	var te := root.p0.z + 0.75 * root.r0
 	if p.get("fairing", false):
+		# Flap-track fairings: one under the inner panel, two under the mid.
+		for side: String in ["l", "r"]:
+			var inner := def.find_part(StringName("wing_%s_in" % side))
+			var middle := def.find_part(StringName("wing_%s_mid" % side))
+			if inner >= 0:
+				def.parts[inner].extras.append({ type = "canoes", at = [0.62] })
+			if middle >= 0:
+				def.parts[middle].extras.append({ type = "canoes", at = [0.3, 0.78] })
 		var mid := def.parts[def.find_part(_fuselage_part_at(def, (le + te) * 0.5))]
 		var r := mid.r0
 		mid.extras.append({

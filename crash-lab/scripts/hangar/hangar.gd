@@ -75,10 +75,28 @@ func _build_room() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.05, 0.06, 0.075)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.62, 0.68, 0.78)
-	env.ambient_light_energy = 0.32
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# A studio "sky" that only feeds reflections and ambient light: a bright
+	# ceiling band of lamps over a dark floor, so the paint shows the long soft
+	# highlights a polished airliner has under hangar lights.
+	var studio := ProceduralSkyMaterial.new()
+	studio.sky_top_color = Color(0.85, 0.88, 0.92)
+	studio.sky_horizon_color = Color(0.32, 0.34, 0.38)
+	studio.sky_curve = 0.08
+	studio.ground_horizon_color = Color(0.2, 0.21, 0.23)
+	studio.ground_bottom_color = Color(0.08, 0.085, 0.09)
+	studio.sun_angle_max = 0.0
+	var sky := Sky.new()
+	sky.sky_material = studio
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
+	env.sky = sky
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.55
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.1
+	env.glow_enabled = SettingsStore.instance().graphics_quality >= 1
+	env.glow_intensity = 0.35
+	env.glow_hdr_threshold = 1.2
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -90,6 +108,14 @@ func _build_room() -> void:
 	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	key.directional_shadow_max_distance = 160.0
 	add_child(key)
+	# Overhead hangar lamps: their highlights run along the crown and wings.
+	for i: int in 3:
+		var lamp := OmniLight3D.new()
+		lamp.position = Vector3(-30.0 + 30.0 * float(i), 34.0, -8.0 + 12.0 * float(i % 2))
+		lamp.omni_range = 70.0
+		lamp.light_energy = 1.4
+		lamp.light_color = Color(1.0, 0.96, 0.88)
+		add_child(lamp)
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-20.0, -140.0, 0.0)
 	fill.light_energy = 0.22

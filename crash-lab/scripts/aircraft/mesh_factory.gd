@@ -162,6 +162,9 @@ static func _extras(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 		var e := item as Dictionary
 		var surf := Surf.new()
 		match String(e.get("type", "")):
+			"canoes":
+				for f: Variant in e.get("at", []):
+					_canoe(surf, part, float(f), paint.darkened(0.05), segs)
 			"fairing":
 				_fairing(surf, origin, axis, e, paint.darkened(0.06), segs)
 			"intake":
@@ -209,6 +212,40 @@ static func _fairing(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, 
 					_at(origin, axis, sin(a1) * hw * s0, yc + cos(a1) * depth * s0, za),
 					_at(origin, axis, sin(a1) * hw * s1, yc + cos(a1) * depth * s1, zb),
 					_at(origin, axis, sin(a0) * hw * s1, yc + cos(a0) * depth * s1, zb),
+					inside, col, uv)
+
+
+## Flap-track fairing ("canoe") under a wing panel at span fraction `f`: a
+## slim pod hung below the lower skin, from mid-chord to well behind the
+## trailing edge, as every airliner has three or four of per side.
+static func _canoe(surf: Surf, part: PartDef, f: float, col: Color, segs: int) -> void:
+	var q := part.p0.lerp(part.p1, f) - part.com
+	var c := lerpf(part.r0, part.r1, f)
+	var thick := c * part.shape_a
+	var z0 := q.z + 0.15 * c
+	var z1 := q.z + 1.12 * c
+	var hw := 0.035 * c + 0.12
+	var depth := 0.11 * c + 0.15
+	var yc := q.y - thick * 0.3
+	var uv := strip_uv(0.5, 0.5, 2)
+	var inside := Vector3(q.x, yc, (z0 + z1) * 0.5)
+	var stations := 8
+	for i: int in stations:
+		var u0 := float(i) / float(stations)
+		var u1 := float(i + 1) / float(stations)
+		# Rounded nose, longest and deepest just behind the trailing edge,
+		# tapering to a point at the back.
+		var s0 := pow(sin(PI * pow(u0, 0.75)), 0.6)
+		var s1 := pow(sin(PI * pow(u1, 0.75)), 0.6)
+		var za := lerpf(z0, z1, u0)
+		var zb := lerpf(z0, z1, u1)
+		for k: int in segs:
+			var a0 := PI * 0.5 + PI * float(k) / float(segs)
+			var a1 := PI * 0.5 + PI * float(k + 1) / float(segs)
+			surf.flat_quad(Vector3(q.x + sin(a0) * hw * s0, yc + cos(a0) * depth * s0, za),
+					Vector3(q.x + sin(a1) * hw * s0, yc + cos(a1) * depth * s0, za),
+					Vector3(q.x + sin(a1) * hw * s1, yc + cos(a1) * depth * s1, zb),
+					Vector3(q.x + sin(a0) * hw * s1, yc + cos(a0) * depth * s1, zb),
 					inside, col, uv)
 
 

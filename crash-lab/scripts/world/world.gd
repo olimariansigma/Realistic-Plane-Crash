@@ -48,30 +48,41 @@ func apply_quality(quality: int) -> void:
 			else DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 320.0 if quality >= 2 else 180.0
 	environment.fog_enabled = true
-	environment.glow_enabled = false
+	environment.glow_enabled = quality >= 1
 	environment.ssao_enabled = false
 
 
 func _build_sky() -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.20, 0.38, 0.70)
-	sky_mat.sky_horizon_color = Color(0.66, 0.76, 0.86)
-	sky_mat.ground_bottom_color = Color(0.22, 0.27, 0.20)
-	sky_mat.ground_horizon_color = Color(0.62, 0.70, 0.74)
-	sky_mat.sun_angle_max = 12.0
+	# Physically based sky (Rayleigh and Mie scattering): its colour, the
+	# haze toward the horizon and the light it reflects onto the paint are what
+	# make a scene read as a photograph rather than a render.
+	var sky_mat := PhysicalSkyMaterial.new()
+	sky_mat.rayleigh_coefficient = 2.0
+	sky_mat.mie_coefficient = 0.004
+	sky_mat.mie_eccentricity = 0.82
+	sky_mat.turbidity = 4.0
+	sky_mat.sun_disk_scale = 1.2
+	sky_mat.ground_color = Color(0.26, 0.3, 0.24)
+	sky_mat.energy_multiplier = 2.2
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
-	sky.radiance_size = Sky.RADIANCE_SIZE_64
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	environment = Environment.new()
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.6
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.ambient_light_energy = 0.75
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_exposure = 1.05
 	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.66, 0.74, 0.82)
-	environment.fog_density = 0.00007
+	environment.fog_light_color = Color(0.68, 0.76, 0.86)
+	environment.fog_density = 0.00006
+	environment.fog_aerial_perspective = 0.6
+	environment.fog_sun_scatter = 0.15
 	environment.fog_sky_affect = 0.0
+	environment.glow_intensity = 0.3
+	environment.glow_hdr_threshold = 1.1
 	var we := WorldEnvironment.new()
 	we.name = "Environment"
 	we.environment = environment
@@ -80,8 +91,8 @@ func _build_sky() -> void:
 	sun = DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = Vector3(-48.0, -35.0, 0.0)
-	sun.light_energy = 1.0
-	sun.light_color = Color(1.0, 0.97, 0.9)
+	sun.light_energy = 1.25
+	sun.light_color = Color(1.0, 0.96, 0.88)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 180.0

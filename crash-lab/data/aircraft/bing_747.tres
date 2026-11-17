@@ -378,7 +378,10 @@ winglet_style = 0
 top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
-extras = []
+extras = [{
+&"at": [0.62],
+&"type": "canoes"
+}]
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 15444.0
 crush_depth = 0.5
@@ -411,7 +414,10 @@ winglet_style = 0
 top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
-extras = []
+extras = [{
+&"at": [0.3, 0.78],
+&"type": "canoes"
+}]
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 6864.0
 crush_depth = 0.5
@@ -576,7 +582,10 @@ winglet_style = 0
 top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
-extras = []
+extras = [{
+&"at": [0.62],
+&"type": "canoes"
+}]
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 15444.0
 crush_depth = 0.5
@@ -609,7 +618,10 @@ winglet_style = 0
 top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
-extras = []
+extras = [{
+&"at": [0.3, 0.78],
+&"type": "canoes"
+}]
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 6864.0
 crush_depth = 0.5

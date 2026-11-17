@@ -149,7 +149,75 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		mi.visibility_range_end = LOD_DISTANCE
 		mi.visibility_range_end_margin = 8.0
 		root.add_child(mi)
+	_add_lights(adef, part, root)
 	return root
+
+
+static var _light_mats: Dictionary = {}
+
+
+static func _light_material(col: Color) -> StandardMaterial3D:
+	if not _light_mats.has(col):
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = col
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = 4.0
+		_light_mats[col] = m
+	return _light_mats[col]
+
+
+## Navigation lights (red left tip, green right tip, white tail), white
+## wingtip and tail strobes, and red beacons on the crown and belly. Strobes
+## and beacons start dark; Aircraft flashes them in flight.
+static func _add_lights(adef: AircraftDef, part: PartDef, root: Node3D) -> void:
+	var size := clampf(adef.wing_span * 0.0045, 0.06, 0.2)
+	var at: Array[Vector3] = []
+	var cols: Array[Color] = []
+	var kinds: Array[String] = []
+	if part.kind == PartDef.Kind.WING and String(part.name).ends_with("_out"):
+		var tip := part.p1 - part.com
+		var outward := Vector3(signf(tip.x + part.com.x), 0.0, 0.0)
+		at.append(tip + outward * 0.15 - Vector3(0.0, 0.0, 0.2 * part.r1))
+		cols.append(Color(1.0, 0.08, 0.05) if outward.x < 0.0 else Color(0.1, 1.0, 0.25))
+		kinds.append("Nav")
+		at.append(tip + outward * 0.15 + Vector3(0.0, 0.0, 0.35 * part.r1))
+		cols.append(Color(1.0, 1.0, 1.0))
+		kinds.append("Strobe")
+	elif part.kind == PartDef.Kind.FUSELAGE:
+		var length := (part.p1 - part.p0).length()
+		if part.shape_b > 0.0:
+			var pr := MeshFactory.body_profile(part, length, length)
+			var tail := part.p1 - part.com + Vector3(0.0, pr.y, 0.0) + Vector3(0.0, 0.0, 0.05)
+			at.append(tail)
+			cols.append(Color(1.0, 0.98, 0.92))
+			kinds.append("Nav")
+		elif String(part.name) == "fus_mid":
+			var c := (part.p0 + part.p1) * 0.5 - part.com
+			var ry := part.r0 * part.squash.y
+			at.append(c + Vector3(0.0, ry + size * 0.5, 0.0))
+			cols.append(Color(1.0, 0.05, 0.02))
+			kinds.append("Beacon")
+			at.append(c - Vector3(0.0, ry + size * 0.5, -1.5))
+			cols.append(Color(1.0, 0.05, 0.02))
+			kinds.append("Beacon")
+	if at.is_empty():
+		return
+	var mesh := SphereMesh.new()
+	mesh.radius = size
+	mesh.height = size * 2.0
+	mesh.radial_segments = 8
+	mesh.rings = 4
+	for i: int in at.size():
+		var mi := MeshInstance3D.new()
+		mi.name = "%s%d" % [kinds[i], i]
+		mi.mesh = mesh
+		mi.material_override = _light_material(cols[i])
+		mi.position = at[i]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visible = kinds[i] == "Nav"
+		root.add_child(mi)
 
 
 ## Static display model (no physics) with the aircraft origin at the node

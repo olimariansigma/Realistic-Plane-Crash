@@ -11,8 +11,11 @@ render_mode cull_disabled;
 // the cutaway read as sheet metal rather than vanishing when seen from behind.
 
 uniform sampler2D atlas : source_color, hint_default_white, filter_linear_mipmap, repeat_disable;
-uniform float roughness_value : hint_range(0.0, 1.0) = 0.42;
-uniform float metallic_value : hint_range(0.0, 1.0) = 0.15;
+// Airliner paint is a glossy clear-coated enamel, not plastic: low roughness
+// plus a clear coat is what makes the sky reflect along the fuselage.
+uniform float roughness_value : hint_range(0.0, 1.0) = 0.3;
+uniform float metallic_value : hint_range(0.0, 1.0) = 0.04;
+uniform float clearcoat_value : hint_range(0.0, 1.0) = 0.55;
 uniform vec3 primer : source_color = vec3(0.42, 0.5, 0.27);
 
 global uniform float cutaway_amount;
@@ -32,6 +35,12 @@ instance uniform vec3 tint : source_color = vec3(1.0);
 instance uniform vec4 uv_rect = vec4(0.0, 0.0, 1.0, 1.0);
 
 varying vec3 local_pos;
+
+float panel_hash(vec3 p) {
+	p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+	p *= 17.0;
+	return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
 varying float dent_weight;
 
 vec3 crumple(vec3 p, vec4 dent, vec3 push, inout float weight) {
@@ -60,13 +69,28 @@ void fragment() {
 			&& local_pos.x > cut_plane_x + (1.0 - cutaway_amount) * 40.0) {
 		discard;
 	}
-	vec3 base = COLOR.rgb * tint * texture(atlas, uv_rect.xy + UV * uv_rect.zw).rgb;
+	vec3 tex = texture(atlas, uv_rect.xy + UV * uv_rect.zw).rgb;
+	vec3 base = COLOR.rgb * tint * tex;
+	// Glass: the atlas paints windows near-black. Make them a dark, mirror-like
+	// surface so they pick up the sky, as real cabin and cockpit windows do.
+	float glass = 1.0 - smoothstep(0.08, 0.2, max(tex.r, max(tex.g, tex.b)));
+	// Real skins are not one flat colour: panels differ very slightly in shade.
+	float shade = panel_hash(floor(local_pos * vec3(0.55, 0.9, 0.42)));
+	base *= 1.0 + (shade - 0.5) * 0.045;
+	float rough = roughness_value + (shade - 0.5) * 0.08;
 	if (!FRONT_FACING) {
 		base = primer;
+		glass = 0.0;
+		rough = 0.7;
 	}
+	base = mix(base, vec3(0.012, 0.016, 0.022), glass);
 	base = mix(base, base * 0.5, dent_weight * 0.7);
 	base = mix(base, vec3(0.025), scorch);
+	float wear = max(scorch, dent_weight * 0.6);
 	ALBEDO = base;
-	ROUGHNESS = mix(roughness_value, 0.95, max(scorch, dent_weight * 0.6));
+	ROUGHNESS = mix(mix(rough, 0.04, glass), 0.95, wear);
 	METALLIC = metallic_value * (1.0 - scorch);
+	SPECULAR = mix(0.5, 0.9, glass);
+	CLEARCOAT = FRONT_FACING ? clearcoat_value * (1.0 - wear) : 0.0;
+	CLEARCOAT_ROUGHNESS = 0.12;
 }
