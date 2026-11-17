@@ -150,12 +150,30 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		mi.visibility_range_end_margin = 8.0
 		root.add_child(mi)
 	_add_lights(adef, part, root)
-	if part.kind == PartDef.Kind.FUSELAGE and not adef.livery.is_empty():
-		var frame := Vector4(part.com.x, part.com.y - part.p0.y, part.com.z - nose_station_zero(adef), 1.0)
+	var flag := 0.0
+	if part.kind == PartDef.Kind.FUSELAGE:
+		flag = 1.0
+	elif part.kind == PartDef.Kind.FIN:
+		flag = 2.0
+	if flag > 0.0 and not adef.livery.is_empty():
+		# Part-local coordinates to the fuselage frame (station from the nose
+		# tip, height above the fuselage centreline); hinged pieces such as the
+		# rudder carry their own mesh origin.
+		var frame := Vector3(part.com.x, part.com.y - fuselage_axis_y(adef), part.com.z - nose_station_zero(adef))
 		for child: Node in root.get_children():
 			if child is MeshInstance3D and child.name != &"Core":
-				(child as MeshInstance3D).set_instance_shader_parameter(&"livery_frame", frame)
+				var mi := child as MeshInstance3D
+				var f := frame + mi.position
+				mi.set_instance_shader_parameter(&"livery_frame", Vector4(f.x, f.y, f.z, flag))
 	return root
+
+
+## Height of the fuselage centreline (the fuselage parts share it).
+static func fuselage_axis_y(adef: AircraftDef) -> float:
+	for part: PartDef in adef.parts:
+		if part.kind == PartDef.Kind.FUSELAGE:
+			return part.p0.y
+	return 0.0
 
 
 ## Z of the nose tip: stations in the livery are measured aft of it.
@@ -181,6 +199,76 @@ static func apply_livery(adef: AircraftDef) -> void:
 	for i: int in mini(list.size(), 12):
 		doors[i] = list[i]
 	mat.set_shader_parameter(&"doors", doors)
+	_apply_paint(adef, mat)
+
+
+## The airline livery: fuselage colours, cheatlines, titles and the fin art.
+static func _apply_paint(adef: AircraftDef, mat: ShaderMaterial) -> void:
+	var p: Dictionary = adef.livery.get("paint", {})
+	if p.is_empty():
+		mat.set_shader_parameter(&"fus_base", Vector4(0.95, 0.95, 0.94, 0.0))
+		mat.set_shader_parameter(&"fin_geo2", Vector4.ZERO)
+		return
+	var base: Color = p.get("base", Color(0.95, 0.95, 0.94))
+	mat.set_shader_parameter(&"fus_base", Vector4(base.r, base.g, base.b, 1.0))
+	var belly: Color = p.get("belly", base)
+	mat.set_shader_parameter(&"belly_col", Vector4(belly.r, belly.g, belly.b, 1.0))
+	mat.set_shader_parameter(&"belly_line", p.get("belly_line", Vector4(-100.0, 1000.0, 0.0, 0.04)))
+	var radome: Color = p.get("radome", base)
+	mat.set_shader_parameter(&"radome", Vector4(radome.r, radome.g, radome.b, float(p.get("radome_len", 0.0))))
+	var cheats := PackedVector4Array()
+	var cheat_cols := PackedVector4Array()
+	cheats.resize(3)
+	cheat_cols.resize(3)
+	var list: Array = p.get("cheats", [])
+	for i: int in mini(list.size(), 3):
+		var c: Array = list[i]
+		cheats[i] = c[1]
+		var col: Color = c[0]
+		cheat_cols[i] = Vector4(col.r, col.g, col.b, 1.0)
+	mat.set_shader_parameter(&"cheat", cheats)
+	mat.set_shader_parameter(&"cheat_col", cheat_cols)
+	# Titles: up to two strings, stroked from StrokeFont segments.
+	var segs := PackedVector4Array()
+	var boxes := PackedVector4Array()
+	var cols := PackedVector4Array()
+	boxes.resize(2)
+	cols.resize(2)
+	var ranges := Vector4.ZERO
+	var texts: Array = p.get("texts", [])
+	for i: int in mini(texts.size(), 2):
+		var t: Array = texts[i]
+		var first := segs.size()
+		var width := StrokeFont.segments(String(t[0]), segs)
+		boxes[i] = t[2]
+		var col: Color = t[1]
+		cols[i] = Vector4(col.r, col.g, col.b, width)
+		if i == 0:
+			ranges.x = first
+			ranges.y = segs.size()
+		else:
+			ranges.z = first
+			ranges.w = segs.size()
+	segs.resize(96)
+	mat.set_shader_parameter(&"text_segs", segs)
+	mat.set_shader_parameter(&"text_box", boxes)
+	mat.set_shader_parameter(&"text_col", cols)
+	mat.set_shader_parameter(&"text_range", ranges)
+	# Fin art in fin coordinates.
+	mat.set_shader_parameter(&"fin_geo", p.get("fin_geo", Vector4.ZERO))
+	mat.set_shader_parameter(&"fin_geo2", p.get("fin_geo2", Vector4.ZERO))
+	var shapes := PackedVector4Array()
+	var shape_cols := PackedVector4Array()
+	shapes.resize(6)
+	shape_cols.resize(6)
+	var fs: Array = p.get("fin_shapes", [])
+	for i: int in mini(fs.size(), 6):
+		var f: Array = fs[i]
+		shapes[i] = Vector4(f[0], f[1], f[2], f[3])
+		var col: Color = f[4]
+		shape_cols[i] = Vector4(col.r, col.g, col.b, f[5] if f.size() > 5 else 0.0)
+	mat.set_shader_parameter(&"fin_shape", shapes)
+	mat.set_shader_parameter(&"fin_shape_col", shape_cols)
 
 
 static var _light_mats: Dictionary = {}

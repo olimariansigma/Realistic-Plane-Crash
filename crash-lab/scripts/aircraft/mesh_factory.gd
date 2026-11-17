@@ -419,21 +419,22 @@ static func _top_scale(part: PartDef, d: float, length: float) -> float:
 ## or w = 0 where the part has no table or `d` is past its end.
 static func _nose_row(part: PartDef, d: float) -> Vector4:
 	var table := part.nose_table
-	if table.size() < 2 or d > table[table.size() - 1].x:
+	if table.size() < 2 or d > table[table.size() - 1].x + 0.05:
 		return Vector4.ZERO
 	var i := 1
 	while i < table.size() - 1 and table[i].x < d:
 		i += 1
 	var a := table[i - 1]
 	var b := table[i]
-	if i == 1:
+	var tip := i == 1 and part.shape_a > 0.0 and a.x <= 0.001
+	if tip:
 		# The first row describes the blunt tip; close it to a point there so
 		# the nose has no hole.
 		var mid := (a.y + a.z) * 0.5
 		a = Vector4(a.x, mid, mid, 0.0)
 	var t := clampf((d - a.x) / maxf(b.x - a.x, 0.001), 0.0, 1.0)
 	# Round over the tip: a blunt nose fills out quickly from the point.
-	if i == 1:
+	if tip:
 		t = sqrt(t)
 	# Rounded tip: the first row's width is never quite zero.
 	var row := a.lerp(b, t)
@@ -643,13 +644,16 @@ static func _engine(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 	var nozzle := part.r1 / part.r0
 	var prof_r: Array[float] = [0.9, 0.99, 1.0, 0.96, lerpf(0.96, nozzle, 0.6), nozzle]
 	# Colour per profile segment: lip, then cowl, then the hot end.
-	var seg_col: Array[Color] = [METAL, paint, paint, paint, METAL.darkened(0.25)]
+	var paint_scheme: Dictionary = adef.livery.get("paint", {})
+	paint = paint_scheme.get("cowl", paint)
+	var lip: Color = paint_scheme.get("lip", METAL)
+	var seg_col: Array[Color] = [lip, paint, paint, paint, METAL.darkened(0.25)]
 	if nozzle < 0.85:
 		# High-bypass turbofan: the fan cowl ends about 60 % back at the fan
 		# nozzle, and the narrower core cowl carries on to the core nozzle.
 		prof_d = [0.0, 0.035, 0.14, 0.42, 0.58, 0.6, 0.62, 0.84, 1.0]
 		prof_r = [0.88, 0.985, 1.0, 0.98, 0.9, 0.86, 0.6, 0.53, 0.43]
-		seg_col = [METAL, paint, paint, paint, paint, DARK, METAL, METAL.darkened(0.2)]
+		seg_col = [lip, paint, paint, paint, paint, DARK, METAL, METAL.darkened(0.2)]
 	# Two cowl halves (right, left).
 	for half: int in 2:
 		var surf := Surf.new()

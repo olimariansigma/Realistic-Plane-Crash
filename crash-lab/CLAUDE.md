@@ -193,6 +193,13 @@ built is marked *(planned)*.
   distance. Noses are lofted from measured `PartDef.nose_table` sections. The
   numbers come from the manufacturers' published airport-planning drawings
   (Airbus AC, Boeing ACAPS), cited in the spec comments in `gen_aircraft.gd`.
+  Liveries are original fictional airlines (no real trademarks): base and
+  belly colours, swept cheatlines, titles and registrations in a built-in
+  stroke font (`StrokeFont`, drawn as a distance field), and fin art from
+  simple shapes, all from the spec's `scheme` (colours are sRGB hex, converted
+  to linear: raw hex values render washed out). Fuselage sections, including
+  the tail cones and every F-16 section, are lofted from measured
+  crown/keel/half-width tables (`nose_table`, `tail_table`, `section_tables`).
   Type-specific shape details
   (`PartDef.extras`: belly fairing, chin intake, strakes, ventral fins,
   dorsal fin fillet) are

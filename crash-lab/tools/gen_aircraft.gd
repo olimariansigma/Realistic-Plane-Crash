@@ -118,7 +118,7 @@ func _airliner_specs() -> Array[Dictionary]:
 		{
 			id = &"abius_a320", name = "Abius A320-200", category = "Narrow-body twin",
 			desc = "The single-aisle workhorse. 180 seats, fly-by-wire, forgiving low-speed handling.",
-			paint = abius, accent = Color(0.06, 0.2, 0.52), nose_power = 0.58,
+			paint = abius, accent = Color("#1E6F8C").srgb_to_linear(), nose_power = 0.58,
 			length = 37.57, width = 3.95, mass = 66000.0, span = 34.1, area = 122.6, sweep = 25.0,
 			taper = 0.24, winglet = 2.4, winglet_style = 0,
 			engines = [0.34], thrust = 120000.0, engine_d = 2.2, engine_len = 4.4, engine_mass = 3400.0,
@@ -127,6 +127,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			# nose section (station, crown, keel, half-width), windows, doors and
 			# windscreen, all from the nose tip and the fuselage mid-height.
 			height = 4.14, nose_cap_m = 6.0,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[27.0, 2.07, -2.07, 1.975], [28.0, 2.07, -1.85, 1.93], [30.0, 2.07, -1.45, 1.7], [32.0, 2.07, -1.0, 1.38], [34.0, 2.0, -0.55, 1.0], [36.0, 1.85, -0.05, 0.72], [37.0, 1.6, 0.3, 0.4], [37.57, 1.2, 0.8, 0.12]],
 			nose_table = [[0.0, -0.5, -0.93, 0.1], [0.25, -0.2, -1.26, 0.45], [0.5, 0.0, -1.42, 0.69],
 				[1.0, 0.27, -1.62, 0.99], [1.5, 0.61, -1.78, 1.21], [2.0, 1.11, -1.89, 1.39],
 				[3.0, 1.58, -2.03, 1.68], [4.0, 1.87, -2.07, 1.86], [5.0, 2.03, -2.07, 1.95],
@@ -136,18 +138,27 @@ func _airliner_specs() -> Array[Dictionary]:
 				[29.53, 0.81, 1.79, -0.12]],
 			windscreen = { s0 = 1.6, s1 = 3.5, sill0 = 0.32, sill1 = 0.15, top0 = 0.72, top1 = 0.9,
 				splits = [2.3, 2.92] },
+			# Original fictional airline "Vennari Air": eurowhite, teal cheatline sweeping up the tail.
+			scheme = { base = "#F4F5F2", belly = "#5C6570", belly_z = -0.45, belly_sweep = 0.7, belly_end = -0.1,
+				cheats = [["#1E6F8C", 0.45, -0.3, 0.82, 0.8], ["#E8A33D", 0.08, -0.6, 0.85, -0.2]],
+				texts = [["VENNARI", "#1E6F8C", 0.55, 0.36, 0.45], ["XN-VNA", "#3A424C", 0.32, 0.8, -0.9]],
+				radome = "#2B2F36", radome_len = 1.3, cowl = "#1E6F8C", lip = "#C9CED6",
+				fin_shapes = [[1, 0.42, 0.7, 0.2, "#F4F5F2"], [5, 0.42, 0.7, 0.09, "#E8A33D"],
+					[3, 0.5, 0.075, 0.03, "#F4F5F2"]] },
 			v_rotate = 74.0, v_cruise = 128.6, v_ne = 196.0,
 		},
 		{
 			id = &"abius_a330", name = "Abius A330-300", category = "Wide-body twin",
 			desc = "Medium-to-long-haul twin-aisle. 296 seats on a long, slender wing.",
-			paint = abius, accent = Color(0.07, 0.24, 0.5), nose_power = 0.58,
+			paint = abius, accent = Color("#14213D").srgb_to_linear(), nose_power = 0.58,
 			length = 63.69, width = 5.64, mass = 195000.0, span = 60.3, area = 361.6, sweep = 30.0,
 			taper = 0.25, winglet = 2.7, winglet_style = 0,
 			engines = [0.31], thrust = 316000.0, engine_d = 3.1, engine_len = 6.2, engine_mass = 7800.0,
 			rows = 37, groups = [2, 4, 2], wheels = 4,
 			# Measured from the Airbus A330 airport-planning drawings (AC, 2013).
 			nose_cap_m = 9.0,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[44.0, 2.82, -2.82, 2.82], [46.0, 2.82, -2.6, 2.65], [48.0, 2.82, -2.2, 2.56], [50.0, 2.82, -1.7, 2.38], [52.0, 2.82, -1.2, 2.13], [54.0, 2.82, -0.7, 1.84], [56.0, 2.82, -0.1, 1.55], [58.0, 2.8, 0.6, 1.25], [60.0, 2.75, 1.2, 0.95], [62.0, 2.68, 1.8, 0.5], [63.69, 2.6, 2.2, 0.1]],
 			nose_table = [[0.0, -0.18, -0.67, 0.2], [0.25, 0.1, -0.96, 0.5], [0.5, 0.28, -1.14, 0.65],
 				[1.0, 0.53, -1.42, 0.92], [1.5, 0.96, -1.63, 1.19], [2.0, 1.38, -1.81, 1.37],
 				[3.0, 1.85, -2.1, 1.75], [4.0, 2.13, -2.35, 2.04], [5.0, 2.35, -2.52, 2.29],
@@ -157,18 +168,27 @@ func _airliner_specs() -> Array[Dictionary]:
 				[50.96, 1.07, 1.93, -0.045]],
 			windscreen = { s0 = 1.45, s1 = 3.2, sill0 = 0.38, sill1 = 0.35, top0 = 0.85, top1 = 0.95,
 				splits = [1.95, 2.62] },
+			# Original fictional airline "Solmara Airways": navy sill line with a gold pinstripe.
+			scheme = { base = "#F7F7F4", belly = "#3A3F47", belly_z = -0.4, belly_sweep = 0.75, belly_end = -0.05,
+				cheats = [["#14213D", 0.8, -0.55, 0.78, 0.9], ["#C9A227", 0.1, -0.05, 0.78, 1.3]],
+				texts = [["SOLMARA", "#14213D", 0.75, 0.4, 0.55], ["XN-SLM", "#14213D", 0.4, 0.8, -1.2]],
+				radome = "#14213D", radome_len = 1.8, cowl = "#F7F7F4", lip = "#14213D",
+				fin_shapes = [[1, 0.5, 0.75, 0.2, "#C9A227"], [3, 0.5, 0.3, 0.025, "#F7F7F4"],
+					[3, 0.5, 0.36, 0.025, "#F7F7F4"], [3, 0.5, 0.42, 0.025, "#F7F7F4"]] },
 			v_rotate = 80.0, v_cruise = 128.6, v_ne = 185.0,
 		},
 		{
 			id = &"abius_a350", name = "Abius A350-900", category = "Wide-body twin",
 			desc = "Composite long-hauler with curved wingtips. 315 seats, a lot of wing for its weight.",
-			paint = abius, accent = Color(0.1, 0.12, 0.16), nose_power = 0.6,
+			paint = abius, accent = Color("#0F3D4C").srgb_to_linear(), nose_power = 0.6,
 			length = 66.8, width = 5.96, mass = 230000.0, span = 64.75, area = 443.0, sweep = 32.0,
 			taper = 0.22, winglet = 3.0, winglet_style = 0,
 			engines = [0.3], thrust = 374000.0, engine_d = 3.6, engine_len = 6.8, engine_mass = 9300.0,
 			rows = 35, groups = [3, 3, 3], wheels = 4,
 			# Measured from the Airbus A350-900 airport-planning drawings (AC, 2012).
 			height = 6.09, nose_cap_m = 9.5,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[48.0, 3.045, -3.045, 2.98], [50.0, 2.95, -2.45, 2.96], [52.0, 2.85, -2.35, 2.78], [54.0, 2.8, -1.95, 2.5], [56.0, 2.65, -1.55, 2.06], [58.0, 2.45, -1.1, 1.62], [60.0, 2.25, -0.55, 1.22], [62.0, 2.1, -0.1, 1.05], [64.0, 2.0, 0.45, 0.85], [65.3, 2.0, 0.8, 0.44], [66.8, 1.9, 1.0, 0.08]],
 			nose_table = [[0.0, -1.4, -1.85, 0.15], [0.25, -1.09, -2.06, 0.5], [0.5, -0.85, -2.23, 0.7],
 				[1.0, -0.4, -2.48, 1.0], [1.5, 0.0, -2.6, 1.22], [2.0, 0.4, -2.74, 1.38],
 				[3.0, 1.35, -2.92, 1.74], [4.0, 1.9, -3.0, 2.02], [5.0, 2.25, -3.045, 2.26],
@@ -178,18 +198,27 @@ func _airliner_specs() -> Array[Dictionary]:
 				[52.55, 1.1, 2.1, -0.45]],
 			windscreen = { s0 = 1.95, s1 = 3.65, sill0 = 0.45, sill1 = 0.4, top0 = 1.05, top1 = 1.1,
 				splits = [2.5, 3.12], mask = 0.18 },
+			# Original fictional airline "Halvera Airways": a teal wave band.
+			scheme = { base = "#FAFAF8", belly = "#B9C1CA", belly_z = -0.5, belly_sweep = 0.8, belly_end = -0.1,
+				cheats = [["#1F7F86", 0.6, -0.35, 0.75, 1.0], ["#0F3D4C", 0.05, -0.65, 1.0, -0.65]],
+				texts = [["HALVERA", "#0F3D4C", 0.7, 0.3, 0.55], ["XN-HLV", "#0F3D4C", 0.4, 0.8, -1.3]],
+				radome = "#2B2F36", radome_len = 1.8, cowl = "#0F3D4C", lip = "#FAFAF8",
+				fin_shapes = [[3, 0.5, 0.62, 0.06, "#2AB3A6"], [3, 0.5, 0.54, 0.06, "#2AB3A6"],
+					[3, 0.5, 0.46, 0.06, "#2AB3A6"]] },
 			v_rotate = 79.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
 			id = &"abius_a380", name = "Abius A380-800", category = "Double-deck four-engine",
 			desc = "The largest airliner built. Two full decks, 536 seats, four engines, 80 m of wing.",
-			paint = abius, accent = Color(0.05, 0.16, 0.45), nose_power = 0.48, nose_droop = 0.1,
+			paint = abius, accent = Color("#2B2D33").srgb_to_linear(), nose_power = 0.48, nose_droop = 0.1,
 			length = 72.72, width = 7.14, height = 8.41, mass = 480000.0, span = 79.75, area = 845.0,
 			sweep = 33.5, taper = 0.22, winglet = 2.3, winglet_style = 2, double_deck = true,
 			engines = [0.33, 0.61], thrust = 311000.0, engine_d = 3.5, engine_len = 6.0, engine_mass = 8200.0,
 			rows = 36, groups = [3, 4, 3], upper_rows = 22, upper_groups = [2, 4, 2], wheels = 6,
 			# Measured from the Airbus A380 airport-planning drawings (AC, 2012).
 			nose_cap_m = 10.3,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[50.0, 4.205, -4.205, 3.57], [55.0, 4.1, -2.75, 3.15], [58.0, 3.85, -2.1, 2.57], [60.0, 3.7, -1.6, 2.2], [62.0, 3.5, -1.1, 1.85], [64.0, 3.35, -0.6, 1.5], [66.0, 3.2, -0.15, 1.2], [68.0, 2.9, 0.4, 0.86], [70.3, 2.6, 1.0, 0.3], [72.72, 2.4, 2.0, 0.08]],
 			nose_table = [[0.0, -1.34, -2.08, 0.4], [0.25, -0.88, -2.43, 0.78], [0.5, -0.55, -2.65, 1.05],
 				[1.0, -0.09, -2.97, 1.38], [1.5, 0.26, -3.18, 1.65], [2.0, 0.65, -3.36, 1.87],
 				[3.0, 1.54, -3.57, 2.2], [4.0, 2.26, -3.75, 2.5], [5.0, 2.79, -3.86, 2.71],
@@ -201,12 +230,18 @@ func _airliner_specs() -> Array[Dictionary]:
 				[20.94, 1.07, 1.9, 1.3], [40.3, 1.07, 1.9, 1.3], [49.19, 1.07, 1.9, 1.3]],
 			windscreen = { s0 = 1.65, s1 = 3.6, sill0 = 0.25, sill1 = 0.2, top0 = 0.8, top1 = 0.75,
 				splits = [2.4, 3.02] },
+			# Original fictional airline "Norvance Airlines": charcoal sill and a bronze ring.
+			scheme = { base = "#F8F7F3", belly = "#2B2D33", belly_z = -0.45, belly_sweep = 0.7, belly_end = -0.05,
+				cheats = [["#2B2D33", 1.0, -0.6, 0.72, 1.2], ["#B07D3A", 0.12, -0.02, 0.72, 1.5]],
+				texts = [["NORVANCE", "#2B2D33", 0.95, 0.4, 0.9], ["XN-NRV", "#2B2D33", 0.45, 0.8, -1.5]],
+				radome = "#2B2F36", radome_len = 2.0, cowl = "#C9CDD2", lip = "#2B2D33",
+				fin_shapes = [[2, 0.5, 0.74, 0.22, "#B07D3A", 0.015], [1, 0.5, 0.74, 0.07, "#B07D3A"]] },
 			v_rotate = 82.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
 			id = &"bing_737", name = "Bing 737-800", category = "Narrow-body twin",
 			desc = "The best-selling jetliner. 186 seats, low-slung engines, blended winglets.",
-			paint = bing, accent = Color(0.0, 0.33, 0.55), nose_power = 0.7,
+			paint = bing, accent = Color("#1B3A5C").srgb_to_linear(), nose_power = 0.7,
 			length = 39.5, width = 3.76, mass = 66000.0, span = 34.3, area = 124.6, sweep = 25.0,
 			taper = 0.22, winglet = 2.5, winglet_style = 0,
 			engines = [0.33], thrust = 121000.0, engine_d = 2.05, engine_len = 4.2, engine_mass = 3300.0,
@@ -218,6 +253,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			# nose section (station, crown, keel, half-width), windows, doors and
 			# windscreen, from the nose tip and the fuselage mid-height.
 			height = 4.01, nose_cap_m = 7.9,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[26.0, 2.005, -2.005, 1.88], [28.0, 2.04, -1.83, 1.88], [30.0, 2.04, -1.56, 1.85], [32.0, 2.04, -1.19, 1.72], [34.0, 2.04, -0.71, 1.15], [36.0, 2.0, -0.12, 0.58], [37.0, 1.9, 0.23, 0.4], [38.0, 1.6, 0.73, 0.18], [39.5, 1.3, 1.0, 0.06]],
 			nose_table = [[0.0, -0.31, -0.65, 0.09], [0.25, 0.01, -1.0, 0.37], [0.5, 0.17, -1.19, 0.56],
 				[1.0, 0.47, -1.43, 0.75], [1.5, 0.81, -1.64, 0.92], [2.0, 1.16, -1.8, 1.08],
 				[3.0, 1.53, -1.99, 1.37], [4.0, 1.72, -2.04, 1.6], [5.0, 1.83, -2.04, 1.77],
@@ -227,12 +264,19 @@ func _airliner_specs() -> Array[Dictionary]:
 				[31.88, 0.76, 1.83, -0.41]],
 			windscreen = { s0 = 1.5, s1 = 3.05, sill0 = 0.3, sill1 = 0.3, top0 = 0.66, top1 = 1.0,
 				splits = [1.85, 2.35] },
+			# Original fictional airline "Norvelle Air": dark-blue belly, blue cheatline.
+			scheme = { base = "#F4F5F2", belly = "#1B3A5C", belly_z = -0.4, belly_sweep = 0.8, belly_end = -0.15,
+				cheats = [["#2E7DBE", 0.35, -0.3, 0.82, 1.6]],
+				texts = [["NORVELLE AIR", "#1B3A5C", 0.5, 0.38, 0.6], ["NV-5173", "#1B3A5C", 0.32, 0.8, -1.0]],
+				radome = "#2B2F36", radome_len = 1.2, cowl = "#F4F5F2", lip = "#1B3A5C",
+				fin_shapes = [[1, 0.45, 0.78, 0.22, "#F4F5F2"], [4, 0.45, 0.6, 0.1, "#2E7DBE"],
+					[4, 0.45, 0.5, 0.1, "#2E7DBE"]] },
 			v_rotate = 75.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
 			id = &"bing_747", name = "Bing 747-400", category = "Four-engine jumbo",
 			desc = "The original jumbo, hump and all. 388 seats, four engines, a heavily swept wing.",
-			paint = bing, accent = Color(0.02, 0.2, 0.42), nose_power = 0.66,
+			paint = bing, accent = Color("#0E2A4F").srgb_to_linear(), nose_power = 0.66,
 			length = 70.66, width = 6.5, mass = 330000.0, span = 64.4, area = 541.0, sweep = 37.5,
 			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.25, nose_droop = 0.08,
 			engines = [0.36, 0.63], thrust = 282000.0, engine_d = 2.8, engine_len = 5.6, engine_mass = 5800.0,
@@ -241,6 +285,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			# Measured from Boeing's 747-400 airport-planning drawings (D6-58326-1).
 			# The upper deck stands about 0.9 m above the main crown.
 			height = 7.04, nose_cap_m = 10.0,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[45.0, 3.52, -3.52, 3.25], [48.0, 3.52, -3.08, 3.05], [52.0, 3.52, -2.21, 2.7], [54.0, 3.52, -1.77, 2.5], [56.0, 3.52, -1.34, 2.2], [58.0, 3.52, -0.9, 2.0], [60.0, 3.52, -0.47, 1.5], [62.0, 3.55, -0.03, 1.2], [64.0, 3.6, 0.4, 1.0], [66.0, 3.65, 0.78, 0.6], [68.0, 3.6, 1.28, 0.25], [70.66, 3.2, 2.0, 0.06]],
 			nose_table = [[0.0, -0.28, -0.47, 0.05], [0.25, 0.22, -0.97, 0.53], [0.5, 0.46, -1.15, 0.84],
 				[1.0, 0.78, -1.53, 1.18], [1.5, 1.09, -1.78, 1.34], [2.0, 1.34, -1.96, 1.53],
 				[3.0, 1.9, -2.34, 1.77], [4.0, 2.39, -2.65, 2.02], [5.0, 3.14, -2.9, 2.24],
@@ -250,12 +296,19 @@ func _airliner_specs() -> Array[Dictionary]:
 				[40.74, 1.07, 1.93, -0.84], [55.14, 1.07, 1.93, -0.84], [15.45, 0.7, 1.3, 2.15]],
 			windscreen = { s0 = 4.55, s1 = 6.3, sill0 = 2.8, sill1 = 2.8, top0 = 3.25, top1 = 3.31,
 				splits = [4.95, 5.4] },
+			# Original fictional airline "Teshka Airways": navy and gold double cheatline.
+			scheme = { base = "#F0F1F3", belly = "#8C939B", belly_z = -0.3, belly_sweep = 0.8, belly_end = -0.1,
+				cheats = [["#0E2A4F", 0.7, -0.55, 0.86, 1.6], ["#D4A62A", 0.16, -0.12, 0.86, 2.1]],
+				texts = [["TESHKA", "#0E2A4F", 1.2, 0.33, 0.75], ["TK-7410", "#0E2A4F", 0.45, 0.82, -1.4]],
+				radome = "#2B2F36", radome_len = 1.6, cowl = "#0E2A4F", lip = "#D4A62A",
+				fin_shapes = [[3, 0.5, 0.62, 0.06, "#D4A62A"], [3, 0.5, 0.55, 0.06, "#D4A62A"],
+					[5, 0.3, 0.82, 0.18, "#D4A62A"]] },
 			v_rotate = 84.0, v_cruise = 128.6, v_ne = 203.0,
 		},
 		{
 			id = &"bing_777", name = "Bing 777-300ER", category = "Wide-body twin",
 			desc = "The big twin: 370 seats and the largest engines ever fitted to an airliner.",
-			paint = bing, accent = Color(0.0, 0.27, 0.5), nose_power = 0.68,
+			paint = bing, accent = Color("#14213D").srgb_to_linear(), nose_power = 0.68,
 			length = 73.86, width = 6.2, mass = 300000.0, span = 64.8, area = 436.8, sweep = 31.6,
 			taper = 0.15, winglet = 2.0, winglet_style = 1,
 			engines = [0.31], thrust = 513000.0, engine_d = 3.9, engine_len = 7.3, engine_mass = 10500.0,
@@ -263,6 +316,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			win_w = 0.27, win_h = 0.4, win_pitch = 0.57,
 			# Measured from Boeing's 777-300ER airport-planning drawings (D6-58329-2).
 			height = 6.28, nose_cap_m = 10.0,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[54.0, 3.14, -3.14, 3.1], [56.0, 3.14, -3.08, 3.03], [58.0, 3.14, -2.8, 2.91], [60.0, 3.14, -2.4, 2.68], [62.0, 2.94, -1.94, 2.4], [64.0, 2.83, -1.45, 2.14], [66.0, 2.6, -1.0, 1.7], [68.0, 2.34, -0.55, 1.3], [70.0, 2.1, -0.15, 0.95], [72.0, 2.14, 0.35, 0.45], [73.86, 2.0, 0.9, 0.05]],
 			nose_table = [[0.0, -0.51, -0.69, 0.37], [0.25, -0.06, -1.2, 0.6], [0.5, 0.23, -1.37, 0.83],
 				[1.0, 0.51, -1.66, 1.14], [1.5, 0.91, -1.89, 1.34], [2.0, 1.37, -2.06, 1.63],
 				[3.0, 1.83, -2.34, 1.97], [4.0, 2.23, -2.63, 2.31], [5.0, 2.51, -2.8, 2.6],
@@ -272,12 +327,19 @@ func _airliner_specs() -> Array[Dictionary]:
 				[46.46, 1.07, 1.88, -0.55], [59.67, 1.07, 1.88, -0.55]],
 			windscreen = { s0 = 1.5, s1 = 3.14, sill0 = 0.34, sill1 = 0.34, top0 = 0.8, top1 = 0.97,
 				splits = [1.95, 2.5] },
+			# Original fictional airline "Aurion": navy belly, gold ring on the tail.
+			scheme = { base = "#FAFAF8", belly = "#14213D", belly_z = -0.35, belly_sweep = 0.8, belly_end = -0.3,
+				cheats = [["#C8A24A", 0.16, -0.32, 0.86, -0.32]],
+				texts = [["AURION", "#14213D", 0.85, 0.4, 0.62], ["AU-3071", "#14213D", 0.4, 0.82, -1.2]],
+				radome = "#2B2F36", radome_len = 1.8, cowl = "#14213D", lip = "#C8A24A",
+				fin_shapes = [[2, 0.5, 0.72, 0.34, "#C8A24A", 0.05], [1, 0.5, 0.72, 0.1, "#FAFAF8"],
+					[3, 0.5, 0.08, 0.02, "#C8A24A"]] },
 			v_rotate = 86.0, v_cruise = 128.6, v_ne = 185.0,
 		},
 		{
 			id = &"bing_787", name = "Bing 787-9", category = "Wide-body twin",
 			desc = "Composite long-range twin with raked wingtips. 288 seats, very efficient wing.",
-			paint = bing, accent = Color(0.03, 0.3, 0.6), nose_power = 0.74,
+			paint = bing, accent = Color("#E8ECEE").srgb_to_linear(), nose_power = 0.74,
 			length = 62.81, width = 5.77, mass = 210000.0, span = 60.12, area = 360.5, sweep = 32.2,
 			taper = 0.18, winglet = 2.5, winglet_style = 1,
 			engines = [0.31], thrust = 320000.0, engine_d = 3.4, engine_len = 6.0, engine_mass = 8000.0,
@@ -287,6 +349,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			# Measured from Boeing's 787 airport-planning drawings (D6-58333): the
 			# smooth nose, four-pane windscreen and the big, high-set windows.
 			height = 5.94, nose_cap_m = 8.97,
+			# Measured tail cone (station, crown, keel, half-width).
+			tail_table = [[44.0, 2.97, -2.96, 2.885], [46.0, 2.96, -2.9, 2.8], [48.0, 2.92, -2.61, 2.55], [50.0, 2.8, -2.29, 2.25], [52.0, 2.67, -1.9, 2.02], [54.0, 2.43, -1.48, 1.6], [56.0, 2.13, -1.01, 1.3], [58.0, 1.85, -0.51, 0.95], [60.0, 1.6, 0.1, 0.6], [62.81, 1.3, 0.8, 0.04]],
 			nose_table = [[0.0, -0.75, -1.1, 0.2], [0.25, -0.57, -1.78, 0.59], [0.5, -0.32, -1.94, 0.75],
 				[1.0, 0.16, -2.19, 1.11], [1.5, 0.57, -2.31, 1.36], [2.0, 1.01, -2.43, 1.56],
 				[3.0, 1.7, -2.63, 1.92], [4.0, 2.11, -2.76, 2.19], [5.0, 2.39, -2.86, 2.41],
@@ -296,6 +360,14 @@ func _airliner_specs() -> Array[Dictionary]:
 				[49.66, 1.07, 1.88, -0.38]],
 			windscreen = { s0 = 1.85, s1 = 3.4, sill0 = 0.3, sill1 = 0.3, top0 = 0.85, top1 = 1.0,
 				splits = [2.35] },
+			# Original fictional airline "Kestrava": pale grey, teal belly, split tail.
+			scheme = { base = "#E8ECEE", belly = "#0F7C7A", belly_z = -0.32, belly_sweep = 1.0, belly_end = -0.32,
+				cheats = [["#0F7C7A", 0.15, -0.36, 1.0, -0.36]],
+				texts = [["KESTRAVA", "#0F7C7A", 0.72, 0.42, 0.55], ["KV-9044", "#0F7C7A", 0.36, 0.8, -1.1]],
+				radome = "#2B2F36", radome_len = 1.6, cowl = "#E8ECEE", lip = "#0F7C7A",
+				fin_shapes = [[6, 0.55, 0.5, 1.0, "#0F7C7A"], [7, 0.2, 0.5, 0.2, "#0F7C7A", 0.07],
+					[7, 0.3, 0.5, 0.3, "#0F7C7A", 0.07], [7, 0.4, 0.5, 0.4, "#0F7C7A", 0.07],
+					[1, 0.78, 0.78, 0.08, "#E8ECEE"]] },
 			v_rotate = 80.0, v_cruise = 128.6, v_ne = 196.0,
 		},
 	]
@@ -518,7 +590,7 @@ func _airliner(spec: Dictionary) -> Dictionary:
 	var livery := _airliner_livery(spec, cabin, nose_z, nose_cap, r, squash_y, big, wing_le_hint(spec, nose_z, length))
 	return {
 		livery = livery,
-		nose_table = spec.get("nose_table", []),
+		nose_table = spec.get("nose_table", []), tail_table = spec.get("tail_table", []),
 		id = spec.id, name = spec.name, category = spec.category, desc = spec.desc,
 		paint = spec.paint, accent = spec.accent,
 		nose_z = nose_z, tail_z = tail_z, fus_r = r, nose_cap = nose_cap, tail_cap = tail_cap,
@@ -546,6 +618,59 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		v_rotate = spec.v_rotate, v_cruise = spec.v_cruise, v_ne = spec.v_ne,
 		cruise_trim = cal.get("trim", 0.3), cruise_throttle = cal.get("throttle", 0.3),
 	}
+
+
+## Measured section rows for the fuselage section spanning stations s0..s1
+## (from the nose tip), re-based to the section's own start. Sections untouched
+## by the nose or tail tables get none and keep the plain constant section.
+## A spec may instead give `section_tables`, one explicit list per section.
+func _section_rows(p: Dictionary, index: int, s0: float, s1: float) -> PackedVector4Array:
+	var rows := PackedVector4Array()
+	var explicit: Array = p.get("section_tables", [])
+	if index < explicit.size():
+		for v: Variant in explicit[index]:
+			var a := v as Array
+			rows.append(Vector4(a[0], a[1], a[2], a[3]))
+		return rows
+	var nose: Array = p.get("nose_table", [])
+	var tail: Array = p.get("tail_table", [])
+	var nose_end := float((nose.back() as Array)[0]) if not nose.is_empty() else -1.0
+	var tail_start := float((tail[0] as Array)[0]) if not tail.is_empty() else INF
+	var touches_nose := not nose.is_empty() and s0 < nose_end - 0.01
+	var touches_tail := not tail.is_empty() and s1 > tail_start + 0.01
+	if not touches_nose and not touches_tail:
+		return rows
+	var stations: Array[float] = [s0]
+	for v: Variant in nose + tail:
+		var st := float((v as Array)[0])
+		if st > s0 + 0.01 and st < s1 - 0.01:
+			stations.append(st)
+	stations.append(s1)
+	for st: float in stations:
+		var a := _sample_body(p, nose, tail, st)
+		rows.append(Vector4(st - s0, a.x, a.y, a.z))
+	return rows
+
+
+## Crown, keel and half-width at station `st`, from the measured nose and
+## tail tables, or the constant section between them.
+func _sample_body(p: Dictionary, nose: Array, tail: Array, st: float) -> Vector3:
+	for table: Array in [nose, tail]:
+		if table.is_empty():
+			continue
+		var first := table[0] as Array
+		var last := table.back() as Array
+		if st < float(first[0]) - 0.001 or st > float(last[0]) + 0.001:
+			continue
+		for k: int in range(1, table.size()):
+			var a := table[k - 1] as Array
+			var b := table[k] as Array
+			if st <= float(b[0]) + 0.001:
+				var t := clampf((st - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.001), 0.0, 1.0)
+				return Vector3(lerpf(a[1], b[1], t), lerpf(a[2], b[2], t), lerpf(a[3], b[3], t))
+	var r := float(p.fus_r)
+	var sq: Vector2 = p.squash
+	return Vector3(r * sq.y, -r * sq.y, r * sq.x)
 
 
 ## Rough station of the wing-root leading edge (for overwing exits); the
@@ -621,7 +746,53 @@ func _airliner_livery(spec: Dictionary, cabin: Dictionary, nose_z: float, nose_c
 	for i: int in mini(splits.size(), 4):
 		sv[i] = float(splits[i])
 	livery.cockpit_splits = sv
+	if spec.has("scheme"):
+		livery.paint = _paint(spec.scheme, row_h, r * squash_y, float(spec.length), spec)
 	return livery
+
+
+## Livery colours and art in shader units. Spec fractions: belly heights in
+## fuselage half-heights, stations as fractions of the length, other heights
+## in metres from the cabin window line.
+## A livery colour written as an sRGB hex code, in the linear space the
+## shader and vertex colours work in (raw hex values come out washed out).
+func _lin(hex: Variant) -> Color:
+	return Color(String(hex)).srgb_to_linear()
+
+
+func _paint(pp: Dictionary, win_z: float, half_h: float, length: float, spec: Dictionary) -> Dictionary:
+	var out := {}
+	out.base = _lin(pp.base)
+	out.belly = _lin(pp.get("belly", pp.base))
+	var bz := float(pp.get("belly_z", -0.45)) * half_h
+	var b_start := float(pp.get("belly_sweep", 0.72)) * length
+	var b_end := float(pp.get("belly_end", -0.1)) * half_h
+	out.belly_line = Vector4(bz, b_start, (b_end - bz) / maxf(length - b_start, 1.0), 0.03)
+	var cheats: Array = []
+	for c: Variant in pp.get("cheats", []):
+		var a := c as Array
+		# [colour, width, offset from window line, sweep start (fraction), offset at the tail]
+		var start := float(a[3]) * length
+		var rise := (float(a[4]) - float(a[2])) / maxf(length - start, 1.0)
+		cheats.append([_lin(a[0]), Vector4(float(a[2]), float(a[1]), start, rise)])
+	out.cheats = cheats
+	var texts: Array = []
+	for t: Variant in pp.get("texts", []):
+		var a := t as Array
+		# [text, colour, cap height, centre (fraction of length), baseline above the window line]
+		texts.append([a[0], _lin(a[1]), Vector4(float(a[3]) * length, win_z + float(a[4]), float(a[2]), 0.21)])
+	out.texts = texts
+	if pp.has("radome"):
+		out.radome = _lin(pp.radome)
+		out.radome_len = float(pp.get("radome_len", 1.4))
+	out.cowl = _lin(pp.get("cowl", pp.base))
+	out.lip = _lin(pp.get("lip", "#c9ced6"))
+	var shapes: Array = []
+	for f: Variant in pp.get("fin_shapes", []):
+		var a := f as Array
+		shapes.append([a[0], a[1], a[2], a[3], _lin(a[4]), a[5] if a.size() > 5 else 0.0])
+	out.fin_shapes = shapes
+	return out
 
 
 ## The single-engine fighter is hand-specified: a 9 g airframe does not follow
@@ -631,22 +802,35 @@ func _fighter() -> Dictionary:
 	return {
 		id = &"lockhid_f16", name = "Lockhid F-16C", category = "Single-engine fighter",
 		desc = "Lightweight fighter: bubble canopy, afterburner, 9 g airframe. Supersonic at low level.",
-		paint = Color(0.52, 0.56, 0.6), accent = Color(0.36, 0.4, 0.45),
+		paint = Color("#5F6568").srgb_to_linear(), accent = Color("#5F6568").srgb_to_linear(),
 		nose_z = -8.3, tail_z = 6.76, fus_r = 0.9, nose_cap = 3.6, tail_cap = 1.2,
 		cuts = [-3.0, 2.4], fus_mass = [2000.0, 3500.0, 1500.0],
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
 		fus_crush = 0.5, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
 		tail_upsweep = 0.0, squash = Vector2(1.1, 0.82),
-		canopy = { z0 = -5.8, z1 = -1.9, half_width = 0.45, height = 0.72, mass = 70.0 },
+		canopy = { z0 = -5.4, z1 = -2.2, half_width = 0.52, height = 0.6, mass = 70.0 },
+		# Cross-sections every 0.5 m from the F-16C three-view (crown, keel,
+		# half-width above the engine axis): the wide flat wing-body, not a tube.
+		section_tables = [
+			[[0.0, 0.02, -0.12, 0.05], [0.5, 0.18, -0.28, 0.22], [1.0, 0.3, -0.38, 0.36], [1.5, 0.4, -0.46, 0.46],
+				[2.0, 0.48, -0.52, 0.54], [2.5, 0.55, -0.55, 0.6], [3.0, 0.62, -0.58, 0.66], [3.5, 0.66, -0.6, 0.7],
+				[4.0, 0.67, -0.62, 0.74], [4.5, 0.68, -0.62, 0.78], [5.0, 0.68, -0.64, 0.84], [5.31, 0.68, -0.64, 0.87]],
+			[[0.0, 0.68, -0.64, 0.87], [0.7, 0.69, -0.64, 0.92], [1.2, 0.7, -0.64, 0.96], [1.7, 0.71, -0.64, 1.0],
+				[2.7, 0.72, -0.64, 1.0], [3.2, 0.72, -0.64, 0.99], [3.7, 0.71, -0.64, 0.96], [4.2, 0.7, -0.62, 0.92],
+				[4.7, 0.68, -0.6, 0.88], [5.2, 0.66, -0.6, 0.82], [5.41, 0.65, -0.6, 0.78]],
+			[[0.0, 0.65, -0.6, 0.78], [0.3, 0.64, -0.6, 0.76], [0.8, 0.62, -0.6, 0.7], [1.3, 0.6, -0.6, 0.66],
+				[1.8, 0.58, -0.6, 0.64], [2.3, 0.58, -0.58, 0.63], [2.8, 0.57, -0.57, 0.62], [3.3, 0.56, -0.56, 0.6],
+				[3.8, 0.55, -0.55, 0.58], [4.37, 0.55, -0.55, 0.56]],
+		],
 		# The F-16's look: chin intake under the cockpit, root strakes running
 		# forward to the canopy, and ventral fins under the engine.
 		extras = [
-			{ part = &"fus_mid", type = "intake", z0 = -1.0, z1 = 4.2, y_top = -0.42,
-				height = 0.75, half_width = 0.72 },
+			{ part = &"fus_mid", type = "intake", z0 = -0.65, z1 = 2.7, y_top = -0.45,
+				height = 0.62, half_width = 0.58 },
 			{ part = &"fus_mid", type = "strake", z0 = -1.7, to_wing_le = true, y = 0.0,
-				x_root = 0.75, x_tip = 1.55 },
-			{ part = &"fus_tail", type = "ventral", z0 = 1.1, z1 = 2.6, y = -0.62, x = 0.55,
-				height = 0.62, cant_deg = 18.0 },
+				x_root = 0.7, x_tip = 1.75 },
+			{ part = &"fus_tail", type = "ventral", z0 = 1.1, z1 = 2.7, y = -0.55, x = 0.5,
+				height = 0.55, cant_deg = 15.0 },
 		],
 		wing = {
 			root_c = 5.0, tip_c = 1.0, semi = 4.73, sweep = 32.0, dihedral = 0.0,
@@ -692,6 +876,12 @@ func _fighter() -> Dictionary:
 			cockpit_z = -4.3, cockpit_x = 0.0, cockpit_floor = -0.2,
 			rows = 0, z_start = 0.0, pitch = 1.0, floor = 0.0, first_row = 1, abreast = [],
 		},
+		# Two-tone air-superiority grey with invented unit markings only.
+		livery = { paint = _paint({ base = "#5F6568", belly = "#A9B1B3", belly_z = 0.15, belly_sweep = 1.0,
+			belly_end = 0.15, radome = "#7C848A", radome_len = 1.6, cowl = "#5F6568", lip = "#4A4F53",
+			texts = [["LK 88-0412", "#1E2226", 0.16, 0.78, -0.25]],
+			fin_shapes = [[3, 0.5, 0.5, 0.12, "#D8C26A"], [1, 0.55, 0.78, 0.18, "#1E2226"]] },
+			0.0, 0.74, 15.06, {}) },
 		body_wave_drag = 1.2, yaw_damper = 3.0,
 		# Relaxed-stability fighter: the flight computer limits 9 g / -3 g,
 		# 25 deg angle of attack and 180 deg/s of roll rate, as on the real jet.
@@ -749,6 +939,7 @@ func _build(p: Dictionary) -> AircraftDef:
 	_add_canopy(def, p)
 	_add_cabin(def, p)
 	_add_extras(def, p)
+	_fin_paint_geometry(def)
 
 	# Re-origin everything on the centre of mass so "aircraft origin" == CG.
 	var cg := def.center_of_mass()
@@ -818,12 +1009,7 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 				0.0033 * TAU * r * length * (1.2 if i == 0 or i == n - 1 else 1.0))
 		part.crush_depth = p.fus_crush
 		part.nose_power = p.nose_power
-		if i == 0 and not (p.get("nose_table", []) as Array).is_empty():
-			var rows := PackedVector4Array()
-			for v: Variant in p.nose_table:
-				var a := v as Array
-				rows.append(Vector4(a[0], a[1], a[2], a[3]))
-			part.nose_table = rows
+		part.nose_table = _section_rows(p, i, z0 - float(p.nose_z), z1 - float(p.nose_z))
 		part.nose_droop = p.nose_droop
 		part.tail_ratio = p.tail_ratio
 		part.tail_upsweep = p.tail_upsweep
@@ -1399,6 +1585,26 @@ func _add_extras(def: AircraftDef, p: Dictionary) -> void:
 			e.erase("to_wing_le")
 			e.z1 = le - part.p0.z
 		part.extras.append(e)
+
+
+## Fin outline in the fuselage frame, for the tail art.
+func _fin_paint_geometry(def: AircraftDef) -> void:
+	var fin_index := def.find_part(&"fin")
+	if fin_index < 0 or not def.livery.has("paint"):
+		return
+	var fin := def.parts[fin_index]
+	var nose := INF
+	var axis_y := 0.0
+	for part: PartDef in def.parts:
+		if part.kind == PartDef.Kind.FUSELAGE:
+			nose = minf(nose, part.p0.z)
+			axis_y = part.p0.y
+	var height := fin.p1.y - fin.p0.y
+	var le0 := fin.p0.z - 0.25 * fin.r0
+	var le1 := fin.p1.z - 0.25 * fin.r1
+	var paint: Dictionary = def.livery.paint
+	paint.fin_geo = Vector4(le0 - nose, fin.p0.y - axis_y, (le1 - le0) / maxf(height, 0.1), fin.r0)
+	paint.fin_geo2 = Vector4(fin.r1, height, 0.0, 0.0)
 
 
 func _fuselage_part_at(def: AircraftDef, z: float) -> StringName:

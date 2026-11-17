@@ -222,7 +222,7 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
-nose_table = PackedVector4Array(0, -1.4, -1.85, 0.15, 0.25, -1.09, -2.06, 0.5, 0.5, -0.85, -2.23, 0.7, 1, -0.4, -2.48, 1, 1.5, 0, -2.6, 1.22, 2, 0.4, -2.74, 1.38, 3, 1.35, -2.92, 1.74, 4, 1.9, -3, 2.02, 5, 2.25, -3.045, 2.26, 6, 2.5, -3.045, 2.5, 8, 2.85, -3.045, 2.82, 9.5, 3.045, -3.045, 2.98)
+nose_table = PackedVector4Array(0, -1.4, -1.85, 0.15, 0.25, -1.09, -2.06, 0.5, 0.5, -0.85, -2.23, 0.7, 1, -0.4, -2.48, 1, 1.5, 0, -2.6, 1.22, 2, 0.4, -2.74, 1.38, 3, 1.35, -2.92, 1.74, 4, 1.9, -3, 2.02, 5, 2.25, -3.045, 2.26, 6, 2.5, -3.045, 2.5, 8, 2.85, -3.045, 2.82, 9.5, 3.045, -3.045, 2.98, 11.504, 3.045, -3.045, 2.98)
 flat_bottom = 0.0
 drag_area = Vector3(38.3958, 38.3958, 0.852983)
 fuel_kg = 0.0
@@ -292,7 +292,7 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
-nose_table = PackedVector4Array()
+nose_table = PackedVector4Array(0, 3.045, -3.045, 2.98, 4.765, 3.045, -3.045, 2.98, 6.765, 2.95, -2.45, 2.96, 8.165, 2.88, -2.38, 2.834)
 flat_bottom = 0.0
 drag_area = Vector3(34.0644, 34.0644, 0.504506)
 fuel_kg = 0.0
@@ -334,7 +334,7 @@ extras = [{
 &"z0": 1.6106,
 &"z1": 7.73277
 }]
-nose_table = PackedVector4Array()
+nose_table = PackedVector4Array(0, 2.88, -2.38, 2.834, 0.6, 2.85, -2.35, 2.78, 2.6, 2.8, -1.95, 2.5, 4.6, 2.65, -1.55, 2.06, 6.6, 2.45, -1.1, 1.62, 8.6, 2.25, -0.55, 1.22, 10.6, 2.1, -0.1, 1.05, 12.6, 2, 0.45, 0.85, 13.9, 2, 0.8, 0.44, 15.4, 1.9, 1, 0.08)
 flat_bottom = 0.0
 drag_area = Vector3(51.399, 51.399, 1.14186)
 fuel_kg = 0.0
@@ -1220,7 +1220,7 @@ display_name = "Abius A350-900"
 category = "Wide-body twin"
 description = "Composite long-hauler with curved wingtips. 315 seats, a lot of wing for its weight."
 paint = Color(0.94, 0.95, 0.97, 1)
-accent = Color(0.1, 0.12, 0.16, 1)
+accent = Color(0.00477695, 0.0466651, 0.0722718, 1)
 parts = Array[ExtResource("3_jwk4x")]([SubResource("Resource_exdan"), SubResource("Resource_ko8g7"), SubResource("Resource_e3k28"), SubResource("Resource_ieuvr"), SubResource("Resource_crstc"), SubResource("Resource_4mqoj"), SubResource("Resource_xvwm2"), SubResource("Resource_uyhog"), SubResource("Resource_15slt"), SubResource("Resource_n4lcf"), SubResource("Resource_8d267"), SubResource("Resource_ym40k"), SubResource("Resource_husvw"), SubResource("Resource_yog3j"), SubResource("Resource_drj8k"), SubResource("Resource_8oh2d"), SubResource("Resource_jvqgk"), SubResource("Resource_kvahi"), SubResource("Resource_yf00d"), SubResource("Resource_np58c"), SubResource("Resource_2tkn6")])
 surfaces = Array[ExtResource("6_o1581")]([SubResource("Resource_sfg20"), SubResource("Resource_coang"), SubResource("Resource_y15ng"), SubResource("Resource_e3o0n"), SubResource("Resource_n3oql"), SubResource("Resource_r5wtt"), SubResource("Resource_mtnrp"), SubResource("Resource_k0k28"), SubResource("Resource_wduhq"), SubResource("Resource_qr4eq"), SubResource("Resource_7wcbi"), SubResource("Resource_s2ub8"), SubResource("Resource_taps4")])
 wing_area = 443.0
@@ -1246,6 +1246,20 @@ livery = {
 &"cockpit_b": Vector4(1.05, 1.1, 0.07, 0.18),
 &"cockpit_splits": Vector4(2.5, 3.12, 0, 0),
 &"doors": [Vector4(6.85, 1.1, 2.1, -0.45), Vector4(18.85, 1.1, 2.1, -0.45), Vector4(37.93, 0.8, 1.3, 0.1), Vector4(52.55, 1.1, 2.1, -0.45)],
+&"paint": {
+&"base": Color(0.955973, 0.955973, 0.938686, 1),
+&"belly": Color(0.48515, 0.533276, 0.590619, 1),
+&"belly_line": Vector4(-1.5225, 53.44, 0.0911677, 0.03),
+&"cheats": [[Color(0.0137021, 0.212231, 0.238398, 1), Vector4(-0.35, 0.6, 50.1, 0.0808383)], [Color(0.00477695, 0.0466651, 0.0722718, 1), Vector4(-0.65, 0.05, 66.8, 0)]],
+&"cowl": Color(0.00477695, 0.0466651, 0.0722718, 1),
+&"fin_geo": Vector4(55.9661, 2.28375, 0.918852, 10.5555),
+&"fin_geo2": Vector4(3.69442, 12.4687, 0, 0),
+&"fin_shapes": [[3, 0.5, 0.62, 0.06, Color(0.0231534, 0.450786, 0.381326, 1), 0.0], [3, 0.5, 0.54, 0.06, Color(0.0231534, 0.450786, 0.381326, 1), 0.0], [3, 0.5, 0.46, 0.06, Color(0.0231534, 0.450786, 0.381326, 1), 0.0]],
+&"lip": Color(0.955973, 0.955973, 0.938686, 1),
+&"radome": Color(0.0241576, 0.028426, 0.0368894, 1),
+&"radome_len": 1.8,
+&"texts": [["HALVERA", Color(0.00477695, 0.0466651, 0.0722718, 1), Vector4(20.04, 1.2, 0.7, 0.21)], ["XN-HLV", Color(0.00477695, 0.0466651, 0.0722718, 1), Vector4(53.44, -0.65, 0.4, 0.21)]]
+},
 &"panel_lines": Vector4(2.4, 0.01, 0.2, 0),
 &"win_row0": Vector4(0.65, 8.4, 51.2, 1),
 &"win_row1": Vector4(0, 0, 0, 0),

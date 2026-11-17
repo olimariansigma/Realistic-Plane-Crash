@@ -32,6 +32,22 @@ uniform vec4 cockpit_b = vec4(0.0);  // top height at first, at last, frame widt
 uniform vec4 cockpit_splits = vec4(0.0); // pane boundaries (stations); 0 = unused
 uniform vec4 panel_lines = vec4(2.4, 0.012, 0.22, 0.0); // butt-joint spacing, line width, strength
 
+// Paint scheme (airline livery) in the same fuselage frame.
+uniform vec4 fus_base = vec4(0.95, 0.95, 0.94, 0.0);   // rgb; a = 1: livery active
+uniform vec4 belly_col = vec4(0.8, 0.8, 0.82, 0.0);
+uniform vec4 belly_line = vec4(-1.0, 1000.0, 0.0, 0.04); // height, sweep-up start station, rise per metre, softness
+uniform vec4 radome = vec4(0.0);  // rgb, length from the nose tip (0 = none)
+uniform vec4 cheat[3];      // height above the window row, width, sweep start station, rise per metre
+uniform vec4 cheat_col[3];  // rgb, a = 1 when used
+uniform vec4 text_box[2];   // centre station, baseline height, cap height, stroke (fraction of cap)
+uniform vec4 text_col[2];   // rgb, a = width of the text in glyph units (0 = unused)
+uniform vec4 text_range = vec4(0.0);  // first and end segment of text 0, then of text 1
+uniform vec4 text_segs[96]; // glyph strokes (x0, y0, x1, y1), glyph units (cap height 6)
+uniform vec4 fin_geo = vec4(0.0); // root LE station, root height, LE stations per metre of height, root chord
+uniform vec4 fin_geo2 = vec4(0.0); // tip chord, fin height
+uniform vec4 fin_shape[6];      // kind, chord fraction, height fraction, size (fraction of fin height)
+uniform vec4 fin_shape_col[6];  // rgb, extra (ring thickness / bar width, fraction of fin height)
+
 global uniform float cutaway_amount;
 
 // Part-local X of the aircraft centreline plane.
@@ -57,6 +73,115 @@ varying vec3 fpos;
 float round_rect(vec2 p, vec2 half_size, float r) {
 	vec2 q = abs(p) - half_size + r;
 	return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float seg_dist(vec2 p, vec4 s) {
+	vec2 a = s.xy;
+	vec2 ba = s.zw - a;
+	float t = clamp(dot(p - a, ba) / max(dot(ba, ba), 1.0e-6), 0.0, 1.0);
+	return length(p - a - ba * t);
+}
+
+// Ink coverage of text `i` at fuselage point `f` (reads nose to tail on both sides).
+float text_ink(int i, vec3 f, float aa_m) {
+	vec4 box = text_box[i];
+	float width = text_col[i].a;
+	if (width <= 0.0) {
+		return 0.0;
+	}
+	float unit = box.z / 6.0;
+	float dir = f.x < 0.0 ? 1.0 : -1.0;
+	vec2 p = vec2((f.z - box.x) * dir / unit + width * 0.5, (f.y - box.y) / unit);
+	if (p.x < -1.5 || p.x > width + 1.5 || p.y < -1.5 || p.y > 7.5) {
+		return 0.0;
+	}
+	int first = int(i == 0 ? text_range.x : text_range.z);
+	int last = int(i == 0 ? text_range.y : text_range.w);
+	float d = 1.0e6;
+	for (int k = first; k < last; k++) {
+		d = min(d, seg_dist(p, text_segs[k]));
+	}
+	float stroke = box.w * 6.0 * 0.5;
+	float aa = aa_m / unit;
+	return 1.0 - smoothstep(stroke - aa, stroke + aa, d);
+}
+
+// Livery colour of the fuselage at `f` (base, belly, cheatlines, titles).
+vec3 fuselage_paint(vec3 f, vec3 tex) {
+	float aa = max(fwidth(f.z), fwidth(f.y)) * 1.2 + 1.0e-4;
+	vec3 col = fus_base.rgb;
+	float belly_z = belly_line.x + max(f.z - belly_line.y, 0.0) * belly_line.z;
+	col = mix(belly_col.rgb, col, smoothstep(belly_z - belly_line.w - aa, belly_z + belly_line.w + aa, f.y));
+	if (radome.a > 0.0) {
+		// Radome boundary leans back toward the crown, as painted on real noses.
+		float edge = radome.a - (f.y + 1.0) * 0.12;
+		col = mix(col, radome.rgb, 1.0 - smoothstep(edge - aa, edge + aa, f.z));
+	}
+	for (int i = 0; i < 3; i++) {
+		if (cheat_col[i].a < 0.5) {
+			continue;
+		}
+		vec4 c = cheat[i];
+		float z = win_row0.x + c.x + max(f.z - c.z, 0.0) * c.w;
+		float band = 1.0 - smoothstep(c.y * 0.5 - aa, c.y * 0.5 + aa, abs(f.y - z));
+		col = mix(col, cheat_col[i].rgb, band);
+	}
+	for (int i = 0; i < 2; i++) {
+		col = mix(col, text_col[i].rgb, text_ink(i, f, aa));
+	}
+	// The atlas carries the panel-line texture; keep its shading, not its colour.
+	return col * mix(vec3(1.0), tex, 0.6);
+}
+
+// Tail art on the fin at `f`: returns rgb and coverage.
+vec4 fin_paint(vec3 f) {
+	float fin_h = fin_geo2.y;
+	if (fin_h <= 0.0) {
+		return vec4(0.0);
+	}
+	float aa = max(fwidth(f.z), fwidth(f.y)) * 1.2 + 1.0e-4;
+	float v = (f.y - fin_geo.y) / fin_h;
+	float chord = mix(fin_geo.w, fin_geo2.x, clamp(v, 0.0, 1.0));
+	float le = fin_geo.x + (f.y - fin_geo.y) * fin_geo.z;
+	vec4 outc = vec4(0.0);
+	for (int i = 0; i < 6; i++) {
+		vec4 sh = fin_shape[i];
+		int kind = int(sh.x);
+		if (kind == 0) {
+			continue;
+		}
+		float cv = sh.z;
+		float c_chord = mix(fin_geo.w, fin_geo2.x, cv);
+		vec2 c = vec2(fin_geo.x + (cv * fin_h) * fin_geo.z + sh.y * c_chord, fin_geo.y + cv * fin_h);
+		vec2 p = vec2(f.z, f.y) - c;
+		float size = sh.w * fin_h;
+		float extra = fin_shape_col[i].a * fin_h;
+		float d = 1.0e6;
+		if (kind == 1) {
+			d = length(p) - size * 0.5;
+		} else if (kind == 2) {
+			d = abs(length(p) - size * 0.5 + extra * 0.5) - extra * 0.5;
+		} else if (kind == 3) {
+			d = abs(p.y) - size * 0.5;
+		} else if (kind == 4) {
+			// Chevron pointing aft.
+			d = abs(p.y + abs(p.x) * 0.0 - 0.0) - 0.0;
+			d = abs(abs(p.y) - (-p.x + size * 0.5)) - size * 0.12;
+			d = max(d, abs(p.x) - size * 0.5);
+		} else if (kind == 5) {
+			// Triangle pointing forward.
+			d = max(abs(p.y) - (p.x + size * 0.5) * 0.6, abs(p.x) - size * 0.5);
+		} else if (kind == 6) {
+			// Colour field aft of a chord fraction.
+			d = (le + sh.y * chord) - f.z;
+		} else if (kind == 7) {
+			// Upright bar: width extra, height size, base at the centre.
+			d = max(abs(p.x) - extra * 0.5, abs(p.y - size * 0.5) - size * 0.5);
+		}
+		float cover = 1.0 - smoothstep(-aa, aa, d);
+		outc = vec4(mix(outc.rgb, fin_shape_col[i].rgb, cover), max(outc.a, cover));
+	}
+	return outc;
 }
 
 // Fuselage markings at fuselage-frame point `f`. Returns glass mask in x,
@@ -184,7 +309,14 @@ void fragment() {
 	// Glass: the atlas paints windows near-black. Make them a dark, mirror-like
 	// surface so they pick up the sky, as real cabin and cockpit windows do.
 	float glass = 1.0 - smoothstep(0.08, 0.2, max(tex.r, max(tex.g, tex.b)));
-	if (livery_frame.w > 0.5 && FRONT_FACING) {
+	if (livery_frame.w > 0.5 && livery_frame.w < 1.5 && FRONT_FACING && fus_base.a > 0.5) {
+		base = fuselage_paint(fpos, tex);
+	}
+	if (livery_frame.w > 1.5 && FRONT_FACING) {
+		vec4 art = fin_paint(fpos);
+		base = mix(base, art.rgb * tex, art.a);
+	}
+	if (livery_frame.w > 0.5 && livery_frame.w < 1.5 && FRONT_FACING) {
 		vec3 m = markings(fpos);
 		glass = max(glass, m.x);
 		base = mix(base, base * 0.45, m.y);
