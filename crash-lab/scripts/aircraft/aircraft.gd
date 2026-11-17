@@ -39,6 +39,14 @@ const STRIP_DYN_PRESSURE := 2200.0
 ## Seconds of fuselage/wing/engine ground contact that make a belly landing a crash.
 const BODY_CONTACT_CRASH_TIME := 0.8
 ## Time constant of the yaw damper's washout filter (s).
+## Fly-by-wire loop gains at cruise speed (stick units per g, per g-second,
+## per rad/s of pitch rate; per unit roll-rate error at full rate).
+const FBW_PITCH_KP := 0.04
+const FBW_PITCH_KI := 0.25
+const FBW_PITCH_KQ := 0.35
+const FBW_ROLL_KP := 2.5
+## Released stick: banks steeper than this roll back towards it.
+const FBW_BANK_HOLD_DEG := 33.0
 const YAW_WASHOUT_TIME := 2.0
 ## The cabin is armed this many seconds before a predicted impact.
 const ARM_LEAD_TIME := 1.2
@@ -95,6 +103,9 @@ var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
 var _airborne_time: float = 0.0
+var _fbw_pitch_i: float = 0.0
+var _fbw_active: bool = false
+var _fbw_offset: float = 0.0
 var _yaw_rate_slow: float = 0.0
 var _downwash_sources: Array[AeroSurface] = []
 var _body_contact_time: float = 0.0
@@ -524,8 +535,27 @@ func _process_impacts(dt: float) -> void:
 func _update_actuators(dt: float) -> void:
 	var c := controls
 	var rate := def.control_rate * dt
-	_act.x = move_toward(_act.x, clampf(c.pitch, -1.0, 1.0), rate)
-	_act.y = move_toward(_act.y, clampf(c.roll, -1.0, 1.0), rate)
+	var pitch_demand := clampf(c.pitch, -1.0, 1.0)
+	var roll_demand := clampf(c.roll, -1.0, 1.0)
+	var fbw := not telemetry.on_ground and telemetry.ias > def.v_rotate * 0.6 and _fbw_alive()
+	if fbw and def.fbw_max_g > 0.0:
+		pitch_demand = _fbw_pitch(c.pitch, dt)
+		_fbw_active = true
+	else:
+		if _fbw_active and not telemetry.on_ground:
+			# The flight computer has dropped out (structural damage): keep the
+			# elevator where it was holding it, so the hand-over is bumpless and
+			# the stick flies the elevator directly from there.
+			_fbw_offset = _fbw_pitch_i - clampf(c.pitch, -1.0, 1.0)
+		elif telemetry.on_ground:
+			_fbw_offset = 0.0
+		_fbw_active = false
+		pitch_demand = clampf(c.pitch + _fbw_offset, -1.0, 1.0)
+		_fbw_pitch_i = _act.x
+	if fbw and def.fbw_roll_rate_deg > 0.0:
+		roll_demand = _fbw_roll(c.roll)
+	_act.x = move_toward(_act.x, pitch_demand, rate)
+	_act.y = move_toward(_act.y, roll_demand, rate)
 	# Yaw damper: rudder against the washed-out yaw rate (airborne only, so it
 	# never fights nose-wheel steering).
 	var yaw_command := c.yaw
@@ -536,7 +566,7 @@ func _update_actuators(dt: float) -> void:
 	_act.z = move_toward(_act.z, clampf(yaw_command, -1.0, 1.0), rate)
 
 	# Auto-trim: held stick slowly becomes trim, so releasing it holds attitude.
-	if auto_trim and not telemetry.on_ground and absf(c.pitch) > 0.003:
+	if auto_trim and def.fbw_max_g <= 0.0 and not telemetry.on_ground and absf(c.pitch) > 0.003:
 		trim = clampf(trim + c.pitch * def.trim_rate * dt, -1.0, 1.0)
 
 	var steps := def.flap_steps_deg
@@ -554,6 +584,53 @@ func _update_actuators(dt: float) -> void:
 	if gear_ratio != gear_target:
 		gear_ratio = move_toward(gear_ratio, gear_target, dt / def.gear_time)
 		_apply_gear_state()
+
+
+## Gain schedule for the flight computer: control power grows with dynamic
+## pressure, so the loop gains shrink with it (1 at cruise speed).
+func _fbw_schedule() -> float:
+	var v := maxf(telemetry.ias, def.v_rotate)
+	return clampf(pow(def.v_cruise / v, 2.0), 0.25, 4.0)
+
+
+## The flight computer flies only while the wing and tail it uses are on.
+func _fbw_alive() -> bool:
+	for part: AircraftPart in parts:
+		if part.joint == null and part.parent_index >= 0 and part.def.kind != PartDef.Kind.GEAR:
+			return false
+	return true
+
+
+## Pitch law: the stick commands normal load factor, with an angle-of-attack
+## limiter, through a PI loop with pitch-rate damping.
+func _fbw_pitch(stick: float, dt: float) -> float:
+	var s := clampf(stick, -1.0, 1.0)
+	var g_cmd := 1.0 + (s * (def.fbw_max_g - 1.0) if s >= 0.0 else s * (1.0 - def.fbw_min_g))
+	# Hands off in a bank: hold the 1 g the pilot wants along the flight path,
+	# so a released stick does not drop the nose.
+	if absf(s) < 0.02:
+		var bank_cos := clampf(cos(deg_to_rad(telemetry.roll_deg)), 0.5, 1.0)
+		g_cmd = 1.0 / bank_cos
+	# AoA limiter: fade the demand out over the last 6 degrees.
+	var aoa_room := def.fbw_aoa_limit_deg - telemetry.aoa_deg
+	if g_cmd > 1.0 and aoa_room < 6.0:
+		g_cmd = lerpf(1.0, g_cmd, clampf(aoa_room / 6.0, 0.0, 1.0))
+	var k := _fbw_schedule()
+	var err := g_cmd - telemetry.g_load
+	var q := root_part.ang_vel.dot(root_part.xf.basis.x)
+	_fbw_pitch_i = clampf(_fbw_pitch_i + err * FBW_PITCH_KI * k * dt, -1.0, 1.0)
+	return clampf(_fbw_pitch_i + err * FBW_PITCH_KP * k - q * FBW_PITCH_KQ * k, -1.0, 1.0)
+
+
+## Roll law: the stick commands roll rate.
+func _fbw_roll(stick: float) -> float:
+	var max_rate := deg_to_rad(def.fbw_roll_rate_deg)
+	var p := root_part.ang_vel.dot(-root_part.xf.basis.z)
+	var cmd := clampf(stick, -1.0, 1.0) * max_rate
+	# Bank angle protection near the vertical when the stick is released.
+	if absf(stick) < 0.02 and absf(telemetry.roll_deg) > FBW_BANK_HOLD_DEG:
+		cmd = -signf(telemetry.roll_deg) * deg_to_rad(5.0)
+	return clampf((cmd - p) * FBW_ROLL_KP * _fbw_schedule() / max_rate, -1.0, 1.0)
 
 
 ## Swings the visible control surfaces to match the actuators.

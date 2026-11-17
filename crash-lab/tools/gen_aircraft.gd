@@ -424,6 +424,12 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		control_rate = 2.2 if not big else (1.6 if not huge else 1.3),
 		trim_rate = 0.10 if not big else (0.08 if not huge else 0.07),
 		cabin = cabin, body_wave_drag = 1.5,
+		# Abius airliners fly a normal law like the real ones: +2.5 / -1 g,
+		# 15 deg/s roll rate, bank and angle-of-attack protection. Bing jets
+		# are flown direct, as the real ones are in the pitch axis.
+		fbw_max_g = 2.5 if String(spec.id).begins_with("abius") else 0.0,
+		fbw_min_g = -1.0, fbw_roll_rate_deg = 15.0 if String(spec.id).begins_with("abius") else 0.0,
+		fbw_aoa_deg = 13.0,
 		v_rotate = spec.v_rotate, v_cruise = spec.v_cruise, v_ne = spec.v_ne,
 		cruise_trim = cal.get("trim", 0.3), cruise_throttle = cal.get("throttle", 0.3),
 	}
@@ -488,6 +494,9 @@ func _fighter() -> Dictionary:
 			rows = 0, z_start = 0.0, pitch = 1.0, floor = 0.0, first_row = 1, abreast = [],
 		},
 		body_wave_drag = 1.2, yaw_damper = 3.0,
+		# Relaxed-stability fighter: the flight computer limits 9 g / -3 g,
+		# 25 deg angle of attack and 180 deg/s of roll rate, as on the real jet.
+		fbw_max_g = 9.0, fbw_min_g = -3.0, fbw_roll_rate_deg = 180.0, fbw_aoa_deg = 25.0,
 		v_rotate = 77.0, v_cruise = 200.0, v_ne = 410.0,
 		cruise_trim = cal.get("trim", 0.45), cruise_throttle = cal.get("throttle", 0.2),
 	}
@@ -517,6 +526,10 @@ func _build(p: Dictionary) -> AircraftDef:
 	def.cruise_throttle = p.cruise_throttle
 	def.body_wave_drag = p.get("body_wave_drag", 1.5)
 	def.yaw_damper = p.get("yaw_damper", 1.5)
+	def.fbw_max_g = p.get("fbw_max_g", 0.0)
+	def.fbw_min_g = p.get("fbw_min_g", -1.0)
+	def.fbw_roll_rate_deg = p.get("fbw_roll_rate_deg", 0.0)
+	def.fbw_aoa_limit_deg = p.get("fbw_aoa_deg", 15.0)
 
 	_add_fuselage(def, p)
 	# The wing group (wing, wing-mounted engines and gear) slides along Z until

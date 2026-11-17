@@ -20,6 +20,7 @@ var _case := 0
 var _t := 0.0
 var _started := false
 var _done_damage := false
+var _roll_effort := 0.0
 var _max_roll := 0.0
 var _pitch0 := 0.0
 var _max_pitch_dev := 0.0
@@ -51,6 +52,7 @@ func _begin(index: int) -> void:
 	_done_damage = false
 	_max_roll = 0.0
 	_max_pitch_dev = 0.0
+	_roll_effort = 0.0
 	_aircraft = Aircraft.new()
 	_aircraft.max_freds = 0
 	root.add_child(_aircraft)
@@ -123,10 +125,18 @@ func _physics_process(dt: float) -> bool:
 				_summary.append("outer panel off: held within %.0f deg of level" % _max_roll)
 				_begin(1)
 		1:
+			if _t > SETTLE:
+				_roll_effort += absf(c.roll) * dt
 			if _t > SETTLE + 5.0:
-				if _max_roll < 60.0:
-					return _fail("with a whole wing gone the aircraft only rolled %.0f deg in 5 s" % _max_roll)
-				_summary.append("wing off: rolled %.0f deg" % _max_roll)
+				# A lifting-body fighter (a third of its lift on the fuselage) can
+				# be held, just, at full opposite controls, like the F-15 that
+				# landed without a wing; an airliner cannot.
+				var effort := _roll_effort / 5.0
+				var fighter := _def.wing_span < 15.0
+				if _max_roll < 60.0 and not (fighter and effort > 0.8):
+					return _fail("with a whole wing gone the aircraft only rolled %.0f deg in 5 s (pilot used %.0f %% roll control)"
+							% [_max_roll, effort * 100.0])
+				_summary.append("wing off: rolled %.0f deg, %.0f %% roll control" % [_max_roll, effort * 100.0])
 				_begin(2)
 		2:
 			if _t > SETTLE + 6.0:

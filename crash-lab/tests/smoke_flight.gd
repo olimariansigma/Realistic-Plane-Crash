@@ -145,7 +145,10 @@ func _physics_process(dt: float) -> bool:
 			_throttle_f = lerpf(_throttle_f, c.throttle, 0.008)
 			var accel := (tm.ias - _prev_ias) / dt
 			_accel_f = lerpf(_accel_f, accel, 0.05)
-			var steady := absf(c.pitch) < 0.008 and absf(tm.vertical_speed) < 0.8 \
+			# Under fly-by-wire the stick is a g demand and the computer is the
+			# trim, so a small held demand is the steady state.
+			var stick_tol := 0.04 if _def.fbw_max_g > 0.0 else 0.008
+			var steady := absf(c.pitch) < stick_tol and absf(tm.vertical_speed) < 0.8 \
 					and absf(speed_err) < 4.0 and absf(_accel_f) < 0.15
 			_trimmed_t = _trimmed_t + dt if steady else 0.0
 			if _trimmed_t > 3.0:

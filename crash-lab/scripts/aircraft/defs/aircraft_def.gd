@@ -45,6 +45,15 @@ extends Resource
 ## Trim [-1, 1] and throttle [0, 1] that hold level flight at v_cruise; preset
 ## for an in-flight start (measured by tests/smoke_flight.gd).
 @export var cruise_trim: float = 0.0
+## Fly-by-wire. With fbw_max_g > 0 the stick commands load factor (pull =
+## up to fbw_max_g, push = down to fbw_min_g) instead of elevator, and with
+## fbw_roll_rate_deg > 0 it commands roll rate instead of aileron. The flight
+## computer holds 1 g hands-off, so it also replaces auto-trim.
+@export var fbw_max_g: float = 0.0
+@export var fbw_min_g: float = -1.0
+@export var fbw_roll_rate_deg: float = 0.0
+## Angle of attack the pitch loop will not command past.
+@export var fbw_aoa_limit_deg: float = 15.0
 @export var cruise_throttle: float = 0.3
 
 @export_group("Propulsion")
