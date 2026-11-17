@@ -68,6 +68,13 @@ enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR, CANOPY }
 ## canted ventral fins). Positions are in the part's own frame: z along the
 ## axis from p0, y above the centreline. They are skin, so they tear off too.
 @export var extras: Array = []
+## Measured nose shape, replacing the generic ogive where given: rows of
+## (station aft of the nose tip, crown height, keel height, half-width), in
+## metres from the fuselage centreline, stations increasing.
+@export var nose_table: PackedVector4Array = PackedVector4Array()
+## ENGINE: how much the lower half of the inlet is flattened (0..0.4), fading
+## out toward the nozzle: the 737's "hamster pouch" nacelle.
+@export var flat_bottom: float = 0.0
 
 @export_group("Aerodynamics")
 ## Bluff-body drag area Cd*A (m^2) along the part's local X, Y and Z axes.

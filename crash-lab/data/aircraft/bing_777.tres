@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AircraftDef" load_steps=53 format=3]
+[gd_resource type="Resource" script_class="AircraftDef" load_steps=53 format=4]
 
 [ext_resource type="Script" path="res://scripts/aircraft/defs/engine_def.gd" id="1_r7v8e"]
 [ext_resource type="Script" path="res://scripts/aircraft/defs/gear_def.gd" id="2_7lto2"]
@@ -117,6 +117,8 @@ extras = [{
 &"z0": -1.51394,
 &"z1": 18.0087
 }]
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(54.4939, 54.4939, 0.807075)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -150,6 +152,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(33.9269, 33.9269, 0.502469)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -183,6 +187,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(33.9269, 33.9269, 0.502469)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -216,6 +222,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(36.7539, 36.7539, 0.816508)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -249,6 +257,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(41.4112, 41.4112, 0.613315)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -282,6 +292,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(41.4112, 41.4112, 0.613315)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -322,6 +334,8 @@ extras = [{
 &"z0": 2.23333,
 &"z1": 7.9695
 }]
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(55.552, 55.552, 1.23412)
 fuel_kg = 0.0
 crush_depth = 1.1
@@ -358,6 +372,8 @@ extras = [{
 &"at": [0.62],
 &"type": "canoes"
 }]
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 14040.0
 crush_depth = 0.5
@@ -394,6 +410,8 @@ extras = [{
 &"at": [0.3, 0.78],
 &"type": "canoes"
 }]
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 6240.0
 crush_depth = 0.5
@@ -427,6 +445,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 1950.0
 crush_depth = 0.5
@@ -460,6 +480,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(19.929, 19.929, 0.716754)
 fuel_kg = 472.5
 crush_depth = 0.5
@@ -493,6 +515,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.1
@@ -529,6 +553,8 @@ extras = [{
 &"at": [0.62],
 &"type": "canoes"
 }]
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 14040.0
 crush_depth = 0.5
@@ -565,6 +591,8 @@ extras = [{
 &"at": [0.3, 0.78],
 &"type": "canoes"
 }]
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 6240.0
 crush_depth = 0.5
@@ -598,6 +626,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 1950.0
 crush_depth = 0.5
@@ -631,6 +661,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(19.929, 19.929, 0.716754)
 fuel_kg = 472.5
 crush_depth = 0.5
@@ -664,6 +696,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.1
@@ -697,6 +731,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.5
@@ -730,6 +766,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.5
@@ -763,6 +801,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.5
@@ -796,6 +836,8 @@ top_scale0 = 1.0
 top_scale1 = 1.0
 window_rows = 1
 extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
 drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.1
@@ -1195,7 +1237,7 @@ livery = {
 &"panel_lines": Vector4(2.4, 0.01, 0.2, 0),
 &"win_row0": Vector4(0.12, 8.4145, 37.6845, 1),
 &"win_row1": Vector4(0, 0, 0, 0),
-&"win_size": Vector4(0.24, 0.34, 0.0912, 0.53)
+&"win_size": Vector4(0.25, 0.36, 0.095, 0.51)
 }
 engines = Array[ExtResource("1_r7v8e")]([SubResource("Resource_c3q4d"), SubResource("Resource_gtm8r")])
 gear = Array[ExtResource("2_7lto2")]([SubResource("Resource_t5mcl"), SubResource("Resource_fhcu7"), SubResource("Resource_2vdqm")])

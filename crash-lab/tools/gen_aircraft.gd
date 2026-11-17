@@ -143,6 +143,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.22, winglet = 3.0, winglet_style = 0,
 			engines = [0.3], thrust = 374000.0, engine_d = 3.6, engine_len = 6.8, engine_mass = 9300.0,
 			rows = 35, groups = [3, 3, 3], wheels = 4,
+			# A350: black surround ("mask") around the windscreen.
+			windscreen = { mask = 0.16 },
 			v_rotate = 79.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
@@ -163,8 +165,9 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.22, winglet = 2.5, winglet_style = 0,
 			engines = [0.33], thrust = 121000.0, engine_d = 2.05, engine_len = 4.2, engine_mass = 3300.0,
 			# CFM56 tucked right up against the wing; big dorsal fin; steep tail.
-			engine_drop = 0.03, dorsal = 0.45, tail_upsweep = 0.85, nose_droop = 0.18,
+			engine_drop = 0.03, dorsal = 0.45, tail_upsweep = 0.85, nose_droop = 0.18, engine_flat = 0.28,
 			rows = 31, groups = [3, 3], wheels = 2,
+			win_w = 0.25, win_h = 0.36, win_pitch = 0.51,
 			v_rotate = 75.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
@@ -175,6 +178,7 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.55, nose_droop = 0.08,
 			engines = [0.36, 0.63], thrust = 282000.0, engine_d = 2.8, engine_len = 5.6, engine_mass = 5800.0,
 			rows = 34, groups = [3, 4, 3], upper_rows = 8, upper_groups = [3, 3], wheels = 4,
+			win_w = 0.25, win_h = 0.36, win_pitch = 0.51,
 			v_rotate = 84.0, v_cruise = 128.6, v_ne = 203.0,
 		},
 		{
@@ -185,6 +189,7 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.15, winglet = 2.0, winglet_style = 1,
 			engines = [0.31], thrust = 513000.0, engine_d = 3.9, engine_len = 7.3, engine_mass = 10500.0,
 			rows = 37, groups = [3, 4, 3], wheels = 6,
+			win_w = 0.25, win_h = 0.36, win_pitch = 0.51,
 			v_rotate = 86.0, v_cruise = 128.6, v_ne = 185.0,
 		},
 		{
@@ -195,6 +200,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.18, winglet = 2.5, winglet_style = 1,
 			engines = [0.31], thrust = 320000.0, engine_d = 3.4, engine_len = 6.0, engine_mass = 8000.0,
 			rows = 32, groups = [3, 3, 3], wheels = 4,
+			# 787: the largest airliner windows (about 0.27 x 0.47 m).
+			win_w = 0.27, win_h = 0.47, win_pitch = 0.535,
 			v_rotate = 80.0, v_cruise = 128.6, v_ne = 196.0,
 		},
 	]
@@ -347,7 +354,7 @@ func _airliner(spec: Dictionary) -> Dictionary:
 			spool = 3.2 if not big else (4.0 if not huge else 4.5), lapse = 0.62,
 			mount = "wing_in" if ex < x_kink else "wing_mid",
 			break_force = 15.0 * engine_mass * G, break_torque = 15.0 * engine_mass * G * 0.33 * engine_len,
-			fuel = 0.045 * engine_mass,
+			fuel = 0.045 * engine_mass, flat_bottom = spec.get("engine_flat", 0.0),
 		})
 	# Height of the fuselage centreline above the ground: enough for the belly,
 	# or more if the nacelles need it.
@@ -417,6 +424,7 @@ func _airliner(spec: Dictionary) -> Dictionary:
 	var livery := _airliner_livery(spec, cabin, nose_z, nose_cap, r, squash_y, big, wing_le_hint(spec, nose_z, length))
 	return {
 		livery = livery,
+		nose_table = spec.get("nose_table", []),
 		id = spec.id, name = spec.name, category = spec.category, desc = spec.desc,
 		paint = spec.paint, accent = spec.accent,
 		nose_z = nose_z, tail_z = tail_z, fus_r = r, nose_cap = nose_cap, tail_cap = tail_cap,
@@ -709,6 +717,12 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 				0.0033 * TAU * r * length * (1.2 if i == 0 or i == n - 1 else 1.0))
 		part.crush_depth = p.fus_crush
 		part.nose_power = p.nose_power
+		if i == 0 and not (p.get("nose_table", []) as Array).is_empty():
+			var rows := PackedVector4Array()
+			for v: Variant in p.nose_table:
+				var a := v as Array
+				rows.append(Vector4(a[0], a[1], a[2], a[3]))
+			part.nose_table = rows
 		part.nose_droop = p.nose_droop
 		part.tail_ratio = p.tail_ratio
 		part.tail_upsweep = p.tail_upsweep
@@ -885,6 +899,7 @@ func _add_wing_group(def: AircraftDef, p: Dictionary, shift: float, with_surface
 			eng.mass = e.mass
 			var wing_at := _c4(w, e.x, shift)
 			var zc: float = wing_at.z + float(e.z_off)
+			eng.flat_bottom = float(e.get("flat_bottom", 0.0))
 			eng.p0 = Vector3(float(e.x) * side, e.y, zc - float(e.length) * 0.5)
 			eng.p1 = Vector3(float(e.x) * side, e.y, zc + float(e.length) * 0.5)
 			eng.r0 = e.r

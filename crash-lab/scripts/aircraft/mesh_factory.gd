@@ -363,6 +363,13 @@ static func part_hull(part: PartDef) -> PackedVector3Array:
 static func body_profile(part: PartDef, d: float, length: float) -> Vector2:
 	var radius := lerpf(part.r0, part.r1, d / maxf(length, 0.001))
 	var y_off := 0.0
+	var row := _nose_row(part, d)
+	if row.w > 0.0:
+		# Measured section: width sets the radius, the keel sets the centre;
+		# _top_scale stretches the upper half to the measured crown.
+		radius = row.w / part.squash.x
+		y_off = row.z + radius * part.squash.y
+		return Vector2(radius, y_off)
 	if part.kind == PartDef.Kind.FUSELAGE:
 		if part.shape_a > 0.0 and d < part.shape_a:
 			var u := d / part.shape_a
@@ -400,7 +407,30 @@ static func _ring_point(center: Vector3, radius: float, angle: float, squash: Ve
 
 
 static func _top_scale(part: PartDef, d: float, length: float) -> float:
+	var row := _nose_row(part, d)
+	if row.w > 0.0:
+		var lower := row.w / part.squash.x * part.squash.y
+		var centre := row.z + lower
+		return clampf((row.y - centre) / maxf(lower, 0.01), 0.1, 3.0)
 	return lerpf(part.top_scale0, part.top_scale1, clampf(d / maxf(length, 0.001), 0.0, 1.0))
+
+
+## The measured nose section at `d` (crown in y, keel in z, half-width in w),
+## or w = 0 where the part has no table or `d` is past its end.
+static func _nose_row(part: PartDef, d: float) -> Vector4:
+	var table := part.nose_table
+	if table.size() < 2 or d > table[table.size() - 1].x:
+		return Vector4.ZERO
+	var i := 1
+	while i < table.size() - 1 and table[i].x < d:
+		i += 1
+	var a := table[i - 1]
+	var b := table[i]
+	var t := clampf((d - a.x) / maxf(b.x - a.x, 0.001), 0.0, 1.0)
+	# Rounded tip: the first row's width is never quite zero.
+	var row := a.lerp(b, t)
+	row.w = maxf(row.w, 0.04)
+	return row
 
 
 static func _floor_y(adef: AircraftDef, part: PartDef) -> float:
@@ -624,8 +654,12 @@ static func _engine(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 				var a0 := TAU * float(k + half * sides / 2) / float(sides)
 				var a1 := TAU * float(k + 1 + half * sides / 2) / float(sides)
 				var col := seg_col[s]
-				surf.quad(_ring_point(c0, r0, a0, Vector2.ONE), _ring_point(c0, r0, a1, Vector2.ONE),
-						_ring_point(c1, r1, a1, Vector2.ONE), _ring_point(c1, r1, a0, Vector2.ONE),
+				var f0 := part.flat_bottom * (1.0 - prof_d[s])
+				var f1 := part.flat_bottom * (1.0 - prof_d[s + 1])
+				var q0 := Vector2(1.0, 1.0 - f0)
+				var q1 := Vector2(1.0, 1.0 - f1)
+				surf.quad(_ring_point(c0, r0, a0, q0, 1.0 / q0.y), _ring_point(c0, r0, a1, q0, 1.0 / q0.y),
+						_ring_point(c1, r1, a1, q1, 1.0 / q1.y), _ring_point(c1, r1, a0, q1, 1.0 / q1.y),
 						(c0 + c1) * 0.5, col,
 						tile_uv(TILE_ENGINE, prof_d[s], float(k) / float(sides / 2)),
 						tile_uv(TILE_ENGINE, prof_d[s], float(k + 1) / float(sides / 2)),
