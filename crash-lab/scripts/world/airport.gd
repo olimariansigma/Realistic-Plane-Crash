@@ -91,7 +91,8 @@ func _build_surfaces() -> void:
 	_strip(Vector2(505.0, -640.0), Vector2(505.0, -940.0), 12.0, 2)
 	_strip(Vector2(505.0, -790.0), Vector2(600.0, -790.0), 10.0, 2)
 	_strip(Vector2(380.0, -600.0), Vector2(505.0, -600.0), 10.0, 2)
-	_poly([Vector2(-200.0, 420.0), Vector2(600.0, 420.0), Vector2(600.0, -3150.0), Vector2(-200.0, -3150.0)],
+	# Perimeter road: its southern edge passes beyond the approach lights.
+	_poly([Vector2(-200.0, 1000.0), Vector2(600.0, 1000.0), Vector2(600.0, -3150.0), Vector2(-200.0, -3150.0)],
 			8.0, 2, true)
 	# Highway to the city and a few country roads.
 	_poly([Vector2(600.0, -1500.0), Vector2(780.0, -2400.0), Vector2(907.0, -3000.0), Vector2(907.0, -3807.0)],

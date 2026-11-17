@@ -140,6 +140,11 @@ func set_controls_visible(enabled: bool) -> void:
 	_flight_layer.visible = enabled
 
 
+## Opens the pause menu (used when the app goes to the background).
+func pause() -> void:
+	_set_paused(true)
+
+
 func _set_paused(paused: bool) -> void:
 	get_tree().paused = paused
 	_overlay.visible = paused
@@ -165,7 +170,7 @@ func _release_all_touches() -> void:
 	_stick.cancel_touch()
 	_rudder.cancel_touch()
 	_throttle.cancel_touch()
-	for b: TouchButton in [_flap_up, _flap_down, _brake, _cam_button, _pause_button]:
+	for b: TouchButton in [_flap_up, _flap_down, _brake, _cam_button, _pause_button, _gear, _spoilers, _cut_button]:
 		b.cancel_touch()
 	_cam_index[0] = -1
 	_cam_index[1] = -1
@@ -307,7 +312,8 @@ func _refresh_telemetry() -> void:
 # --- Camera touches (anything no widget claimed) -----------------------------
 
 func _input(event: InputEvent) -> void:
-	if get_tree().paused or _overlay.visible:
+	# Not over the pause menu or the crash report (its replay scrub bar).
+	if get_tree().paused or _overlay.visible or not _flight_layer.visible:
 		return
 	if event is InputEventScreenTouch:
 		var touch := event as InputEventScreenTouch

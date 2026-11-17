@@ -61,6 +61,12 @@ func _ready() -> void:
 		add_child(autoplay)
 
 
+func _notification(what: int) -> void:
+	# Android may kill a backgrounded app: keep what the player set.
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		SettingsStore.instance().save()
+
+
 ## Applies the graphics quality tier to everything that is not scene-specific:
 ## mesh detail for the next aircraft build, and the 3D render scale.
 func apply_quality() -> void:
@@ -125,6 +131,9 @@ func change_scene_async(scene_path: String) -> void:
 		return
 	_busy = true
 	get_tree().paused = false
+	# The replay switches the physics server off; never carry that into the
+	# next scene (the next flight would start frozen, its controls dead).
+	PhysicsServer3D.set_active(true)
 	_label.text = "LOADING"
 	_bar.value = 0.0
 	_overlay.visible = true

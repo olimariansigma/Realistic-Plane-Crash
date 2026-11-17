@@ -1,11 +1,11 @@
 {
-  "abius_a320": {"trim": 0.12, "throttle": 0.22},
-  "abius_a330": {"trim": 0.15, "throttle": 0.28},
-  "abius_a350": {"trim": 0.13, "throttle": 0.27},
-  "abius_a380": {"trim": 0.14, "throttle": 0.19},
-  "bing_737": {"trim": 0.13, "throttle": 0.22},
-  "bing_747": {"trim": 0.16, "throttle": 0.19},
-  "bing_777": {"trim": 0.24, "throttle": 0.17},
+  "abius_a320": {"trim": 0.00, "throttle": 0.23},
+  "abius_a330": {"trim": 0.00, "throttle": 0.22},
+  "abius_a350": {"trim": 0.00, "throttle": 0.24},
+  "abius_a380": {"trim": 0.00, "throttle": 0.28},
+  "bing_737": {"trim": 0.12, "throttle": 0.22},
+  "bing_747": {"trim": 0.15, "throttle": 0.19},
+  "bing_777": {"trim": 0.23, "throttle": 0.16},
   "bing_787": {"trim": 0.18, "throttle": 0.33},
-  "lockhid_f16": {"trim": 0.19, "throttle": 0.21}
+  "lockhid_f16": {"trim": 0.00, "throttle": 0.20}
 }

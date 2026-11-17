@@ -48,7 +48,7 @@ func setup(surface: SurfaceDef, owner: AircraftPart) -> void:
 	local_normal = surface.normal.normalized()
 	local_chord = surface.chord_dir.normalized()
 	local_span = local_chord.cross(local_normal).normalized()
-	induced_k = 1.0 / (PI * surface.efficiency * maxf(surface.aspect_ratio, 0.1))
+	induced_k = 1.0 / (PI * maxf(surface.efficiency, 0.05) * maxf(surface.aspect_ratio, 0.1))
 	max_deflection = deg_to_rad(surface.max_deflection_deg)
 	trim_rad = deg_to_rad(surface.trim_deg)
 	cm0 = surface.airfoil.cm0

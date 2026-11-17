@@ -106,6 +106,10 @@ func _make_airfoil(key: String, title: String, cl0: float, slope: float, stall_p
 # ---------------------------------------------------------------- parameter tables
 
 ## Real aircraft, by their published dimensions and typical operating
+## Tail volume coefficients for the airliners.
+const H_VOLUME := 1.15
+const V_VOLUME := 0.095
+
 ## weights (not maximum take-off weight). Maker names are the game's own.
 func _airliner_specs() -> Array[Dictionary]:
 	var abius := Color(0.94, 0.95, 0.97)
@@ -144,7 +148,7 @@ func _airliner_specs() -> Array[Dictionary]:
 		{
 			id = &"abius_a380", name = "Abius A380-800", category = "Double-deck four-engine",
 			desc = "The largest airliner built. Two full decks, 536 seats, four engines, 80 m of wing.",
-			paint = abius, accent = Color(0.05, 0.16, 0.45), nose_power = 0.56,
+			paint = abius, accent = Color(0.05, 0.16, 0.45), nose_power = 0.48, nose_droop = 0.1,
 			length = 72.72, width = 7.14, height = 8.41, mass = 480000.0, span = 79.75, area = 845.0,
 			sweep = 33.5, taper = 0.22, winglet = 2.3, winglet_style = 2, double_deck = true,
 			engines = [0.33, 0.61], thrust = 311000.0, engine_d = 3.5, engine_len = 6.0, engine_mass = 8200.0,
@@ -158,6 +162,8 @@ func _airliner_specs() -> Array[Dictionary]:
 			length = 39.5, width = 3.76, mass = 66000.0, span = 34.3, area = 124.6, sweep = 25.0,
 			taper = 0.22, winglet = 2.5, winglet_style = 0,
 			engines = [0.33], thrust = 121000.0, engine_d = 2.05, engine_len = 4.2, engine_mass = 3300.0,
+			# CFM56 tucked right up against the wing; big dorsal fin; steep tail.
+			engine_drop = 0.03, dorsal = 0.45, tail_upsweep = 0.85, nose_droop = 0.18,
 			rows = 31, groups = [3, 3], wheels = 2,
 			v_rotate = 75.0, v_cruise = 128.6, v_ne = 190.0,
 		},
@@ -166,7 +172,7 @@ func _airliner_specs() -> Array[Dictionary]:
 			desc = "The original jumbo, hump and all. 388 seats, four engines, a heavily swept wing.",
 			paint = bing, accent = Color(0.02, 0.2, 0.42), nose_power = 0.66,
 			length = 70.66, width = 6.5, mass = 330000.0, span = 64.4, area = 541.0, sweep = 37.5,
-			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.3,
+			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.55, nose_droop = 0.08,
 			engines = [0.36, 0.63], thrust = 282000.0, engine_d = 2.8, engine_len = 5.6, engine_mass = 5800.0,
 			rows = 34, groups = [3, 4, 3], upper_rows = 8, upper_groups = [3, 3], wheels = 4,
 			v_rotate = 84.0, v_cruise = 128.6, v_ne = 203.0,
@@ -333,10 +339,10 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		var ex := frac * semi
 		var chord_x := lerpf(root_c, tip_c, frac)
 		var wing_under := wing_y + tan(deg_to_rad(dihedral)) * ex - 0.044 * chord_x
-		var ey := wing_under - 0.12 * engine_d - engine_d * 0.5
+		var ey := wing_under - float(spec.get("engine_drop", 0.12)) * engine_d - engine_d * 0.5
 		lowest = minf(lowest, ey - engine_d * 0.5 - 0.55)
 		engines.append({
-			x = ex, y = ey, z_off = -(0.25 * chord_x + 0.62 * engine_len), length = engine_len,
+			x = ex, y = ey, z_off = -(0.25 * chord_x + 0.25 * engine_len), length = engine_len,
 			r = engine_d * 0.5, mass = engine_mass, thrust = spec.thrust,
 			spool = 3.2 if not big else (4.0 if not huge else 4.5), lapse = 0.62,
 			mount = "wing_in" if ex < x_kink else "wing_mid",
@@ -347,12 +353,13 @@ func _airliner(spec: Dictionary) -> Dictionary:
 	# or more if the nacelles need it.
 	var clearance := -lowest
 
-	# Tail, sized by volume coefficients (tailplane 1.0, fin 0.085).
+	# Tail, sized by volume coefficients (tailplane 1.15, fin 0.095: the real
+	# A320 / 737 tails are 31-33 m2 and 21-26 m2).
 	var h_sweep := sweep + 4.0
 	var h_z := tail_z - 0.40 * tail_cap
-	var h_area := 1.0 * area * mac / h_z
+	var h_area := H_VOLUME * area * mac / h_z
 	var h_span := sqrt(4.6 * h_area)
-	h_area = 1.0 * area * mac / (h_z + tan(deg_to_rad(h_sweep)) * h_span * 0.21)
+	h_area = H_VOLUME * area * mac / (h_z + tan(deg_to_rad(h_sweep)) * h_span * 0.21)
 	h_span = sqrt(4.6 * h_area)
 	var h_semi := h_span * 0.5
 	var h_root := 2.0 * h_area / (h_span * 1.35)
@@ -363,7 +370,7 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		elevator_deg = 25.0, effectiveness = 0.58, trim_deg = -9.0, e = 0.85,
 	}
 	var v_z := tail_z - 0.55 * tail_cap
-	var v_area := 0.085 * area * span / (v_z * 1.05)
+	var v_area := V_VOLUME * area * span / (v_z * 1.05)
 	var v_height := sqrt(1.75 * v_area)
 	var v_root := 2.0 * v_area / (v_height * 1.35)
 	var fins: Array = [{
@@ -415,7 +422,9 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		fus_break_force = fus_break_force, fus_break_torque = fus_break_torque,
 		fus_top = fus_top, fus_windows = fus_windows,
 		fus_crush = 0.75 if not big else (1.1 if not huge else 1.3),
-		nose_power = spec.nose_power, nose_droop = 0.28, tail_ratio = 0.14, tail_upsweep = 0.72,
+		nose_power = spec.nose_power, nose_droop = spec.get("nose_droop", 0.22),
+		tail_ratio = spec.get("tail_ratio", 0.22), tail_upsweep = spec.get("tail_upsweep", 0.72),
+		dorsal = spec.get("dorsal", 0.2),
 		squash = Vector2(1.0, squash_y),
 		wing = wing, htail = htail, fins = fins, engines = engines, gear = gear,
 		flaps = [0.0, 5.0, 15.0, 25.0, 40.0] if not big else [0.0, 5.0, 15.0, 25.0, 35.0],
@@ -447,15 +456,15 @@ func _fighter() -> Dictionary:
 		cuts = [-3.0, 2.4], fus_mass = [2000.0, 3500.0, 1500.0],
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
 		fus_crush = 0.5, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
-		tail_upsweep = 0.0, squash = Vector2(1.22, 0.9),
+		tail_upsweep = 0.0, squash = Vector2(1.1, 0.82),
 		canopy = { z0 = -6.0, z1 = -2.9, half_width = 0.47, height = 0.68, mass = 70.0 },
 		# The F-16's look: chin intake under the cockpit, root strakes running
 		# forward to the canopy, and ventral fins under the engine.
 		extras = [
 			{ part = &"fus_mid", type = "intake", z0 = -0.7, z1 = 4.2, y_top = -0.42,
-				height = 0.9, half_width = 0.56 },
-			{ part = &"fus_mid", type = "strake", z0 = -2.6, to_wing_le = true, y = 0.0,
-				x_root = 1.0, x_tip = 2.15 },
+				height = 0.85, half_width = 0.5 },
+			{ part = &"fus_mid", type = "strake", z0 = -3.0, to_wing_le = true, y = 0.0,
+				x_root = 0.9, x_tip = 1.75 },
 			{ part = &"fus_tail", type = "ventral", z0 = 1.1, z1 = 2.6, y = -0.62, x = 0.55,
 				height = 0.62, cant_deg = 18.0 },
 		],
@@ -1173,6 +1182,18 @@ func _add_extras(def: AircraftDef, p: Dictionary) -> void:
 		mid.extras.append({
 			type = "fairing", z0 = le - 0.25 * root.r0 - mid.p0.z, z1 = te + 0.55 * root.r0 - mid.p0.z,
 			half_width = 1.03 * r * mid.squash.x, y = -0.32 * r * mid.squash.y, depth = 0.8 * r * mid.squash.y,
+		})
+	# Dorsal fillet: a low blade running forward from the fin root.
+	var fin_index := def.find_part(&"fin")
+	if float(p.get("dorsal", 0.0)) > 0.0 and fin_index >= 0:
+		var fin := def.parts[fin_index]
+		var body := def.parts[def.find_part(fin.parent)]
+		var fin_le := fin.p0.z - 0.25 * fin.r0
+		var fin_h := (fin.p1 - fin.p0).length()
+		body.extras.append({
+			type = "dorsal", z0 = fin_le - float(p.dorsal) * 1.4 * fin.r0 - body.p0.z,
+			z1 = fin_le + 0.3 * fin.r0 - body.p0.z, y = fin.p0.y - body.p0.y - 0.15,
+			height = float(p.dorsal) * 0.5 * fin_h, half_width = 0.05 * fin.r0 + 0.08,
 		})
 	for item: Variant in p.get("extras", []):
 		var e := (item as Dictionary).duplicate()

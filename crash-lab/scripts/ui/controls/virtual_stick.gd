@@ -48,6 +48,8 @@ func _input(event: InputEvent) -> void:
 
 func _track(global_pos: Vector2) -> void:
 	var radius: float = minf(size.x, size.y) * 0.4
+	if radius <= 1.0:
+		return
 	var offset: Vector2 = global_pos - get_global_rect().get_center()
 	_set_value((offset / radius).limit_length(1.0))
 

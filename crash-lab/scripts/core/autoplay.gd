@@ -132,6 +132,12 @@ func _run() -> void:
 	if second.aircraft.telemetry.integrity < 1.0 or second.aircraft.parts.size() != part_count:
 		_fail("the restarted flight did not start with an intact aircraft")
 		return
+	# The replay switches physics off; the next flight must be live again.
+	(second.hud.get_node(^"%ThrottleSlider") as TouchSlider).value = 1.0
+	await _wait(3.0)
+	if second.aircraft.telemetry.ias < 2.0:
+		_fail("after a replay and RESTART the new aircraft is frozen (ias %.1f m/s)" % second.aircraft.telemetry.ias)
+		return
 	await _tap(second.hud.get_node(^"%PauseButton") as Control)
 	await _wait(0.4)
 	_shot("8_pause")

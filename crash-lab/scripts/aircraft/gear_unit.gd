@@ -77,7 +77,9 @@ func apply(deployed: float, yaw_input: float, brake: float, dt: float, frame: Ai
 	var fwd := -basis.z
 	if steer_rad != 0.0:
 		fwd = fwd.rotated(basis.y, steer_rad)
-	fwd = (fwd - normal * fwd.dot(normal)).normalized()
+	var along := fwd - normal * fwd.dot(normal)
+	# Nose straight down into the ground: no rolling direction to speak of.
+	fwd = along.normalized() if along.length_squared() > 1.0e-6 else basis.y
 	var lat := normal.cross(fwd)
 	var v_f := v_c.dot(fwd)
 	var v_l := v_c.dot(lat)

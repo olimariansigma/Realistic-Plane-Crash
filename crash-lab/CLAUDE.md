@@ -187,7 +187,8 @@ built is marked *(planned)*.
   (`tools/gen_atlas.gd` -> `assets/atlas.png`, imported VRAM-compressed, ASTC
   on Android): cabin windows, windscreen, doors, panel lines, fan face.
   Vertex colour carries the livery. Type-specific shape details
-  (`PartDef.extras`: belly fairing, chin intake, strakes, ventral fins) are
+  (`PartDef.extras`: belly fairing, chin intake, strakes, ventral fins,
+  dorsal fin fillet) are
   extra skin pieces placed by `gen_aircraft.gd._add_extras` against the final
   wing root. Skin is two-sided with primer on the
   inside. Control surfaces are hinged pieces that move with the actuators.
@@ -334,6 +335,12 @@ Made without asking, per the brief. Revisit if they stop fitting.
   triggered from outside physics process"): on a device that is judder.
   The camera has interpolation off and reads the target's interpolated
   transform.
+- **`PhysicsServer3D.set_active()` is global and survives scene changes.**
+  The replay turned physics off and nothing turned it back on, so the flight
+  after REPLAY -> RESTART started frozen (dead controls), and the next pause /
+  resume switched it on all at once and tore the aircraft apart. GameState
+  and FlightScene now switch it back on; the playtest checks the restarted
+  aircraft moves.
 - **Clamp what the OS says about the safe area.** A wrong-orientation safe
   rect would push the flight controls off screen; `UiStyle.safe_margins`
   caps each margin at 7 % of the display.

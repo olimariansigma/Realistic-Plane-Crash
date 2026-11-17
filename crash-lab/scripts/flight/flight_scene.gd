@@ -37,8 +37,8 @@ func _ready() -> void:
 	aircraft.name = "Aircraft"
 	add_child(aircraft)
 	aircraft.max_freds = _settings.max_freds()
-	_spawn(_game.start_mode)
 	aircraft.auto_trim = _settings.auto_trim
+	_spawn(_game.start_mode)
 
 	director = CrashDirector.new()
 	director.name = "CrashDirector"
@@ -91,6 +91,15 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	RenderingServer.global_shader_parameter_set(&"cutaway_amount", 0.0)
+	PhysicsServer3D.set_active(true)
+
+
+func _notification(what: int) -> void:
+	# Leaving the app mid-flight pauses it, so the player comes back to the
+	# pause menu instead of a crash that happened while they were away.
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if hud != null and not report_screen.visible and not get_tree().paused:
+			hud.pause()
 
 
 func _spawn(mode: GameState.StartMode) -> void:
@@ -149,9 +158,12 @@ func _on_crash_settled() -> void:
 	report = InjuryModel.build_report(aircraft, director)
 	_game.last_report = report
 	hud.show_message("WRECK AT REST", 1.5)
-	await get_tree().create_timer(1.5).timeout
-	if not is_inside_tree():
-		return
+	# A callback, not an await: if the player leaves in the meantime the
+	# connection dies with this node.
+	get_tree().create_timer(1.5, false).timeout.connect(_show_report, CONNECT_ONE_SHOT)
+
+
+func _show_report() -> void:
 	hud.set_controls_visible(false)
 	report_screen.show_report(report)
 	report_screen.visible = true

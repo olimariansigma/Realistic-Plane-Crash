@@ -68,7 +68,7 @@ func _refresh() -> void:
 	_auto_trim.set_pressed_no_signal(_settings.auto_trim)
 	_metric.set_pressed_no_signal(_settings.units_metric)
 	_fps.set_pressed_no_signal(_settings.show_fps)
-	_quality.select(_settings.graphics_quality)
+	_quality.select(clampi(_settings.graphics_quality, 0, _quality.item_count - 1))
 
 
 func _on_visibility_changed() -> void:

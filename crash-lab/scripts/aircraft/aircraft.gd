@@ -105,6 +105,9 @@ var _ticks: int = 0
 var _airborne_time: float = 0.0
 var _fbw_pitch_i: float = 0.0
 var _fbw_active: bool = false
+var _fbw_out: float = 0.0
+## Seconds left of the weight-on-wheels hold: a bounce must not retract the gear.
+var _wow_hold: float = 0.0
 var _fbw_offset: float = 0.0
 var _yaw_rate_slow: float = 0.0
 var _downwash_sources: Array[AeroSurface] = []
@@ -546,7 +549,7 @@ func _update_actuators(dt: float) -> void:
 			# The flight computer has dropped out (structural damage): keep the
 			# elevator where it was holding it, so the hand-over is bumpless and
 			# the stick flies the elevator directly from there.
-			_fbw_offset = _fbw_pitch_i - clampf(c.pitch, -1.0, 1.0)
+			_fbw_offset = _fbw_out - clampf(c.pitch, -1.0, 1.0)
 		elif telemetry.on_ground:
 			_fbw_offset = 0.0
 		_fbw_active = false
@@ -580,7 +583,8 @@ func _update_actuators(dt: float) -> void:
 	_animate_surfaces()
 
 	# Weight-on-wheels interlock: the gear will not retract on the ground.
-	var gear_target := 1.0 if c.gear_down or telemetry.on_ground else 0.0
+	_wow_hold = 0.5 if telemetry.on_ground else maxf(_wow_hold - dt, 0.0)
+	var gear_target := 1.0 if c.gear_down or _wow_hold > 0.0 else 0.0
 	if gear_ratio != gear_target:
 		gear_ratio = move_toward(gear_ratio, gear_target, dt / def.gear_time)
 		_apply_gear_state()
@@ -619,7 +623,8 @@ func _fbw_pitch(stick: float, dt: float) -> float:
 	var err := g_cmd - telemetry.g_load
 	var q := root_part.ang_vel.dot(root_part.xf.basis.x)
 	_fbw_pitch_i = clampf(_fbw_pitch_i + err * FBW_PITCH_KI * k * dt, -1.0, 1.0)
-	return clampf(_fbw_pitch_i + err * FBW_PITCH_KP * k - q * FBW_PITCH_KQ * k, -1.0, 1.0)
+	_fbw_out = clampf(_fbw_pitch_i + err * FBW_PITCH_KP * k - q * FBW_PITCH_KQ * k, -1.0, 1.0)
+	return _fbw_out
 
 
 ## Roll law: the stick commands roll rate.

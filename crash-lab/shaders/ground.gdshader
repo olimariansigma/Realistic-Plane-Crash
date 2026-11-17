@@ -9,6 +9,9 @@ uniform int forest_count = 0;
 varying vec2 wp;
 
 float hash21(vec2 p) {
+	// Wrap first: at kilometres from the origin the product loses precision
+	// and the noise turns blocky.
+	p = mod(p, 1024.0);
 	p = fract(p * vec2(123.34, 456.21));
 	p += dot(p, p + 45.32);
 	return fract(p.x * p.y);

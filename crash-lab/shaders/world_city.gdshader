@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back, specular_disabled, blend_mix;
+render_mode cull_back, specular_disabled;
 // City ground: street grid, lane markings, crossings, pavements and lots.
 // block_map (one texel per block): R = lot type (0 grass, 1 concrete, 2 park).
 
@@ -85,8 +85,9 @@ void fragment() {
 			}
 		}
 	}
-	ALBEDO = col;
-	ROUGHNESS = 0.95;
+	// Opaque (a blended pass this size is costly on phone GPUs): the edge
+	// fades into the grass colour instead of into transparency.
 	float edge_d = min(min(rel.x, span.x - rel.x), min(rel.y, span.y - rel.y));
-	ALPHA = smoothstep(0.0, 80.0, edge_d);
+	ALBEDO = mix(vec3(0.3, 0.46, 0.18), col, smoothstep(0.0, 80.0, edge_d));
+	ROUGHNESS = 0.95;
 }

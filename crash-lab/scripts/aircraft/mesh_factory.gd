@@ -172,6 +172,8 @@ static func _extras(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 			"ventral":
 				for side: float in [-1.0, 1.0]:
 					_ventral(surf, origin, axis, e, side, paint.darkened(0.08))
+			"dorsal":
+				_dorsal(surf, origin, axis, e, adef.accent)
 		if not surf.empty():
 			out.pieces.append(_piece(surf, SKIN_KG_M2))
 
@@ -266,6 +268,26 @@ static func _strake(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, s
 	surf.tri(a + up, b + up, c + up, mid - Vector3.UP, col, uv, uv, uv)
 	surf.tri(a - up, b - up, c - up, mid + Vector3.UP, col.darkened(0.15), uv, uv, uv)
 	surf.flat_quad(a + up, b + up, b - up, a - up, c, col, uv)
+
+
+## Dorsal fin fillet: a wedge on the crown that rises into the fin's leading
+## edge, wide at the base and thin at the top.
+static func _dorsal(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, col: Color) -> void:
+	var z0: float = e.z0
+	var z1: float = e.z1
+	var y: float = e.y
+	var h: float = e.height
+	var w: float = e.half_width
+	var uv := strip_uv(0.5, 0.5, 2)
+	var top := _at(origin, axis, 0.0, y + h, z1)
+	var nose := _at(origin, axis, 0.0, y, z0)
+	var inside := _at(origin, axis, 0.0, y - 1.0, (z0 + z1) * 0.5)
+	for side: float in [-1.0, 1.0]:
+		var base_rear := _at(origin, axis, w * side, y, z1)
+		var base_mid := _at(origin, axis, w * 0.7 * side, y, lerpf(z0, z1, 0.4))
+		var top_side := top + Vector3(0.02 * side, 0.0, 0.0)
+		surf.tri(nose, base_mid, top_side, inside, col, uv, uv, uv)
+		surf.tri(base_mid, base_rear, top_side, inside, col, uv, uv, uv)
 
 
 ## One of a pair of small fins under the rear fuselage, canted outward.
@@ -543,6 +565,14 @@ static func _engine(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 	var prof_d: Array[float] = [0.0, 0.04, 0.2, 0.55, 0.82, 1.0]
 	var nozzle := part.r1 / part.r0
 	var prof_r: Array[float] = [0.9, 0.99, 1.0, 0.96, lerpf(0.96, nozzle, 0.6), nozzle]
+	# Colour per profile segment: lip, then cowl, then the hot end.
+	var seg_col: Array[Color] = [METAL, paint, paint, paint, METAL.darkened(0.25)]
+	if nozzle < 0.85:
+		# High-bypass turbofan: the fan cowl ends about 60 % back at the fan
+		# nozzle, and the narrower core cowl carries on to the core nozzle.
+		prof_d = [0.0, 0.035, 0.14, 0.42, 0.58, 0.6, 0.62, 0.84, 1.0]
+		prof_r = [0.88, 0.985, 1.0, 0.98, 0.9, 0.86, 0.6, 0.53, 0.43]
+		seg_col = [METAL, paint, paint, paint, paint, DARK, METAL, METAL.darkened(0.2)]
 	# Two cowl halves (right, left).
 	for half: int in 2:
 		var surf := Surf.new()
@@ -554,7 +584,7 @@ static func _engine(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 			for k: int in sides / 2:
 				var a0 := TAU * float(k + half * sides / 2) / float(sides)
 				var a1 := TAU * float(k + 1 + half * sides / 2) / float(sides)
-				var col := METAL if s == 0 else (paint if s < 4 else METAL.darkened(0.25))
+				var col := seg_col[s]
 				surf.quad(_ring_point(c0, r0, a0, Vector2.ONE), _ring_point(c0, r0, a1, Vector2.ONE),
 						_ring_point(c1, r1, a1, Vector2.ONE), _ring_point(c1, r1, a0, Vector2.ONE),
 						(c0 + c1) * 0.5, col,
@@ -798,12 +828,23 @@ static func _winglet(surf: Surf, q: Vector3, ch: float, thick: float, normal: Ve
 	var le0 := q + Vector3(0.0, 0.0, -0.25 * ch)
 	var te0 := q + Vector3(0.0, 0.0, 0.43 * ch)
 	if style == 1:
-		# Raked: a flat triangular extension in the plane of the wing.
-		var tip := q + outward * height + normal * (height * 0.1) + Vector3(0.0, 0.0, 0.25 * ch + height * 0.9)
-		var mid := (le0 + te0 + tip) / 3.0
-		surf.tri(le0 + normal * half, te0 + normal * half, tip, mid, paint, uv, uv, uv)
-		surf.tri(le0 - normal * half, te0 - normal * half, tip, mid, paint.darkened(0.12), uv, uv, uv)
-		surf.flat_quad(le0 - normal * half, le0 + normal * half, tip, tip, mid, METAL, uv)
+		# Raked tip: the leading edge sweeps back sharply while the trailing
+		# edge carries straight on, closing to a small chord, with a little
+		# upward flex. Built as a thin tapered box so it reads from any angle.
+		var h0 := maxf(ch * thick * 0.5, 0.05)
+		var tip_ch := ch * 0.3
+		var te1 := te0 + outward * height + normal * (height * 0.08) + Vector3(0.0, 0.0, 0.12 * height)
+		var le1 := te1 - Vector3(0.0, 0.0, tip_ch)
+		var h1 := h0 * 0.25
+		var centre := (le0 + te0 + le1 + te1) * 0.25
+		surf.quad(le0 + normal * h0, te0 + normal * h0 * 0.3, te1 + normal * h1 * 0.3, le1 + normal * h1,
+				centre - normal, paint, uv, uv, uv, uv)
+		surf.quad(le0 - normal * h0, te0 - normal * h0 * 0.3, te1 - normal * h1 * 0.3, le1 - normal * h1,
+				centre + normal, paint.darkened(0.12), uv, uv, uv, uv)
+		surf.flat_quad(le0 + normal * h0, le1 + normal * h1, le1 - normal * h1, le0 - normal * h0,
+				centre + Vector3(0.0, 0.0, 1.0), METAL, uv)
+		surf.flat_quad(le1 + normal * h1, te1 + normal * h1 * 0.3, te1 - normal * h1 * 0.3, le1 - normal * h1,
+				centre - outward, paint, uv)
 		return
 	var directions: Array[float] = [1.0]
 	if style == 2:

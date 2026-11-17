@@ -83,7 +83,8 @@ func _fuselage_strip(y0: int, rows: int) -> void:
 	if rows == 1:
 		window_rows = [35]
 	elif rows == 2:
-		window_rows = [21, 43]
+		# Upper deck about +2.9 m, main deck about +0.8 m on a 4.2 m half-height.
+		window_rows = [22, 37]
 	for row_y: int in window_rows:
 		# 45 windows: 0.53 m pitch.
 		for i: int in 45:

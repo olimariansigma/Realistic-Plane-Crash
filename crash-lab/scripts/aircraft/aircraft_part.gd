@@ -274,7 +274,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	if n == 0:
 		return
 	var origin := state.transform.origin
-	var best := 0.0
+	var best := -1.0
 	for i: int in n:
 		var j := state.get_contact_impulse(i)
 		var pos := state.get_contact_collider_position(i)
