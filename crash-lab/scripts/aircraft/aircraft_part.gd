@@ -69,6 +69,9 @@ var piece_nodes: Array[MeshInstance3D] = []
 var pieces_left: int = 0
 var core_node: MeshInstance3D
 var far_node: MeshInstance3D
+## The part's fixed skin merged into one mesh, drawn until the first panel
+## tears off; then the separate panels take over.
+var intact_node: MeshInstance3D
 var core_always_visible: bool = false
 ## True once any skin has been lost.
 var stripped: bool = false
@@ -152,6 +155,8 @@ func add_dent(local_pos: Vector3, local_dir: Vector3, depth: float) -> void:
 	else:
 		return
 	_push_dents(far_node)
+	if intact_node != null:
+		_push_dents(intact_node)
 	for i: int in piece_nodes.size():
 		# Hinged pieces have their own mesh frame, so part-local dents do not apply.
 		if piece_nodes[i] != null and pieces[i].control == SkinPiece.Surface.NONE:
@@ -173,6 +178,8 @@ func dent_push(slot: int) -> Vector3:
 ## damage. Used by the replay to rewind and re-apply crumpling.
 func show_dents(a: Vector4, a_push: Vector3, b: Vector4, b_push: Vector3) -> void:
 	_show_dents_on(far_node, a, a_push, b, b_push)
+	if intact_node != null:
+		_show_dents_on(intact_node, a, a_push, b, b_push)
 	for i: int in piece_nodes.size():
 		var node := piece_nodes[i] if piece_nodes[i] != null else _released_nodes.get(i) as MeshInstance3D
 		if node != null and pieces[i].control == SkinPiece.Surface.NONE:
@@ -202,6 +209,8 @@ func _push_dents(mesh: MeshInstance3D) -> void:
 func set_scorch(amount: float) -> void:
 	if far_node != null:
 		far_node.set_instance_shader_parameter(&"scorch", amount)
+	if intact_node != null:
+		intact_node.set_instance_shader_parameter(&"scorch", amount)
 	for node: MeshInstance3D in piece_nodes:
 		if node != null:
 			node.set_instance_shader_parameter(&"scorch", amount)
@@ -255,6 +264,12 @@ func release_piece(index: int) -> MeshInstance3D:
 		# its exposed structure.
 		if far_node != null:
 			far_node.visible = false
+		if intact_node != null:
+			# Hand over from the merged skin to the separate panels.
+			intact_node.visible = false
+			for k: int in piece_nodes.size():
+				if piece_nodes[k] != null:
+					piece_nodes[k].visible = true
 		if core_node != null:
 			core_node.visible = true
 			core_node.visibility_range_end = 0.0

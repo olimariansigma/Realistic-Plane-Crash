@@ -48,7 +48,8 @@ func apply_quality(quality: int) -> void:
 			else DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 320.0 if quality >= 2 else 180.0
 	environment.fog_enabled = true
-	environment.glow_enabled = quality >= 1
+	# Glow is a full-screen multi-pass effect: high quality only.
+	environment.glow_enabled = quality >= 2
 	environment.ssao_enabled = false
 
 

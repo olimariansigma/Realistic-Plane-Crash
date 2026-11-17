@@ -279,11 +279,14 @@ func _read_gyro() -> Vector2:
 func _refresh_telemetry() -> void:
 	_fps_label.visible = _settings.show_fps
 	if _settings.show_fps:
-		# Frame time, and the share of it spent in the physics tick (sim).
-		_fps_label.text = "%d FPS  %.1f ms  sim %.1f ms" % [
+		# GPU and CPU render time, script time and the physics tick (sim): the
+		# script figure alone hid the rendering cost on GPU-bound phones.
+		var vp := get_viewport().get_viewport_rid()
+		_fps_label.text = "%d FPS  gpu %.1f  cpu %.1f  sim %.1f ms" % [
 				Engine.get_frames_per_second(),
-				Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
-				+ Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+				RenderingServer.viewport_get_measured_render_time_gpu(vp),
+				RenderingServer.viewport_get_measured_render_time_cpu(vp)
+				+ Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 				Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0]
 	if _telemetry == null:
 		_telemetry_label.text = "NO DATA"

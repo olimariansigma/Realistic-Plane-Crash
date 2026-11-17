@@ -108,6 +108,8 @@ var _fbw_pitch_i: float = 0.0
 ## piece is only released when a chunk body can carry it, so none vanish.
 var shed_room: Callable
 var _strobes: Array[Node3D] = []
+## Last deflection written to each hinged piece (skips unchanged writes).
+var _hinged_last: PackedFloat32Array = PackedFloat32Array()
 var _beacons: Array[Node3D] = []
 var _light_time: float = 0.0
 var _fbw_active: bool = false
@@ -177,6 +179,8 @@ func setup(aircraft_def: AircraftDef) -> void:
 				_strobes.append(child as Node3D)
 			elif light_name.begins_with("Beacon"):
 				_beacons.append(child as Node3D)
+	_hinged_last.resize(_hinged_nodes.size())
+	_hinged_last.fill(1.0e9)
 	structure = StructureMonitor.new()
 	structure.setup(parts)
 	cabin = Cabin.new()
@@ -689,6 +693,9 @@ func _animate_surfaces() -> void:
 				amount = _act.z
 			SkinPiece.Surface.FLAP:
 				amount = flap_ratio
+		if absf(amount - _hinged_last[i]) < 0.0005:
+			continue
+		_hinged_last[i] = amount
 		node.transform = Transform3D(Basis(piece.hinge, amount * piece.deflect_max), piece.xform.origin)
 
 

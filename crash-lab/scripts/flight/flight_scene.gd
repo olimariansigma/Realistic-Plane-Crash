@@ -91,6 +91,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	RenderingServer.global_shader_parameter_set(&"cutaway_amount", 0.0)
+	AirframeBuilder.set_cutaway_shader(false)
 	PhysicsServer3D.set_active(true)
 
 
@@ -141,6 +142,7 @@ func _process(delta: float) -> void:
 	if _cutaway != _cutaway_target:
 		_cutaway = move_toward(_cutaway, _cutaway_target, delta * 1.6)
 		RenderingServer.global_shader_parameter_set(&"cutaway_amount", _cutaway)
+		AirframeBuilder.set_cutaway_shader(_cutaway > 0.0)
 		if _cutaway == 0.0:
 			aircraft.cabin.set_visible(false)
 

@@ -21,15 +21,16 @@ func setup(quality: int) -> void:
 	# Emitters are positioned every rendered frame, so they opt out of
 	# physics interpolation (which expects moves only on physics ticks).
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	max_fires = [3, 5, 8][clampi(quality, 0, 2)]
-	var density: float = [0.5, 0.8, 1.0][clampi(quality, 0, 2)]
+	# Smoke is the worst overdraw on a phone: few, smaller columns.
+	max_fires = [2, 3, 5][clampi(quality, 0, 2)]
+	var density: float = [0.4, 0.6, 0.85][clampi(quality, 0, 2)]
 	_blob = _make_blob()
 	for i: int in max_fires:
 		var fire := _make_emitter("Fire%d" % i, int(44.0 * density), 0.8, _fire_process(), _billboard(true), 1.5)
 		fire.emitting = false
 		add_child(fire)
 		_fire.append(fire)
-		var smoke := _make_emitter("Smoke%d" % i, int(30.0 * density), 5.5, _smoke_process(), _billboard(false), 4.5)
+		var smoke := _make_emitter("Smoke%d" % i, int(30.0 * density), 5.5, _smoke_process(), _billboard(false), 3.2)
 		smoke.emitting = false
 		add_child(smoke)
 		_smoke.append(smoke)

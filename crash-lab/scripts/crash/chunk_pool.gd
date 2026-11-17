@@ -75,6 +75,7 @@ func setup(count: int) -> void:
 		mi.material_override = AirframeBuilder.material()
 		mi.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
 		mi.visibility_range_end = 1200.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		body.add_child(mi)
 		add_child(body)
 		_bodies.append(body)
@@ -174,6 +175,7 @@ func _leave_behind(i: int) -> void:
 	copy.mesh = src.mesh
 	copy.material_override = src.material_override
 	copy.visibility_range_end = src.visibility_range_end
+	copy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	copy.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
 	for param: StringName in DENT_PARAMS:
 		copy.set_instance_shader_parameter(param, src.get_instance_shader_parameter(param))

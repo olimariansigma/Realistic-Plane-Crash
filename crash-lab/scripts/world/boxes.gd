@@ -47,6 +47,9 @@ func build(parent: Node3D) -> void:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "Buildings"
 	mmi.multimesh = mm
+	# Thousands of boxes in the sun's shadow pass every frame cost more than
+	# their shadows are worth at flight distances.
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mmi)
 	_xforms.clear()
 	_colors.clear()

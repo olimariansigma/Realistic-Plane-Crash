@@ -42,19 +42,42 @@ func build(parent: Node3D) -> void:
 	_commit(parent, "RoundTrees", rnd.build(), mat, _rnd_xf, _rnd_col)
 
 
+## Trees are batched per TILE-metre square so the distant ones are culled
+## (the ground shader already darkens the forest floor there): drawing all
+## ~6000 trees everywhere was the single largest cost in the scene.
+const TILE := 1500.0
+const DRAW_DISTANCE := 3200.0
+
+
 func _commit(parent: Node3D, node_name: String, mesh: ArrayMesh, mat: Material, xf: Array[Transform3D],
 		cols: Array[Color]) -> void:
 	mesh.surface_set_material(0, mat)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = mesh
-	mm.instance_count = xf.size()
+	var tiles := {}
 	for i: int in xf.size():
-		mm.set_instance_transform(i, xf[i])
-		mm.set_instance_color(i, cols[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.name = node_name
-	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(mmi)
+		var key := Vector2i(floori(xf[i].origin.x / TILE), floori(xf[i].origin.z / TILE))
+		if not tiles.has(key):
+			tiles[key] = []
+		(tiles[key] as Array).append(i)
+	for key: Vector2i in tiles:
+		var members: Array = tiles[key]
+		var centre := Vector3((float(key.x) + 0.5) * TILE, 0.0, (float(key.y) + 0.5) * TILE)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = mesh
+		mm.instance_count = members.size()
+		for k: int in members.size():
+			var i: int = members[k]
+			var t := xf[i]
+			t.origin -= centre
+			mm.set_instance_transform(k, t)
+			mm.set_instance_color(k, cols[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "%s_%d_%d" % [node_name, key.x, key.y]
+		mmi.multimesh = mm
+		mmi.position = centre
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = DRAW_DISTANCE
+		mmi.visibility_range_end_margin = 300.0
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		parent.add_child(mmi)

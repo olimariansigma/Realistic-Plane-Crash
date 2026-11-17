@@ -276,7 +276,37 @@ Other load-shedding:
   does not land all its set-up cost on one frame.
 - Once the wreck has stopped, `Aircraft.rest()` stops the flight model,
   structure monitor and cabin, and every body may sleep.
-- Low quality also drops shadows and renders 3D at 0.7 scale (medium 0.85).
+- Low quality also drops shadows.
+
+Render cost (fixed after "it lags even on my high-end phone"):
+
+- **Frame cap and render height.** `Engine.max_fps = 60` (also
+  `run/max_fps`) so a 120 Hz phone does not run its GPU flat out and then
+  thermal-throttle. 3D renders at a fixed target height of 540 / 720 / 900 px
+  by quality (`GameState.apply_quality`, re-run on `size_changed`) instead of
+  a fixed scale of the native panel, which on a 1440p phone was 2-3x the
+  pixels of a mid-range one. The HUD stays native.
+- **Merged intact skin.** Each part's non-hinged skin pieces are merged into
+  one "Intact" mesh at build time; the separate piece nodes stay hidden until
+  the first panel tears off (`AircraftPart.release_piece`). About 180 draw
+  calls became about 20 for an airliner.
+- **Shadow proxies.** Skin pieces and chunks cast no shadow. Each part casts
+  one shadow from a "Shadow" node (its far mesh, shadows only).
+- **Cutaway shader variant.** `airframe.gdshader` and `airframe_cut.gdshader`
+  both include `airframe.gdshaderinc`; only the `_cut` variant (with
+  `#define CUTAWAY`) has the `discard`, so normal flight keeps early depth
+  testing. `AirframeBuilder.set_cutaway_shader()` swaps them.
+- **Trees** are tiled 1.5 km MultiMeshes drawn to 3.2 km (were one batch
+  for the whole map, 208k triangles in view). Glow only at high quality.
+  Buildings cast no shadows. `max_physics_steps_per_frame=2`.
+- The HUD's FPS line shows GPU, CPU and simulation ms.
+
+Software-rendered (lavapipe) A380 in flight, before / after:
+102.8 ms / ~62-67 ms per frame, 407 / ~150 draw calls, 286k / 80-97k
+triangles. Lavapipe says nothing about phone speed; it shows the relative
+cost only. Not done yet: baking the ground shader into a texture, a texture
+for the title text instead of the distance-field segments, back-face culling
+on the intact skin.
 
 Simulation cost per physics tick, measured headless on the build machine
 (4-core x86-64, no renderer), milliseconds as average / 99th percentile / worst:
@@ -329,7 +359,8 @@ Made without asking, per the brief. Revisit if they stop fitting.
   default silently removed ~5% of free-fall speed in the first smoke test;
   drag is modelled explicitly, so hidden damping would corrupt the physics.
 - **60 Hz physics with physics interpolation on.** Matches the frame target;
-  `max_physics_steps_per_frame=4` so a slow frame degrades instead of spiraling.
+  `max_physics_steps_per_frame=2` so a slow frame degrades instead of spiraling
+  (the game slows down rather than catching up with a burst of steps).
 - **Procedural geometry.** Airframes, cabins and dummies are generated from
   data rather than imported models. This is what makes "new plane by data
   only" true, and it keeps the APK small.
@@ -392,6 +423,12 @@ Made without asking, per the brief. Revisit if they stop fitting.
   explicitly.
 - **A resting aircraft stops refreshing its cached part state.** After
   `Aircraft.rest()`, read `linear_velocity` from the body, not `lin_vel`.
+
+- **The 747's measured tail cone breaks it on a gentle belly landing.** With
+  the taper starting at the measured 45 m station, a 1.8 g gear-up landing
+  broke 10 of 22 joints. `gen_aircraft.gd` starts it at 52 m instead.
+  Open issue: the cause (probably part mass/inertia from the narrower
+  aft section, or the contact shape) has not been found.
 
 ## Not verifiable in this environment
 

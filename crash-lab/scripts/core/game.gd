@@ -55,6 +55,11 @@ func _ready() -> void:
 	var settings := SettingsStore.instance()
 	settings.changed.connect(apply_quality)
 	apply_quality()
+	get_viewport().size_changed.connect(apply_quality)
+	# 60 FPS is the target: a 120 Hz screen would otherwise double the GPU
+	# work (and the heat) for no gain in the simulation.
+	Engine.max_fps = 60
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	if OS.has_environment("CRASHLAB_AUTOPLAY"):
 		var autoplay := Autoplay.new()
 		autoplay.name = "Autoplay"
@@ -72,7 +77,12 @@ func _notification(what: int) -> void:
 func apply_quality() -> void:
 	var quality := SettingsStore.instance().graphics_quality
 	AirframeBuilder.detail = quality
-	get_viewport().scaling_3d_scale = [0.7, 0.85, 1.0][clampi(quality, 0, 2)]
+	# Render 3D at a target height, not the phone's native resolution: a
+	# 1440p screen at a fixed 0.85 scale shades ~4x the pixels the game was
+	# tuned for, and the phone heats up and throttles.
+	var height := float(DisplayServer.window_get_size().y)
+	var target: float = [540.0, 720.0, 900.0][clampi(quality, 0, 2)]
+	get_viewport().scaling_3d_scale = clampf(target / maxf(height, 1.0), 0.35, 1.0)
 
 
 func _scan_aircraft() -> void:

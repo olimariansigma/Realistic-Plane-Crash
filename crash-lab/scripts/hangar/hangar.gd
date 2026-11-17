@@ -69,6 +69,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	RenderingServer.global_shader_parameter_set(&"cutaway_amount", 0.0)
+	AirframeBuilder.set_cutaway_shader(false)
 
 
 func _build_room() -> void:
@@ -94,7 +95,7 @@ func _build_room() -> void:
 	env.ambient_light_energy = 0.55
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = 1.1
-	env.glow_enabled = SettingsStore.instance().graphics_quality >= 1
+	env.glow_enabled = SettingsStore.instance().graphics_quality >= 2
 	env.glow_intensity = 0.35
 	env.glow_hdr_threshold = 1.2
 	var we := WorldEnvironment.new()
@@ -252,6 +253,7 @@ func _process(delta: float) -> void:
 	if _cutaway != _cutaway_target:
 		_cutaway = move_toward(_cutaway, _cutaway_target, delta * 1.6)
 		RenderingServer.global_shader_parameter_set(&"cutaway_amount", _cutaway)
+		AirframeBuilder.set_cutaway_shader(_cutaway > 0.0)
 		if _cutaway == 0.0:
 			_set_cabin_visible(false)
 	var dist := clampf(_span * 1.45 * _zoom, 8.0, 105.0)

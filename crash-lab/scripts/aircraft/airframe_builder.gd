@@ -8,6 +8,7 @@ const LAYER_AIRFRAME := 2
 ## Distance at which an intact part swaps its skin pieces for one merged mesh.
 const LOD_DISTANCE := 170.0
 const SHADER_PATH := "res://shaders/airframe.gdshader"
+const CUT_SHADER_PATH := "res://shaders/airframe_cut.gdshader"
 const INTERIOR_SHADER_PATH := "res://shaders/interior.gdshader"
 const ATLAS_PATH := "res://assets/atlas.png"
 
@@ -62,6 +63,16 @@ static func part_meshes(adef: AircraftDef, part: PartDef) -> PartMeshes:
 	_mesh_cache[key] = built
 	_cache_mutex.unlock()
 	return built
+
+
+## Swaps the shared airframe material to the cutaway variant (which clips
+## with `discard`) only while the cutaway is shown: `discard` turns off early
+## depth testing on mobile GPUs for every airframe pixel.
+static func set_cutaway_shader(on: bool) -> void:
+	var mat := material()
+	var path := CUT_SHADER_PATH if on else SHADER_PATH
+	if mat.shader == null or mat.shader.resource_path != path:
+		mat.shader = load(path) as Shader
 
 
 static func material() -> ShaderMaterial:
@@ -141,6 +152,12 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		far.visibility_range_begin = LOD_DISTANCE
 		far.visibility_range_begin_margin = 8.0
 		root.add_child(far)
+	# While the part is undamaged its fixed skin is drawn as ONE merged mesh
+	# (one draw call instead of one per panel); the separate panels take over
+	# when the first one tears off (AircraftPart.release_piece).
+	var merge := SurfaceTool.new()
+	var merged := 0
+	merge.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i: int in meshes.pieces.size():
 		var piece := meshes.pieces[i]
 		var mi := _mesh_instance(piece.mesh, cut_x - piece.xform.origin.x)
@@ -148,7 +165,31 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		mi.transform = piece.xform
 		mi.visibility_range_end = LOD_DISTANCE
 		mi.visibility_range_end_margin = 8.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
+		if piece.control == SkinPiece.Surface.NONE and meshes.pieces.size() > 1:
+			merge.append_from(piece.mesh, 0, piece.xform)
+			mi.visible = false
+			merged += 1
+	if merged > 0:
+		var intact := _mesh_instance(merge.commit(), cut_x)
+		intact.name = "Intact"
+		intact.visibility_range_end = LOD_DISTANCE
+		intact.visibility_range_end_margin = 8.0
+		intact.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(intact)
+	# Shadows come from the simple far mesh at every distance: casting them
+	# from each skin panel doubled the draw calls.
+	if meshes.far != null:
+		var far_node := root.get_node_or_null(^"Far") as MeshInstance3D
+		if far_node != null:
+			far_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var shadow := MeshInstance3D.new()
+		shadow.name = "Shadow"
+		shadow.mesh = meshes.far
+		shadow.material_override = material()
+		shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		root.add_child(shadow)
 	_add_lights(adef, part, root)
 	var flag := 0.0
 	if part.kind == PartDef.Kind.FUSELAGE:
@@ -161,7 +202,8 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		# rudder carry their own mesh origin.
 		var frame := Vector3(part.com.x, part.com.y - fuselage_axis_y(adef), part.com.z - nose_station_zero(adef))
 		for child: Node in root.get_children():
-			if child is MeshInstance3D and child.name != &"Core":
+			if child is MeshInstance3D and child.name != &"Core" \
+					and (child as MeshInstance3D).material_override == material():
 				var mi := child as MeshInstance3D
 				var f := frame + mi.position
 				mi.set_instance_shader_parameter(&"livery_frame", Vector4(f.x, f.y, f.z, flag))
@@ -412,6 +454,7 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 	body.pieces = meshes.pieces
 	body.core_node = body.visual.get_node_or_null("Core") as MeshInstance3D
 	body.far_node = body.visual.get_node_or_null("Far") as MeshInstance3D
+	body.intact_node = body.visual.get_node_or_null("Intact") as MeshInstance3D
 	body.core_always_visible = meshes.core_always_visible
 	for i: int in meshes.pieces.size():
 		body.piece_nodes.append(body.visual.get_node("P%d" % i) as MeshInstance3D)

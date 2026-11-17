@@ -35,7 +35,7 @@ func _ready() -> void:
 	camera.name = "Camera"
 	camera.fov = BASE_FOV
 	camera.near = 0.4
-	camera.far = 40000.0
+	camera.far = 25000.0
 	camera.top_level = true
 	# Placed every rendered frame from the target's interpolated transform;
 	# interpolating the camera as well would smooth it twice and make it judder.
