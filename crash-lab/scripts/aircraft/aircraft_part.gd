@@ -73,6 +73,19 @@ var far_node: MeshInstance3D
 ## tears off; then the separate panels take over.
 var intact_node: MeshInstance3D
 var core_always_visible: bool = false
+## The internal structure merged into one mesh, drawn (when the structure is
+## on show) until the first member is torn out; then the members themselves.
+var frame_node: MeshInstance3D
+## Collision hull bounds in the part frame, for telling when two broken-apart
+## parts have separated far enough to start colliding.
+var hull_aabb: AABB
+## Share of the internal structure (by mass) still in place, 1 = whole. A
+## part with its frames or spars torn out carries less load at its joint.
+var structure_fraction: float = 1.0
+var _structure_mass_total: float = 0.0
+var _structure_mass_left: float = 0.0
+var _structure_broken: bool = false
+var _structure_shown: bool = false
 ## True once any skin has been lost.
 var stripped: bool = false
 ## Share of the skin (by mass) still attached, 1 = whole. Drives how much
@@ -157,6 +170,8 @@ func add_dent(local_pos: Vector3, local_dir: Vector3, depth: float) -> void:
 	_push_dents(far_node)
 	if intact_node != null:
 		_push_dents(intact_node)
+	if frame_node != null:
+		_push_dents(frame_node)
 	for i: int in piece_nodes.size():
 		# Hinged pieces have their own mesh frame, so part-local dents do not apply.
 		if piece_nodes[i] != null and pieces[i].control == SkinPiece.Surface.NONE:
@@ -180,6 +195,8 @@ func show_dents(a: Vector4, a_push: Vector3, b: Vector4, b_push: Vector3) -> voi
 	_show_dents_on(far_node, a, a_push, b, b_push)
 	if intact_node != null:
 		_show_dents_on(intact_node, a, a_push, b, b_push)
+	if frame_node != null:
+		_show_dents_on(frame_node, a, a_push, b, b_push)
 	for i: int in piece_nodes.size():
 		var node := piece_nodes[i] if piece_nodes[i] != null else _released_nodes.get(i) as MeshInstance3D
 		if node != null and pieces[i].control == SkinPiece.Surface.NONE:
@@ -211,18 +228,26 @@ func set_scorch(amount: float) -> void:
 		far_node.set_instance_shader_parameter(&"scorch", amount)
 	if intact_node != null:
 		intact_node.set_instance_shader_parameter(&"scorch", amount)
+	if frame_node != null:
+		frame_node.set_instance_shader_parameter(&"scorch", amount)
+	if core_node != null:
+		core_node.set_instance_shader_parameter(&"scorch", amount)
 	for node: MeshInstance3D in piece_nodes:
 		if node != null:
 			node.set_instance_shader_parameter(&"scorch", amount)
 
 
-## Index of the attached skin piece nearest to `local_pos`, or -1 if none lies
-## within `max_distance`.
-func nearest_piece(local_pos: Vector3, max_distance: float) -> int:
+## Index of the attached piece nearest to `local_pos`, or -1 if none lies
+## within `max_distance`. Structure only qualifies once the skin over it has
+## gone, and only with `allow_structure`.
+func nearest_piece(local_pos: Vector3, max_distance: float, allow_structure: bool = true) -> int:
 	var best := -1
 	var best_d := max_distance * max_distance
 	for i: int in pieces.size():
 		if piece_nodes[i] == null:
+			continue
+		var piece := pieces[i]
+		if piece.structure and (not allow_structure or (piece.cover >= 0 and piece_nodes[piece.cover] != null)):
 			continue
 		var d := pieces[i].center.distance_squared_to(local_pos)
 		if d < best_d:
@@ -245,12 +270,28 @@ func release_piece(index: int) -> MeshInstance3D:
 		# First loss: take stock of what the part had.
 		_hinged_left = 0
 		for piece: SkinPiece in pieces:
+			if piece.structure:
+				_structure_mass_total += piece.mass
+				continue
 			_skin_mass_total += piece.mass
 			if piece.control != SkinPiece.Surface.NONE:
 				_hinged_left += 1
 		_skin_mass_left = _skin_mass_total
+		_structure_mass_left = _structure_mass_total
 		if _hinged_left == 0:
 			_hinged_left = 1 << 20  # all-moving or fixed: nothing to lose
+	if pieces[index].structure:
+		_structure_mass_left -= pieces[index].mass
+		structure_fraction = clampf(_structure_mass_left / maxf(_structure_mass_total, 1.0), 0.0, 1.0)
+		node.visible = false
+		mass = maxf(mass - pieces[index].mass, def.mass * 0.4)
+		if not _structure_broken:
+			# Hand over from the merged structure to the separate members.
+			_structure_broken = true
+			if frame_node != null:
+				frame_node.visible = false
+			_show_members(_structure_shown)
+		return node
 	_skin_mass_left -= pieces[index].mass
 	skin_fraction = clampf(_skin_mass_left / maxf(_skin_mass_total, 1.0), 0.0, 1.0)
 	if pieces[index].control != SkinPiece.Surface.NONE:
@@ -268,20 +309,47 @@ func release_piece(index: int) -> MeshInstance3D:
 			# Hand over from the merged skin to the separate panels.
 			intact_node.visible = false
 			for k: int in piece_nodes.size():
-				if piece_nodes[k] != null:
+				if piece_nodes[k] != null and not pieces[k].structure:
 					piece_nodes[k].visible = true
-		if core_node != null:
-			core_node.visible = true
-			core_node.visibility_range_end = 0.0
 		for other: MeshInstance3D in piece_nodes:
 			if other != null:
 				other.visibility_range_end = 0.0
+		if core_node != null:
+			core_node.visibility_range_end = 0.0
+		if frame_node != null:
+			frame_node.visibility_range_end = 0.0
+		show_structure(true)
 	return node
+
+
+## Shows or hides what is under the skin: floor, frames and stringers or
+## spars and ribs. A stripped part keeps it on show regardless.
+func show_structure(show: bool) -> void:
+	show = show or stripped or core_always_visible
+	_structure_shown = show
+	if core_node != null:
+		core_node.visible = show
+	if _structure_broken:
+		_show_members(show)
+	elif frame_node != null:
+		frame_node.visible = show
+
+
+func _show_members(show: bool) -> void:
+	for k: int in piece_nodes.size():
+		if piece_nodes[k] != null and pieces[k].structure:
+			piece_nodes[k].visible = show
+
+
+## Joint strength left, from the structure still in place: a fuselage bay
+## with its frames torn out cannot carry the load an intact one does.
+func strength() -> float:
+	return lerpf(0.4, 1.0, structure_fraction)
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var n := state.get_contact_count()
-	contact_count = n
+	contact_count = 0
 	contact_impulse = Vector3.ZERO
 	contact_torque_impulse = Vector3.ZERO
 	hit_speed = 0.0
@@ -291,6 +359,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var origin := state.transform.origin
 	var best := -1.0
 	for i: int in n:
+		if _is_loose(state, i):
+			continue
+		contact_count += 1
 		var j := state.get_contact_impulse(i)
 		var pos := state.get_contact_collider_position(i)
 		contact_impulse += j
@@ -304,3 +375,13 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			var rel := state.get_contact_local_velocity_at_position(i) \
 					- state.get_contact_collider_velocity_at_position(i)
 			hit_speed = maxf(-rel.dot(normal), 0.0)
+
+
+## True if contact `i` is with a loose panel or shard. Those bounce off the
+## airframe but do not push it (its mask leaves out their layers, which in
+## Godot's Jolt makes the contact one-way), yet Jolt still reports them here;
+## counted, they would read as phantom loads in the structure monitor and as
+## impacts that crush the part.
+func _is_loose(state: PhysicsDirectBodyState3D, i: int) -> bool:
+	var other := state.get_contact_collider_object(i) as CollisionObject3D
+	return other != null and (other.collision_layer & collision_mask) == 0

@@ -10,7 +10,12 @@ extends Node3D
 ## as they have been still for a moment, so settled wreckage costs nothing.
 
 const LAYER_WORLD := 1
+const LAYER_AIRFRAME := 2
 const LAYER_DEBRIS := 4
+const CLEAR_CHECK_TICKS := 4
+## Pieces lying still on the ground: solid to other loose pieces, not to the
+## airframe (a sliding hull would otherwise stub into them like kerbs).
+const LAYER_SETTLED := 16
 const REST_SPEED_SQ := 0.36
 const REST_TIME := 0.6
 const PARK := Vector3(0.0, -2000.0, 0.0)
@@ -32,6 +37,9 @@ var _bodies: Array[RigidBody3D] = []
 var _meshes: Array[MeshInstance3D] = []
 var _state: PackedByteArray
 var _still: PackedFloat32Array
+var _clear: PackedByteArray
+var _ticks: int = 0
+var _clearance := AirframeClearance.new()
 var _next: int = 0
 var _rng := RandomNumberGenerator.new()
 
@@ -49,6 +57,7 @@ func setup(count: int) -> void:
 	_rng.seed = 90210
 	_state.resize(count)
 	_still.resize(count)
+	_clear.resize(count)
 	var shapes: Array[BoxShape3D] = []
 	var meshes: Array[BoxMesh] = []
 	# Panel shard, spar/strut, compact chunk.
@@ -114,7 +123,11 @@ func spawn_burst(pos: Vector3, base_velocity: Vector3, spread: float, count: int
 		var offset := Vector3(_rng.randf_range(-1.0, 1.0), _rng.randf_range(0.2, 1.2), _rng.randf_range(-1.0, 1.0))
 		body.freeze = false
 		body.collision_layer = LAYER_DEBRIS
-		body.collision_mask = LAYER_WORLD
+		# Shards bounce off each other and the ground at once, and off the
+		# wreckage once clear of it (they start inside the hull, at the point
+		# of impact; see AirframeClearance).
+		body.collision_mask = LAYER_WORLD | LAYER_DEBRIS | LAYER_SETTLED
+		_clear[i] = 0
 		body.global_transform = Transform3D(
 				Basis.from_euler(Vector3(_rng.randf() * TAU, _rng.randf() * TAU, _rng.randf() * TAU)),
 				pos + offset)
@@ -136,16 +149,20 @@ func _physics_process(dt: float) -> void:
 	if flying_count == 0:
 		set_physics_process(false)
 		return
+	_ticks += 1
 	for i: int in capacity:
 		if _state[i] != State.FLYING:
 			continue
 		var body := _bodies[i]
+		if _clear[i] == 0 and (_ticks + i) % CLEAR_CHECK_TICKS == 0 and _clearance.is_clear(body, _shapes[i]):
+			_clear[i] = 1
+			body.collision_mask = LAYER_WORLD | LAYER_DEBRIS | LAYER_SETTLED | LAYER_AIRFRAME
 		if body.linear_velocity.length_squared() < REST_SPEED_SQ or body.global_position.y < -50.0:
 			_still[i] += dt
 			if _still[i] >= REST_TIME:
 				# Settled: leave it lying there, but take it out of the simulation.
 				body.freeze = true
-				body.collision_layer = 0
+				body.collision_layer = LAYER_SETTLED
 				body.collision_mask = 0
 				_state[i] = State.SETTLED
 				flying_count -= 1

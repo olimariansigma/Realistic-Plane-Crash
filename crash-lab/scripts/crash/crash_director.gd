@@ -123,6 +123,11 @@ func _release_chunks() -> void:
 		var slot := _released % QUEUE_SIZE
 		# A chunk released a few ticks late starts where its part has moved on from.
 		chunks.spawn(_q_piece[slot], _q_xf[slot], _q_vel[slot], _q_kick[slot], _q_node[slot])
+		if _q_piece[slot].structure:
+			# Torn-out frames and spars leave a spray of clips, brackets and
+			# fasteners behind.
+			var at := _q_xf[slot] * _q_piece[slot].center
+			debris.spawn_burst(at, _q_vel[slot], 3.0 + _q_kick[slot] * 0.5, 2, MeshFactory.PRIMER)
 		_q_piece[slot] = null
 		_q_node[slot] = null
 		_released += 1

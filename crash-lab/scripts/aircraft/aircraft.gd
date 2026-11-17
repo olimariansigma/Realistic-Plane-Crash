@@ -102,6 +102,12 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+## Pairs of parts (i * count + j) that do not collide with each other: all of
+## them while the airframe is whole, since jointed parts overlap at their
+## seams. Once a joint breaks, pairs that end up in different pieces of
+## wreckage start colliding as soon as their hulls have separated.
+var _no_collide: PackedByteArray = PackedByteArray()
+var _pending_pairs: Array[Vector2i] = []
 var _airborne_time: float = 0.0
 var _fbw_pitch_i: float = 0.0
 ## How many skin pieces can be torn off right now (set by CrashDirector): a
@@ -181,6 +187,14 @@ func setup(aircraft_def: AircraftDef) -> void:
 				_beacons.append(child as Node3D)
 	_hinged_last.resize(_hinged_nodes.size())
 	_hinged_last.fill(1.0e9)
+	var count := parts.size()
+	_no_collide.resize(count * count)
+	_no_collide.fill(0)
+	for i: int in count:
+		for j: int in range(i + 1, count):
+			parts[i].add_collision_exception_with(parts[j])
+			parts[j].add_collision_exception_with(parts[i])
+			_no_collide[i * count + j] = 1
 	structure = StructureMonitor.new()
 	structure.setup(parts)
 	cabin = Cabin.new()
@@ -297,6 +311,8 @@ func _physics_process(dt: float) -> void:
 			# the outboard one is then no longer overloaded in fact, but it was
 			# measured so, and both letting go is the physical outcome.
 			detach(idx, structure.load_ratio[idx])
+	if not _pending_pairs.is_empty() and _ticks % 3 == 0:
+		_update_part_collisions()
 	_process_impacts(dt)
 	for i: int in count:
 		var part := parts[i]
@@ -405,6 +421,14 @@ func detach(index: int, load_ratio: float) -> void:
 		var p := parts[i]
 		if p.assembly_root != 0:
 			p.can_sleep = true
+	# Pieces of wreckage that are now separate must be able to hit each other.
+	var count := parts.size()
+	for i: int in count:
+		for j: int in range(i + 1, count):
+			if _no_collide[i * count + j] == 1 and parts[i].assembly_root != parts[j].assembly_root:
+				_no_collide[i * count + j] = 2
+				_pending_pairs.append(Vector2i(i, j))
+	_update_part_collisions()
 	for engine: EngineUnit in engines:
 		# Torn from the fuel system: the engine runs down.
 		if engine.part.assembly_root != 0:
@@ -418,10 +442,15 @@ func detach(index: int, load_ratio: float) -> void:
 				gear.leg_visual.rotation.x = 0.0
 	_mark_crashed()
 	part_detached.emit(part, parent, load_ratio)
-	# A joint never parts cleanly: skin around the break goes with it.
+	# A joint never parts cleanly: skin around the break goes with it, and on
+	# a violent break the frames or spar segments at the fracture as well.
 	var tear := 2 if load_ratio > 4.0 else 1
-	shed_pieces(part, part.anchor_local, 3.5, tear, 6.0)
-	shed_pieces(parent, part.def.anchor - parent.def.com, 3.5, tear, 6.0)
+	var parent_anchor := part.def.anchor - parent.def.com
+	shed_pieces(part, part.anchor_local, 3.5, tear, 6.0, false)
+	shed_pieces(parent, parent_anchor, 3.5, tear, 6.0, false)
+	if load_ratio > 2.0:
+		shed_pieces(part, part.anchor_local, 3.5, tear, 7.0)
+		shed_pieces(parent, parent_anchor, 3.5, tear, 7.0)
 
 	# Ruptured tanks and hot engines catch fire.
 	var speed := part.lin_vel.length()
@@ -496,7 +525,7 @@ func _process_impacts(dt: float) -> void:
 			var excess := telemetry.ias / def.v_never_exceed - 1.0
 			if _rng.randf() < clampf(excess * 2.5, 0.0, 0.5):
 				var victim := part.pieces[_rng.randi() % part.pieces.size()].center
-				shed_pieces(part, victim, 1000.0, 1, 4.0)
+				shed_pieces(part, victim, 1000.0, 1, 4.0, false)
 				_mark_crashed()
 		# Broken structure in a fast airstream keeps coming apart, panel by panel,
 		# but slowly: a torn-off wing tumbles down mostly whole, losing the odd
@@ -512,7 +541,7 @@ func _process_impacts(dt: float) -> void:
 				chance *= 0.0 if part.def.kind == PartDef.Kind.FUSELAGE else 0.1
 			if q > STRIP_DYN_PRESSURE and _rng.randf() < chance:
 				var pick := part.pieces[_rng.randi() % part.pieces.size()].center
-				shed_pieces(part, pick, 1000.0, 1, 4.0)
+				shed_pieces(part, pick, 1000.0, 1, 4.0, false)
 		if part.contact_count == 0 or part.sleeping:
 			continue
 		if part.def.kind != PartDef.Kind.GEAR:
@@ -527,7 +556,8 @@ func _process_impacts(dt: float) -> void:
 		if part.pieces_left > 0 and (_ticks + i) % 8 == 0:
 			var slide := part.lin_vel.length()
 			if slide > SCRAPE_SPEED and _rng.randf() < slide / 420.0:
-				shed_pieces(part, (part.hit_position - part.xf.origin) * part.xf.basis, 2.4, 1, 2.0)
+				# Abrasion wears through skin; frames are torn out by impacts.
+				shed_pieces(part, (part.hit_position - part.xf.origin) * part.xf.basis, 2.4, 1, 2.0, false)
 		if part.hit_speed < IMPACT_MIN_SPEED:
 			continue
 		# Energy absorbed at the contact: impulse times mean closing speed.
@@ -701,12 +731,13 @@ func _animate_surfaces() -> void:
 
 ## Tears up to `max_count` skin pieces off `part`, nearest to `local_pos`
 ## first and no further than `radius` from it. Returns how many came off.
-func shed_pieces(part: AircraftPart, local_pos: Vector3, radius: float, max_count: int, kick: float) -> int:
+func shed_pieces(part: AircraftPart, local_pos: Vector3, radius: float, max_count: int, kick: float,
+		allow_structure: bool = true) -> int:
 	var shed := 0
 	if shed_room.is_valid():
 		max_count = mini(max_count, int(shed_room.call()))
 	for _n: int in max_count:
-		var index := part.nearest_piece(local_pos, radius)
+		var index := part.nearest_piece(local_pos, radius, allow_structure)
 		if index < 0:
 			break
 		var first := not part.stripped
@@ -716,6 +747,25 @@ func shed_pieces(part: AircraftPart, local_pos: Vector3, radius: float, max_coun
 		piece_shed.emit(part, part.pieces[index], node, kick)
 		shed += 1
 	return shed
+
+
+## Lets broken-apart parts collide once their hulls no longer overlap (two
+## parts that were jointed overlap at the seam; colliding at once would shove
+## them apart with a jolt the break did not have).
+func _update_part_collisions() -> void:
+	var count := parts.size()
+	for n: int in range(_pending_pairs.size() - 1, -1, -1):
+		var pair := _pending_pairs[n]
+		var a := parts[pair.x]
+		var b := parts[pair.y]
+		var box_a := (a.global_transform * a.hull_aabb).grow(0.05)
+		var box_b := b.global_transform * b.hull_aabb
+		if box_a.intersects(box_b):
+			continue
+		a.remove_collision_exception_with(b)
+		b.remove_collision_exception_with(a)
+		_no_collide[pair.x * count + pair.y] = 0
+		_pending_pairs.remove_at(n)
 
 
 func _apply_gear_state() -> void:

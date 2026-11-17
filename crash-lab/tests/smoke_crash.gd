@@ -235,7 +235,16 @@ func _physics_process(dt: float) -> bool:
 				var shed := skin_total - skin_left
 				if shed < 12 or _director.chunks.spawned_total < shed:
 					return _fail("dive crash tore off only %d of %d skin pieces (%d chunks)" % [shed, skin_total, _director.chunks.spawned_total])
-				_summary.append("%d/%d skin pieces torn off, peak %d chunks flying" % [shed, skin_total, _peak_chunks])
+				var frames_total := 0
+				var frames_out := 0
+				for part: AircraftPart in _aircraft.parts:
+					for k: int in part.pieces.size():
+						if part.pieces[k].structure:
+							frames_total += 1
+							if part.piece_nodes[k] == null:
+								frames_out += 1
+				_summary.append("%d/%d pieces torn off (%d/%d structure members), peak %d chunks flying" % [
+						shed, skin_total, frames_out, frames_total, _peak_chunks])
 				_summary.append("dive: %d/%d joints, %d fires, crumple %.1f m, peak %d flying debris, rest in %.1f s" % [
 						broken, joints, _aircraft.fires.size(), deepest, _peak_flying, _director.crash_clock])
 				var report := InjuryModel.build_report(_aircraft, _director)

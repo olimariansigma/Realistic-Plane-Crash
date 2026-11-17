@@ -10,7 +10,13 @@ extends Node3D
 ## room, and the aircraft keeps its skin until one lands (see `room()`).
 
 const LAYER_WORLD := 1
+const LAYER_AIRFRAME := 2
 const LAYER_DEBRIS := 4
+## Pieces lying still on the ground: solid to other loose pieces, not to the
+## airframe (a sliding hull would otherwise stub into them like kerbs).
+const LAYER_SETTLED := 16
+## How often (ticks) a chunk not yet clear of the airframe is checked again.
+const CLEAR_CHECK_TICKS := 4
 const REST_SPEED_SQ := 0.5
 const REST_TIME := 0.7
 const PARK := Vector3(0.0, -2000.0, 0.0)
@@ -32,6 +38,10 @@ var _meshes: Array[MeshInstance3D] = []
 var _shapes: Array[BoxShape3D] = []
 var _state: PackedByteArray
 var _still: PackedFloat32Array
+## 1 once the chunk is clear of the airframe and collides with it.
+var _clear: PackedByteArray
+var _ticks: int = 0
+var _clearance := AirframeClearance.new()
 var _next: int = 0
 var _rng := RandomNumberGenerator.new()
 
@@ -50,6 +60,7 @@ func setup(count: int) -> void:
 	_rng.seed = 4711
 	_state.resize(count)
 	_still.resize(count)
+	_clear.resize(count)
 	var physics := PhysicsMaterial.new()
 	physics.friction = 0.6
 	physics.bounce = 0.12
@@ -100,7 +111,10 @@ func spawn(piece: SkinPiece, part_xf: Transform3D, velocity: Vector3, kick: floa
 	spawned_total += 1
 	var body := _bodies[i]
 	var mi := _meshes[i]
+	_clear[i] = 0
 	mi.mesh = piece.mesh
+	# Frames, stringers, spars and ribs are drawn as bare primed structure.
+	mi.material_override = AirframeBuilder.interior_material() if piece.structure else AirframeBuilder.material()
 	mi.transform = Transform3D(piece.xform.basis, piece.xform.origin - piece.center)
 	var values: Array = []
 	for param: StringName in DENT_PARAMS:
@@ -113,7 +127,7 @@ func spawn(piece: SkinPiece, part_xf: Transform3D, velocity: Vector3, kick: floa
 	body.mass = piece.mass
 	body.freeze = false
 	body.collision_layer = LAYER_DEBRIS
-	body.collision_mask = LAYER_WORLD
+	body.collision_mask = LAYER_WORLD | LAYER_DEBRIS | LAYER_SETTLED
 	body.global_transform = part_xf * Transform3D(Basis.IDENTITY, piece.center)
 	var away := part_xf.basis * piece.center
 	away = away.normalized() if away.length_squared() > 0.01 else Vector3.UP
@@ -130,15 +144,21 @@ func _physics_process(dt: float) -> void:
 	if flying_count == 0:
 		set_physics_process(false)
 		return
+	_ticks += 1
 	for i: int in capacity:
 		if _state[i] != State.FLYING:
 			continue
 		var body := _bodies[i]
+		if _clear[i] == 0 and (_ticks + i) % CLEAR_CHECK_TICKS == 0 and _clearance.is_clear(body, _shapes[i]):
+			_clear[i] = 1
+			body.collision_mask = LAYER_WORLD | LAYER_DEBRIS | LAYER_SETTLED | LAYER_AIRFRAME
 		if body.linear_velocity.length_squared() < REST_SPEED_SQ or body.global_position.y < -50.0:
 			_still[i] += dt
 			if _still[i] >= REST_TIME:
+				# Settled: frozen in place but still solid, so later pieces land
+				# on it instead of falling through.
 				body.freeze = true
-				body.collision_layer = 0
+				body.collision_layer = LAYER_SETTLED
 				body.collision_mask = 0
 				_state[i] = State.SETTLED
 				flying_count -= 1

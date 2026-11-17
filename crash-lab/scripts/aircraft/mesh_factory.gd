@@ -462,6 +462,10 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 	var paint := _skin_color(adef, part)
 	var squash := part.squash
 
+	# Bay ranges (station indices) and the skin piece covering each bay
+	# quadrant, for the structure pieces built below.
+	var bays: Array[Vector2i] = []
+	var cover: PackedInt32Array = []
 	var bay_start := 0
 	while bay_start < stations.size() - 1:
 		var bay_end := bay_start + 1
@@ -478,6 +482,7 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 		var u_start := fposmod(stations[bay_start] + part.p0.z * 0.37, STRIP_METRES) / STRIP_METRES
 		if u_start + (stations[bay_end] - stations[bay_start]) / STRIP_METRES > 1.0:
 			u_start = 0.0
+		bays.append(Vector2i(bay_start, bay_end))
 		for q: int in 4:
 			var surf := Surf.new()
 			for s: int in range(bay_start, bay_end):
@@ -532,43 +537,117 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 							_ring_point(c1, pr1.x, a1, squash, top1), _ring_point(c1, pr1.x, a0, squash, top1),
 							inside, col, uv00, uv01, uv11, uv10)
 			if not surf.empty():
+				cover.append(out.pieces.size())
 				out.pieces.append(_piece(surf, SKIN_KG_M2))
+			else:
+				cover.append(-1)
 		bay_start = bay_end
 
-	# Core: frames, longerons and the floor.
+	_fuselage_structure(adef, part, detail, stations, bays, cover, out)
+	out.far = _body_far(adef, part, 10)
+
+
+## The fuselage's internal structure. Frames (web plus inner flange) and hat
+## stringers are cut into one piece per bay quadrant, under the skin panel
+## that covers them, so a crash can tear the structure out bay by bay once
+## the skin is gone. The floor and its cross beams stay with the part (core).
+static func _fuselage_structure(adef: AircraftDef, part: PartDef, detail: int, stations: PackedFloat32Array,
+		bays: Array[Vector2i], cover: PackedInt32Array, out: PartMeshes) -> void:
+	var length := (part.p1 - part.p0).length()
+	var dir := (part.p1 - part.p0) / length
+	var origin := part.p0 - part.com
+	var squash := part.squash
+	var primer_uv := tile_uv(TILE_PRIMER, 0.5, 0.5)
+	var frame_col := PRIMER
+	var stringer_col := PRIMER.darkened(0.15)
+	# Segments per quadrant for the frame arcs, stringers per quadrant.
+	var arc := 4 if detail == 0 else 6
+	var stringers := 3 if detail == 0 else 5
+	var flange := 0.04
+	for b: int in bays.size():
+		var first := bays[b].x
+		var last := bays[b].y
+		# A bay owns the frames at its stations, the last bay also the end one.
+		var frame_end := last + 1 if b == bays.size() - 1 else last
+		for q: int in 4:
+			var surf := Surf.new()
+			var a_lo := PI * 0.5 * float(q) - PI * 0.25
+			for s: int in range(first, frame_end):
+				var d := stations[s]
+				var pr := body_profile(part, d, length)
+				if pr.x < 0.35:
+					continue
+				var c := origin + dir * d + Vector3(0.0, pr.y, 0.0)
+				var top := _top_scale(part, d, length)
+				# Deeper frames on bigger fuselages, as on the real ones.
+				var depth := clampf(pr.x * 0.06, 0.08, 0.2)
+				var r_out := pr.x * 0.985
+				var r_in := r_out - depth
+				for k: int in arc:
+					var a0 := a_lo + PI * 0.5 * float(k) / float(arc)
+					var a1 := a_lo + PI * 0.5 * float(k + 1) / float(arc)
+					var o0 := _ring_point(c, r_out, a0, squash, top)
+					var o1 := _ring_point(c, r_out, a1, squash, top)
+					var i0 := _ring_point(c, r_in, a0, squash, top)
+					var i1 := _ring_point(c, r_in, a1, squash, top)
+					surf.flat_quad(i0, i1, o1, o0, c - dir, frame_col, primer_uv)
+					# Inner flange (the cap the cabin lining is fixed to).
+					surf.flat_quad(i0 - dir * flange, i1 - dir * flange, i1 + dir * flange, i0 + dir * flange,
+							c, frame_col.darkened(0.1), primer_uv)
+			# Stringers run the length of the bay just inside the skin.
+			for s: int in range(first, last):
+				var d0 := stations[s]
+				var d1 := stations[s + 1]
+				var pr0 := body_profile(part, d0, length)
+				var pr1 := body_profile(part, d1, length)
+				if pr0.x < 0.35 or pr1.x < 0.35:
+					continue
+				var c0 := origin + dir * d0 + Vector3(0.0, pr0.y, 0.0)
+				var c1 := origin + dir * d1 + Vector3(0.0, pr1.y, 0.0)
+				var top0 := _top_scale(part, d0, length)
+				var top1 := _top_scale(part, d1, length)
+				var mid := (c0 + c1) * 0.5
+				for k: int in stringers:
+					var a := a_lo + PI * 0.5 * (float(k) + 0.5) / float(stringers)
+					var h0 := clampf(pr0.x * 0.025, 0.035, 0.07)
+					var h1 := clampf(pr1.x * 0.025, 0.035, 0.07)
+					var w := 0.022 / maxf(pr0.x, 0.5)
+					# Web standing off the skin, then a flange along its foot.
+					surf.flat_quad(_ring_point(c0, pr0.x * 0.985, a, squash, top0),
+							_ring_point(c1, pr1.x * 0.985, a, squash, top1),
+							_ring_point(c1, pr1.x * 0.985 - h1, a, squash, top1),
+							_ring_point(c0, pr0.x * 0.985 - h0, a, squash, top0),
+							mid + Vector3(1.0, 0.0, 0.0), stringer_col, primer_uv)
+					surf.flat_quad(_ring_point(c0, pr0.x * 0.985 - h0, a - w, squash, top0),
+							_ring_point(c1, pr1.x * 0.985 - h1, a - w, squash, top1),
+							_ring_point(c1, pr1.x * 0.985 - h1, a + w, squash, top1),
+							_ring_point(c0, pr0.x * 0.985 - h0, a + w, squash, top0),
+							mid, stringer_col, primer_uv)
+			if surf.empty():
+				continue
+			# Frames, stringers, clips and fasteners: much heavier per square
+			# metre of drawn surface than the skin.
+			var piece := _piece(surf, SKIN_KG_M2 * 4.0)
+			piece.structure = true
+			piece.cover = cover[b * 4 + q]
+			out.pieces.append(piece)
+
+	# Core: the cabin floor and its cross beams. Alpha 0 keeps it whole in
+	# the cutaway.
 	var core := Surf.new()
 	var floor_y := _floor_y(adef, part) - part.com.y
-	var primer_uv := tile_uv(TILE_PRIMER, 0.5, 0.5)
 	var floor_uv := tile_uv(TILE_FLOOR, 0.5, 0.5)
-	var frame_sides := 12
 	var floor_col := Color(CARPET.r, CARPET.g, CARPET.b, 0.0)
-	for s: int in stations.size():
+	var beam_col := Color(PRIMER.r, PRIMER.g, PRIMER.b, 0.0).darkened(0.2)
+	for s: int in stations.size() - 1:
 		var d := stations[s]
+		var d1 := stations[s + 1]
 		var pr := body_profile(part, d, length)
-		if pr.x < 0.35:
+		var pr1 := body_profile(part, d1, length)
+		if pr.x < 0.35 or pr1.x < 0.35:
 			continue
 		var c := origin + dir * d + Vector3(0.0, pr.y, 0.0)
-		var top := _top_scale(part, d, length)
-		for k: int in frame_sides:
-			var a0 := TAU * float(k) / float(frame_sides)
-			var a1 := TAU * float(k + 1) / float(frame_sides)
-			core.flat_quad(_ring_point(c, pr.x * 0.86, a0, squash, top), _ring_point(c, pr.x * 0.86, a1, squash, top),
-					_ring_point(c, pr.x * 0.985, a1, squash, top), _ring_point(c, pr.x * 0.985, a0, squash, top),
-					c - dir, PRIMER, primer_uv)
-		if s == stations.size() - 1:
-			break
-		var d1 := stations[s + 1]
-		var pr1 := body_profile(part, d1, length)
-		if pr1.x < 0.35:
-			continue
 		var c1 := origin + dir * d1 + Vector3(0.0, pr1.y, 0.0)
-		for k: int in 6:
-			var a := TAU * (float(k) + 0.5) / 6.0
-			var da := 0.05
-			core.flat_quad(_ring_point(c, pr.x * 0.97, a - da, squash), _ring_point(c, pr.x * 0.97, a + da, squash),
-					_ring_point(c1, pr1.x * 0.97, a + da, squash), _ring_point(c1, pr1.x * 0.97, a - da, squash),
-					(c + c1) * 0.5, PRIMER.darkened(0.15), primer_uv)
-		# Floor: alpha 0 keeps it out of the cutaway clip.
 		var fy0 := floor_y - c.y
 		var fy1 := floor_y - c1.y
 		var ry0 := pr.x * 0.95 * squash.y
@@ -579,9 +658,13 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 			core.flat_quad(Vector3(-w0, floor_y, c.z), Vector3(w0, floor_y, c.z),
 					Vector3(w1, floor_y, c1.z), Vector3(-w1, floor_y, c1.z),
 					Vector3(0.0, floor_y - 5.0, (c.z + c1.z) * 0.5), floor_col, floor_uv)
+			# Floor beam across the fuselage under the floor panels.
+			var beam := clampf(pr.x * 0.08, 0.12, 0.3)
+			core.flat_quad(Vector3(-w0, floor_y, c.z), Vector3(w0, floor_y, c.z),
+					Vector3(w0 * 0.92, floor_y - beam, c.z), Vector3(-w0 * 0.92, floor_y - beam, c.z),
+					c - dir, beam_col, tile_uv(TILE_PRIMER, 0.5, 0.5))
 	if not core.empty():
 		out.core = core.mesh()
-	out.far = _body_far(adef, part, 10)
 
 
 ## Cheap merged tube for the far LOD.
@@ -797,6 +880,7 @@ static func _panel(adef: AircraftDef, part: PartDef, detail: int, out: PartMeshe
 	elif hinge.x < 0.0:
 		hinge = -hinge
 
+	var box_index: PackedInt32Array = []
 	for i: int in segments:
 		var t0 := float(i) / float(segments)
 		var t1 := float(i + 1) / float(segments)
@@ -825,6 +909,7 @@ static func _panel(adef: AircraftDef, part: PartDef, detail: int, out: PartMeshe
 			_tip_rib(box, q1, ch1, thick, normal, 0.0, REAR_SPAR, inside)
 			if part.winglet > 0.0:
 				_winglet(box, q1, ch1, thick, normal, part.winglet, paint, adef.accent, part.winglet_style)
+		box_index.append(out.pieces.size())
 		out.pieces.append(_piece(box, SKIN_KG_M2 * 1.6))
 
 		# Trailing edge: flap / aileron / elevator / rudder, or fixed skin.
@@ -868,24 +953,55 @@ static func _panel(adef: AircraftDef, part: PartDef, detail: int, out: PartMeshe
 			te_piece.side = signf(part.com.x) if absf(part.com.x) > 0.05 else 1.0
 		out.pieces.append(te_piece)
 
-	# Core: two spars and a rib at every segment boundary.
-	var core := Surf.new()
+	# Structure, one piece per wing box segment under its skin: front and rear
+	# spars (web plus caps), airfoil-shaped ribs and top and bottom stringers.
 	var primer := Color(PRIMER.r, PRIMER.g, PRIMER.b, 0.0)
 	var uv := tile_uv(TILE_PRIMER, 0.5, 0.5)
-	for spar: float in [0.16, REAR_SPAR - 0.02]:
-		core.flat_quad(_foil(root, part.r0, thick, normal, spar, 0.82, 1.0),
-				_foil(tip, part.r1, thick, normal, spar, 0.82, 1.0),
-				_foil(tip, part.r1, thick, normal, spar, 0.82, -1.0),
-				_foil(root, part.r0, thick, normal, spar, 0.82, -1.0),
-				root + Vector3(0.0, 0.0, -10.0), primer, uv)
-	for i: int in segments * 2 + 1:
-		var t := float(i) / float(segments * 2)
-		var q := root.lerp(tip, t)
-		var ch := lerpf(part.r0, part.r1, t)
-		core.flat_quad(_foil(q, ch, thick, normal, 0.05, 0.6, 1.0), _foil(q, ch, thick, normal, REAR_SPAR, 0.66, 1.0),
-				_foil(q, ch, thick, normal, REAR_SPAR, 0.66, -1.0), _foil(q, ch, thick, normal, 0.05, 0.6, -1.0),
-				q - (tip - root), primer.darkened(0.12), uv)
-	out.core = core.mesh()
+	var ribs_per := 2 if detail == 0 else 3
+	for i: int in segments:
+		var t0 := float(i) / float(segments)
+		var t1 := float(i + 1) / float(segments)
+		var q0 := root.lerp(tip, t0)
+		var q1 := root.lerp(tip, t1)
+		var ch0 := lerpf(part.r0, part.r1, t0)
+		var ch1 := lerpf(part.r0, part.r1, t1)
+		var away := (q0 + q1) * 0.5 + Vector3(0.0, 0.0, -10.0)
+		var surf := Surf.new()
+		for spar: float in [0.16, REAR_SPAR - 0.02]:
+			var tf := 0.9 if spar < 0.3 else 0.7
+			surf.flat_quad(_foil(q0, ch0, thick, normal, spar, tf, 1.0), _foil(q1, ch1, thick, normal, spar, tf, 1.0),
+					_foil(q1, ch1, thick, normal, spar, tf, -1.0), _foil(q0, ch0, thick, normal, spar, tf, -1.0),
+					away, primer, uv)
+			# Caps: the heavy flanges along the top and bottom of each spar.
+			for side: float in [1.0, -1.0]:
+				surf.flat_quad(_foil(q0, ch0, thick, normal, spar - 0.025, tf * 0.97, side),
+						_foil(q1, ch1, thick, normal, spar - 0.025, tf * 0.97, side),
+						_foil(q1, ch1, thick, normal, spar + 0.025, tf * 0.97, side),
+						_foil(q0, ch0, thick, normal, spar + 0.025, tf * 0.97, side),
+						(q0 + q1) * 0.5, primer.darkened(0.1), uv)
+		for x: float in [0.28, 0.4, 0.52]:
+			for side: float in [1.0, -1.0]:
+				var tf := 0.93 if x < 0.45 else 0.86
+				surf.flat_quad(_foil(q0, ch0, thick, normal, x, tf, side), _foil(q1, ch1, thick, normal, x, tf, side),
+						_foil(q1, ch1, thick, normal, x, tf * 0.88, side), _foil(q0, ch0, thick, normal, x, tf * 0.88, side),
+						away, primer.darkened(0.18), uv)
+		var rib_count := ribs_per + (1 if i == segments - 1 else 0)
+		for r: int in rib_count:
+			var t := lerpf(t0, t1, float(r) / float(ribs_per))
+			var q := root.lerp(tip, t)
+			var ch := lerpf(part.r0, part.r1, t)
+			for k: int in range(1, BOX_X.size() - 1):
+				surf.flat_quad(_foil(q, ch, thick, normal, BOX_X[k], BOX_T[k] * 0.94, 1.0),
+						_foil(q, ch, thick, normal, BOX_X[k + 1], BOX_T[k + 1] * 0.94, 1.0),
+						_foil(q, ch, thick, normal, BOX_X[k + 1], BOX_T[k + 1] * 0.94, -1.0),
+						_foil(q, ch, thick, normal, BOX_X[k], BOX_T[k] * 0.94, -1.0),
+						q - (tip - root), primer.darkened(0.12), uv)
+		if surf.empty():
+			continue
+		var piece := _piece(surf, SKIN_KG_M2 * 3.0)
+		piece.structure = true
+		piece.cover = box_index[i] if i < box_index.size() else -1
+		out.pieces.append(piece)
 	out.far = _panel_far(adef, part)
 
 

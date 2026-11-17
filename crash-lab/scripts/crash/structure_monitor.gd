@@ -131,6 +131,8 @@ func update(dt: float) -> void:
 		var touching_rest := _sub_contacts[root] - touching
 		var anchor_offset := p.xf * p.anchor_local - reference
 		var def := p.def
+		# Structure torn out of the part (frames, spars) weakens its joint.
+		var weak := 1.0 / p.strength()
 		var f_mag: float
 		var m_mag: float
 		if touching == 0:
@@ -150,8 +152,8 @@ func update(dt: float) -> void:
 			var ma_mag := (ma - anchor_offset.cross(fa)).length()
 			var fb_mag := fb.length()
 			var mb_mag := (mb - anchor_offset.cross(fb)).length()
-			var ra := maxf(fa_mag / def.break_force, ma_mag / def.break_torque)
-			var rb := maxf(fb_mag / def.break_force, mb_mag / def.break_torque)
+			var ra := maxf(fa_mag / def.break_force, ma_mag / def.break_torque) * weak
+			var rb := maxf(fb_mag / def.break_force, mb_mag / def.break_torque) * weak
 			if ra <= rb:
 				f_mag = fa_mag
 				m_mag = ma_mag
@@ -160,7 +162,7 @@ func update(dt: float) -> void:
 				m_mag = mb_mag
 		joint_force[i] = f_mag
 		joint_torque[i] = m_mag
-		var ratio := maxf(f_mag / def.break_force, m_mag / def.break_torque)
+		var ratio := maxf(f_mag / def.break_force, m_mag / def.break_torque) * weak
 		var filtered := lerpf(load_ratio[i], ratio, FILTER)
 		load_ratio[i] = filtered
 		if filtered > peak_ratio[i]:

@@ -20,3 +20,10 @@ var hinge: Vector3
 var deflect_max: float = 0.0
 ## +1 right of the centreline, -1 left: ailerons move opposite ways.
 var side: float = 1.0
+## Internal structure (frames and stringers of a fuselage bay, spar and rib
+## segments of a wing box) rather than skin. Structure is drawn with the
+## interior material, does not count as skin for lift, and can only be torn
+## out once the skin over it (`cover`) has gone.
+var structure: bool = false
+## Index of the skin piece covering this one, or -1.
+var cover: int = -1

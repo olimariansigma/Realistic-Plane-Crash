@@ -92,8 +92,10 @@ built is marked *(planned)*.
   `_airliner()`, so a new airliner is one more spec entry.
 - **Airframe is multi-body from the start.** Every part is an `AircraftPart`
   (`RigidBody3D`, origin at its own centre of mass, explicit inertia) held to
-  its parent by a locked `Generic6DOFJoint3D`. Parts collide with the world
-  only, never with each other.
+  its parent by a locked `Generic6DOFJoint3D`. Parts of one aircraft ignore
+  each other (collision exceptions) while jointed; once a joint breaks, parts
+  that end up in different pieces of wreckage collide as soon as their hulls
+  have separated (`Aircraft._update_part_collisions`).
 - **Flight model** (`aircraft.gd`, `aero_surface.gd`). Forces only, applied in
   `_physics_process` to the part that carries them:
   - Each `AeroSurface` strip takes the air velocity at its own position, so
@@ -175,10 +177,22 @@ built is marked *(planned)*.
 - **Skin pieces** (`mesh_factory.gd`, `SkinPiece`, `ChunkPool`). A part is
   drawn as separate skin pieces over a core: fuselage panels (bay x
   quadrant), wing box segments, control surfaces, cowl halves, pylons.
-  Underneath sit frames, longerons and floor (fuselage), spars and ribs
-  (wing) or the fan and hot section (engine). `Aircraft.shed_pieces()` tears
-  pieces off nearest-first and `ChunkPool` flies each one as its own rigid
-  body. Four things shed skin: impacts (about one panel per 0.4 m of crush),
+  Underneath sits the structure, and it breaks too: fuselage frames (web
+  plus inner flange) and hat stringers cut into one piece per bay quadrant,
+  wing spars (web plus caps), airfoil-shaped ribs and stringers one piece per
+  wing-box segment (`SkinPiece.structure`, built in `_fuselage_structure` and
+  `_panel`). A structure piece can only come off once the skin over it
+  (`SkinPiece.cover`) has gone, and only through impacts and violent joint
+  breaks, never scraping or the airstream. Losing it weakens the part's joint
+  (`AircraftPart.strength()`, down to 40 % with all of it gone). The floor and
+  floor beams stay with the part (core); engines keep the fan and hot
+  section. Intact structure is drawn as one merged "Frame" mesh, shown with
+  the cutaway or once skin is gone, and split into its members at the first
+  tear. The interior shader takes the same dents and scorch as the skin.
+  Measured, cruise-speed dive: 40-90 % of members torn out by type.
+  `Aircraft.shed_pieces()` tears pieces off nearest-first and `ChunkPool`
+  flies each one as its own rigid body; loose pieces collide with each other,
+  the ground and the wreck. Four things shed skin: impacts (about one panel per 0.4 m of crush),
   joint breaks (the skin around the break), scraping along the ground, and
   the airstream over already-broken structure. Measured: firm landing 0 %,
   30 m flat drop 25-40 %, cruise-speed dive 70-100 % of pieces. While a part
@@ -266,7 +280,7 @@ rules:
 | Physics in `_physics_process` only | Yes. Cameras, HUD and particle follow run in `_process` and only read. |
 | Object pooling | Debris shards, skin chunks, fire/smoke/dust emitters and FRED bodies all exist from scene load. |
 | No per-frame allocations | Steady-state flight shows zero object-count growth over 540 ticks (`tools/bench.gd`). Crash events allocate (recorder keys, event records); HUD text formats at 10 Hz. |
-| Cap, sleep, pool debris | Shards 24/48/80 and chunks 70/120/180 by quality, oldest recycled first, frozen to static 0.6-0.7 s after stopping. |
+| Cap, sleep, pool debris | Shards 24/48/80 and chunks 70/120/180 by quality, frozen to static 0.6-0.7 s after stopping (still solid to other loose pieces), reused only once settled. |
 | Profile and report frame times | `tools/bench.gd` headless; on device the HUD shows FPS, frame ms and sim ms when "show FPS" is on. |
 
 Other load-shedding:
@@ -386,6 +400,23 @@ Made without asking, per the brief. Revisit if they stop fitting.
   resume switched it on all at once and tore the aircraft apart. GameState
   and FlightScene now switch it back on; the playtest checks the restarted
   aircraft moves.
+- **In Godot's Jolt a collision mask is one-way.** A body only responds to
+  bodies whose layer is in its own mask, and treats a body it touches but
+  that does not see it as infinitely heavy (two 100 kg boxes: the one whose
+  mask lacks the other's layer carried it along at full speed). Loose panels
+  and shards therefore have the airframe in their mask and the airframe does
+  not have them; the other way round, a 20 kg shard under a sliding hull hit
+  it like a wall and a gentle belly landing broke 8-13 joints at 70 g. The
+  airframe also skips those one-way contacts in `_integrate_forces`, since
+  Jolt still reports them.
+- **Turn on a loose piece's airframe collisions only once it is clear.**
+  Panels start inside the hull they came off and belly panels ride along
+  under it; enabled while buried (even after a fixed 0.25 s grace) the
+  contact disturbed the airframe and threw the F-16 pilot out of a 9 g belly
+  landing. `AirframeClearance` checks with a shape query every 4 ticks.
+- **Settled debris is on its own layer (`settled_debris`)**, solid to other
+  loose pieces but not to the airframe, so a sliding hull does not stub into
+  panels lying on the runway.
 - **Pools must never recycle a body that is still in use.** The chunk and
   debris pools recycled round-robin, so a big crash made the oldest flying
   panels vanish about a second in. A body is reused only after its piece has

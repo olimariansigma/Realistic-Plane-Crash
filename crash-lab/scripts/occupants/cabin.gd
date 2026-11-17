@@ -127,10 +127,14 @@ static func build_display(def: AircraftDef, model: Node3D, max_freds: int) -> Ar
 	var out: Array[Node3D] = []
 	var all_seats := list_seats(def)
 	for i: int in def.parts.size():
-		if def.parts[i].kind != PartDef.Kind.FUSELAGE:
-			continue
 		var holder := model.get_node_or_null(String(def.parts[i].name)) as Node3D
 		if holder == null:
+			continue
+		# The x-ray view also shows frames and stringers, spars and ribs.
+		var frame := holder.get_node_or_null("Visual/Frame") as Node3D
+		if frame != null:
+			out.append(frame)
+		if def.parts[i].kind != PartDef.Kind.FUSELAGE:
 			continue
 		var core := holder.get_node_or_null("Visual/Core") as Node3D
 		if core != null:
@@ -162,8 +166,8 @@ func set_visible(enabled: bool) -> void:
 		var show := enabled or part.stripped
 		if _seat_nodes[i] != null:
 			_seat_nodes[i].visible = show
-		if part.def.kind == PartDef.Kind.FUSELAGE and part.core_node != null:
-			part.core_node.visible = show
+		# The x-ray view shows the frames, stringers, spars and ribs too.
+		part.show_structure(show)
 	for fred: Fred in freds:
 		fred.visible = enabled or fred.ejected or fred.anchor.stripped
 

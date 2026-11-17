@@ -5,6 +5,7 @@ extends RefCounted
 
 const LAYER_WORLD := 1
 const LAYER_AIRFRAME := 2
+const LAYER_DEBRIS := 4
 ## Distance at which an intact part swaps its skin pieces for one merged mesh.
 const LOD_DISTANCE := 170.0
 const SHADER_PATH := "res://shaders/airframe.gdshader"
@@ -158,19 +159,41 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 	var merge := SurfaceTool.new()
 	var merged := 0
 	merge.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# The same for the internal structure: one "Frame" mesh until a member is
+	# torn out, then the members one by one.
+	var frame_merge := SurfaceTool.new()
+	var frames := 0
+	frame_merge.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i: int in meshes.pieces.size():
 		var piece := meshes.pieces[i]
 		var mi := _mesh_instance(piece.mesh, cut_x - piece.xform.origin.x)
 		mi.name = "P%d" % i
 		mi.transform = piece.xform
-		mi.visibility_range_end = LOD_DISTANCE
-		mi.visibility_range_end_margin = 8.0
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
+		if piece.structure:
+			mi.material_override = interior_material()
+			mi.visibility_range_end = LOD_DISTANCE * 3.0
+			mi.visible = false
+			frame_merge.append_from(piece.mesh, 0, piece.xform)
+			frames += 1
+			continue
+		mi.visibility_range_end = LOD_DISTANCE
+		mi.visibility_range_end_margin = 8.0
 		if piece.control == SkinPiece.Surface.NONE and meshes.pieces.size() > 1:
 			merge.append_from(piece.mesh, 0, piece.xform)
 			mi.visible = false
 			merged += 1
+	if frames > 0:
+		var frame := MeshInstance3D.new()
+		frame.name = "Frame"
+		frame.mesh = frame_merge.commit()
+		frame.material_override = interior_material()
+		frame.set_instance_shader_parameter(&"cut_plane_x", cut_x)
+		frame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		frame.visibility_range_end = LOD_DISTANCE * 3.0
+		frame.visible = false
+		root.add_child(frame)
 	if merged > 0:
 		var intact := _mesh_instance(merge.commit(), cut_x)
 		intact.name = "Intact"
@@ -414,7 +437,13 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 	body.center_of_mass = Vector3.ZERO
 	body.inertia = part.inertia
 	body.collision_layer = LAYER_AIRFRAME
-	body.collision_mask = LAYER_WORLD
+	# Parts also hit other parts (those of one aircraft only once they have
+	# broken apart, Aircraft._update_part_collisions). Not debris: in Godot's
+	# Jolt a body only reacts to layers in its own mask, so loose panels and
+	# shards bounce off the wreck while the wreck ignores them. With debris in
+	# this mask a panel trapped under a sliding hull broke a gentle belly
+	# landing apart (8-13 joints, 70 g).
+	body.collision_mask = LAYER_WORLD | LAYER_AIRFRAME
 	body.contact_monitor = true
 	body.max_contacts_reported = 6
 	body.can_sleep = false
@@ -455,11 +484,21 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 	body.core_node = body.visual.get_node_or_null("Core") as MeshInstance3D
 	body.far_node = body.visual.get_node_or_null("Far") as MeshInstance3D
 	body.intact_node = body.visual.get_node_or_null("Intact") as MeshInstance3D
+	body.frame_node = body.visual.get_node_or_null("Frame") as MeshInstance3D
 	body.core_always_visible = meshes.core_always_visible
 	for i: int in meshes.pieces.size():
 		body.piece_nodes.append(body.visual.get_node("P%d" % i) as MeshInstance3D)
 	body.pieces_left = meshes.pieces.size()
+	body.hull_aabb = _points_aabb((shape.shape as ConvexPolygonShape3D).points) \
+			if shape.shape is ConvexPolygonShape3D else AABB(shape.position - Vector3.ONE * part.r0, Vector3.ONE * part.r0 * 2.0)
 	return body
+
+
+static func _points_aabb(points: PackedVector3Array) -> AABB:
+	var box := AABB(points[0], Vector3.ZERO)
+	for p: Vector3 in points:
+		box = box.expand(p)
+	return box
 
 
 ## Rigid 6-DOF joint (all axes locked) between a part and its parent.
