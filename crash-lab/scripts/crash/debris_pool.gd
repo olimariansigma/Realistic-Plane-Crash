@@ -2,8 +2,10 @@ class_name DebrisPool
 extends Node3D
 ## Fixed pool of small rigid-body fragments thrown out by breaks and impacts.
 ##
-## Every body is created once. Spawning recycles the oldest fragment when the
-## pool is full, so the active body count never exceeds `capacity`. Fragments
+## Every body is created once. A body is reused only once its fragment has
+## settled, and the settled fragment is first left behind as a static copy, so
+## nothing on the ground ever vanishes; while all are flying, new fragments
+## are simply not thrown. Fragments
 ## collide with the world only, and are frozen (static, no collision) as soon
 ## as they have been still for a moment, so settled wreckage costs nothing.
 
@@ -14,6 +16,11 @@ const REST_TIME := 0.6
 const PARK := Vector3(0.0, -2000.0, 0.0)
 
 enum State { FREE, FLYING, SETTLED }
+
+signal restyled(node: MeshInstance3D, mesh: Mesh, xform: Transform3D, names: Array, values: Array)
+signal left_behind(node: MeshInstance3D)
+
+const LOOK_PARAMS: Array[StringName] = [&"tint"]
 
 var capacity: int = 0
 ## Fragments currently simulated by the physics engine.
@@ -29,8 +36,16 @@ var _next: int = 0
 var _rng := RandomNumberGenerator.new()
 
 
+var _left: Node3D
+var _shapes: Array[BoxShape3D] = []
+var _sizes: Array[Vector3] = []
+
+
 func setup(count: int) -> void:
 	capacity = count
+	_left = Node3D.new()
+	_left.name = "Settled"
+	add_child(_left)
 	_rng.seed = 90210
 	_state.resize(count)
 	_still.resize(count)
@@ -59,9 +74,13 @@ func setup(count: int) -> void:
 		body.physics_material_override = physics
 		body.position = PARK
 		body.visible = false
+		# Each body its own shape, sized to its fragment's random scale.
 		var collider := CollisionShape3D.new()
-		collider.shape = shapes[variant]
+		var own := shapes[variant].duplicate() as BoxShape3D
+		collider.shape = own
 		body.add_child(collider)
+		_shapes.append(own)
+		_sizes.append(shapes[variant].size)
 		var mi := MeshInstance3D.new()
 		mi.mesh = meshes[variant]
 		mi.material_override = AirframeBuilder.material()
@@ -84,11 +103,10 @@ func spawn_burst(pos: Vector3, base_velocity: Vector3, spread: float, count: int
 	if capacity == 0:
 		return
 	for _n: int in mini(count, capacity):
-		var i := _next
-		_next = (_next + 1) % capacity
+		var i := _take_slot()
+		if i < 0:
+			break
 		var body := _bodies[i]
-		if _state[i] == State.FLYING:
-			flying_count -= 1
 		_state[i] = State.FLYING
 		_still[i] = 0.0
 		flying_count += 1
@@ -107,7 +125,10 @@ func spawn_burst(pos: Vector3, base_velocity: Vector3, spread: float, count: int
 		var mi := _meshes[i]
 		var s := _rng.randf_range(0.55, 1.5)
 		mi.scale = Vector3(s, s, s)
-		mi.set_instance_shader_parameter(&"tint", color.darkened(_rng.randf_range(0.0, 0.45)))
+		_shapes[i].size = _sizes[i] * s
+		var tint := color.darkened(_rng.randf_range(0.0, 0.45))
+		mi.set_instance_shader_parameter(&"tint", tint)
+		restyled.emit(mi, mi.mesh, mi.transform, LOOK_PARAMS, [tint])
 	set_physics_process(true)
 
 
@@ -130,6 +151,32 @@ func _physics_process(dt: float) -> void:
 				flying_count -= 1
 		else:
 			_still[i] = 0.0
+
+
+func _take_slot() -> int:
+	for n: int in capacity:
+		var i := (_next + n) % capacity
+		if _state[i] == State.FREE:
+			_next = (i + 1) % capacity
+			return i
+	for n: int in capacity:
+		var i := (_next + n) % capacity
+		if _state[i] == State.SETTLED:
+			var src := _meshes[i]
+			var copy := MeshInstance3D.new()
+			copy.mesh = src.mesh
+			copy.material_override = src.material_override
+			copy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			copy.visibility_range_end = src.visibility_range_end
+			copy.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
+			copy.set_instance_shader_parameter(&"uv_rect", src.get_instance_shader_parameter(&"uv_rect"))
+			copy.set_instance_shader_parameter(&"tint", src.get_instance_shader_parameter(&"tint"))
+			_left.add_child(copy)
+			copy.global_transform = src.global_transform
+			left_behind.emit(copy)
+			_next = (i + 1) % capacity
+			return i
+	return -1
 
 
 ## Transforms of every visible fragment, for the replay recorder.

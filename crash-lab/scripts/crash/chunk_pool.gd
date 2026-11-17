@@ -2,8 +2,12 @@ class_name ChunkPool
 extends Node3D
 ## Fixed pool of rigid bodies that carry torn-off skin pieces. A body borrows
 ## the piece's mesh and a box collider sized to it, flies and tumbles as its
-## own object, then is frozen once it has settled. The oldest chunk is
-## recycled when the pool is full, so the body count is capped.
+## own object, then is frozen once it has settled.
+##
+## Nothing ever vanishes: a body is only reused once its chunk has settled,
+## and the settled chunk is first replaced by a static copy left lying exactly
+## where it came to rest. While every body is still in the air the pool has no
+## room, and the aircraft keeps its skin until one lands (see `room()`).
 
 const LAYER_WORLD := 1
 const LAYER_DEBRIS := 4
@@ -12,6 +16,12 @@ const REST_TIME := 0.7
 const PARK := Vector3(0.0, -2000.0, 0.0)
 
 enum State { FREE, FLYING, SETTLED }
+
+## A body took on a new piece: (mesh node, mesh, local transform, parameter
+## names, parameter values), for the replay.
+signal restyled(node: MeshInstance3D, mesh: Mesh, xform: Transform3D, names: Array, values: Array)
+## A settled chunk was replaced by this static copy.
+signal left_behind(node: MeshInstance3D)
 
 var capacity: int = 0
 var flying_count: int = 0
@@ -28,8 +38,14 @@ var _rng := RandomNumberGenerator.new()
 const DENT_PARAMS: Array[StringName] = [&"dent_a", &"dent_a_push", &"dent_b", &"dent_b_push", &"scorch"]
 
 
+var _left: Node3D
+
+
 func setup(count: int) -> void:
 	capacity = count
+	_left = Node3D.new()
+	_left.name = "Settled"
+	add_child(_left)
 	_rng.seed = 4711
 	_state.resize(count)
 	_still.resize(count)
@@ -73,10 +89,9 @@ func spawn(piece: SkinPiece, part_xf: Transform3D, velocity: Vector3, kick: floa
 		source: MeshInstance3D) -> void:
 	if capacity == 0:
 		return
-	var i := _next
-	_next = (_next + 1) % capacity
-	if _state[i] == State.FLYING:
-		flying_count -= 1
+	var i := _take_slot()
+	if i < 0:
+		return
 	_state[i] = State.FLYING
 	_still[i] = 0.0
 	flying_count += 1
@@ -85,9 +100,13 @@ func spawn(piece: SkinPiece, part_xf: Transform3D, velocity: Vector3, kick: floa
 	var mi := _meshes[i]
 	mi.mesh = piece.mesh
 	mi.transform = Transform3D(piece.xform.basis, piece.xform.origin - piece.center)
-	if source != null:
-		for param: StringName in DENT_PARAMS:
-			mi.set_instance_shader_parameter(param, source.get_instance_shader_parameter(param))
+	var values: Array = []
+	for param: StringName in DENT_PARAMS:
+		var value: Variant = source.get_instance_shader_parameter(param) if source != null \
+				else mi.get_instance_shader_parameter(param)
+		mi.set_instance_shader_parameter(param, value)
+		values.append(value)
+	restyled.emit(mi, mi.mesh, mi.transform, DENT_PARAMS, values)
 	_shapes[i].size = piece.size
 	body.mass = piece.mass
 	body.freeze = false
@@ -123,6 +142,43 @@ func _physics_process(dt: float) -> void:
 				flying_count -= 1
 		else:
 			_still[i] = 0.0
+
+
+## Bodies that can take a new chunk now: free ones and settled ones (which
+## leave a static copy behind when reused).
+func room() -> int:
+	return capacity - flying_count
+
+
+## A free body if there is one, else the oldest settled one (its chunk is left
+## behind as a static copy), else -1: never a chunk that is still flying.
+func _take_slot() -> int:
+	for n: int in capacity:
+		var i := (_next + n) % capacity
+		if _state[i] == State.FREE:
+			_next = (i + 1) % capacity
+			return i
+	for n: int in capacity:
+		var i := (_next + n) % capacity
+		if _state[i] == State.SETTLED:
+			_leave_behind(i)
+			_next = (i + 1) % capacity
+			return i
+	return -1
+
+
+func _leave_behind(i: int) -> void:
+	var src := _meshes[i]
+	var copy := MeshInstance3D.new()
+	copy.mesh = src.mesh
+	copy.material_override = src.material_override
+	copy.visibility_range_end = src.visibility_range_end
+	copy.set_instance_shader_parameter(&"cut_plane_x", 1.0e6)
+	for param: StringName in DENT_PARAMS:
+		copy.set_instance_shader_parameter(param, src.get_instance_shader_parameter(param))
+	_left.add_child(copy)
+	copy.global_transform = src.global_transform
+	left_behind.emit(copy)
 
 
 func body_count() -> int:

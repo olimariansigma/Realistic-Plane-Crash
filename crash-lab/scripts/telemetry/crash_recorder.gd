@@ -26,7 +26,7 @@ const KEY := 8  # floats per key: frame, position xyz, quaternion xyzw
 ## Loose bodies (dummy limbs, debris, chunks) are keyed every Nth tick.
 const LOOSE_EVERY := 3
 
-enum EventKind { PIECE, DENT, FIRE }
+enum EventKind { PIECE, DENT, FIRE, RESTYLE, LEAVE }
 
 var recording: bool = false
 var playing: bool = false
@@ -92,6 +92,9 @@ func setup(aircraft: Aircraft, director: CrashDirector) -> void:
 	aircraft.piece_shed.connect(_on_piece_shed)
 	aircraft.part_dented.connect(_on_part_dented)
 	aircraft.fire_started.connect(_on_fire_started)
+	for pool: Node in [director.debris, director.chunks]:
+		pool.connect(&"restyled", _on_restyled)
+		pool.connect(&"left_behind", _on_left_behind)
 	aircraft.crashed.connect(_on_crashed)
 	aircraft.major_impact.connect(_on_crashed)
 	set_physics_process(false)
@@ -145,6 +148,24 @@ func _on_part_dented(part: AircraftPart) -> void:
 
 func _on_fire_started(source: FireSource) -> void:
 	_add_event(EventKind.FIRE, source)
+
+
+func _on_restyled(node: MeshInstance3D, mesh: Mesh, xform: Transform3D, names: Array, values: Array) -> void:
+	_add_event(EventKind.RESTYLE, [node, mesh, xform, names, values])
+
+
+func _on_left_behind(node: MeshInstance3D) -> void:
+	_add_event(EventKind.LEAVE, node)
+
+
+static func _restyle(d: Array) -> void:
+	var node := d[0] as MeshInstance3D
+	node.mesh = d[1] as Mesh
+	node.transform = d[2] as Transform3D
+	var names := d[3] as Array
+	var values := d[4] as Array
+	for k: int in names.size():
+		node.set_instance_shader_parameter(names[k], values[k])
 
 
 func _on_crashed() -> void:
@@ -280,6 +301,13 @@ func _rewind() -> void:
 			EventKind.FIRE:
 				if before:
 					_director.fx.start_fire(data as FireSource)
+			EventKind.RESTYLE:
+				# Pool bodies carry several pieces over a crash: show the one each
+				# carried at the start of the window (later events re-apply).
+				if before:
+					_restyle(data as Array)
+			EventKind.LEAVE:
+				(data as Node3D).visible = before
 
 
 func _process(delta: float) -> void:
@@ -336,4 +364,8 @@ func _apply(frame: float) -> void:
 				(d[0] as AircraftPart).show_dents(d[1], d[2], d[3], d[4])
 			EventKind.FIRE:
 				_director.fx.start_fire(data as FireSource)
+			EventKind.RESTYLE:
+				_restyle(data as Array)
+			EventKind.LEAVE:
+				(data as Node3D).visible = true
 		_event_cursor += 1

@@ -46,6 +46,7 @@ var _released: int = 0
 
 func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 	aircraft = target
+	aircraft.shed_room = shed_room
 	chunks = ChunkPool.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
@@ -98,6 +99,12 @@ func _on_part_impacted(part: AircraftPart, world_pos: Vector3, _impulse: Vector3
 
 ## Spawning a chunk swaps a mesh and copies shader parameters; a hard hit can
 ## shed dozens at once, so they are queued and released a few per tick.
+## Skin pieces that can still be torn off now: a chunk body must be free for
+## each, counting the ones already queued. Wired into Aircraft.shed_room.
+func shed_room() -> int:
+	return mini(chunks.room() - (_queued - _released), QUEUE_SIZE - (_queued - _released))
+
+
 func _on_piece_shed(part: AircraftPart, piece: SkinPiece, node: MeshInstance3D, kick: float) -> void:
 	if _queued - _released >= QUEUE_SIZE:
 		return

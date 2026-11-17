@@ -104,6 +104,9 @@ var _gear_colliders_on: bool = true
 var _ticks: int = 0
 var _airborne_time: float = 0.0
 var _fbw_pitch_i: float = 0.0
+## How many skin pieces can be torn off right now (set by CrashDirector): a
+## piece is only released when a chunk body can carry it, so none vanish.
+var shed_room: Callable
 var _strobes: Array[Node3D] = []
 var _beacons: Array[Node3D] = []
 var _light_time: float = 0.0
@@ -490,12 +493,14 @@ func _process_impacts(dt: float) -> void:
 				var victim := part.pieces[_rng.randi() % part.pieces.size()].center
 				shed_pieces(part, victim, 1000.0, 1, 4.0)
 				_mark_crashed()
-		# Broken structure in a fast airstream keeps coming apart, panel by panel.
-		# Loose wreckage tumbles and sheds quickly; damaged structure still on
-		# the aircraft peels far more slowly.
+		# Broken structure in a fast airstream keeps coming apart, panel by panel,
+		# but slowly: a torn-off wing tumbles down mostly whole, losing the odd
+		# panel where it is already open, not shedding its skin like confetti.
 		if part.pieces_left > 0 and (part.stripped or part.assembly_root != 0) and (_ticks + i * 3) % 12 == 0:
 			var q := 0.5 * air_density * part.lin_vel.length_squared()
-			var chance := minf(q / 90000.0, 0.25)
+			var chance := minf(q / 600000.0, 0.05)
+			if not part.stripped:
+				chance *= 0.3
 			if part.assembly_root == 0:
 				# A scraped but intact hull holds together; damaged wings and
 				# tails on the aircraft peel slowly.
@@ -690,6 +695,8 @@ func _animate_surfaces() -> void:
 ## first and no further than `radius` from it. Returns how many came off.
 func shed_pieces(part: AircraftPart, local_pos: Vector3, radius: float, max_count: int, kick: float) -> int:
 	var shed := 0
+	if shed_room.is_valid():
+		max_count = mini(max_count, int(shed_room.call()))
 	for _n: int in max_count:
 		var index := part.nearest_piece(local_pos, radius)
 		if index < 0:
