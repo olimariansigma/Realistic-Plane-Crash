@@ -62,6 +62,12 @@ enum Kind { FUSELAGE, WING, STABILIZER, FIN, ENGINE, GEAR, CANOPY }
 @export var top_scale1: float = 1.0
 ## Rows of cabin windows painted on this fuselage part (0, 1 or 2).
 @export var window_rows: int = 1
+## Shape details drawn on a fuselage part, each a Dictionary with a `type`:
+## "fairing" (wing-to-body belly fairing), "intake" (chin air intake),
+## "strake" (leading-edge root extensions, both sides), "ventral" (a pair of
+## canted ventral fins). Positions are in the part's own frame: z along the
+## axis from p0, y above the centreline. They are skin, so they tear off too.
+@export var extras: Array = []
 
 @export_group("Aerodynamics")
 ## Bluff-body drag area Cd*A (m^2) along the part's local X, Y and Z axes.

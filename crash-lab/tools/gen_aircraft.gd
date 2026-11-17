@@ -423,7 +423,7 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		flap_time = 12.0 if not big else (16.0 if not huge else 20.0),
 		control_rate = 2.2 if not big else (1.6 if not huge else 1.3),
 		trim_rate = 0.10 if not big else (0.08 if not huge else 0.07),
-		cabin = cabin, body_wave_drag = 1.5,
+		cabin = cabin, body_wave_drag = 1.5, fairing = true,
 		# Abius airliners fly a normal law like the real ones: +2.5 / -1 g,
 		# 15 deg/s roll rate, bank and angle-of-attack protection. Bing jets
 		# are flown direct, as the real ones are in the pitch axis.
@@ -443,12 +443,22 @@ func _fighter() -> Dictionary:
 		id = &"lockhid_f16", name = "Lockhid F-16C", category = "Single-engine fighter",
 		desc = "Lightweight fighter: bubble canopy, afterburner, 9 g airframe. Supersonic at low level.",
 		paint = Color(0.52, 0.56, 0.6), accent = Color(0.36, 0.4, 0.45),
-		nose_z = -8.3, tail_z = 6.76, fus_r = 0.9, nose_cap = 4.6, tail_cap = 1.2,
+		nose_z = -8.3, tail_z = 6.76, fus_r = 0.9, nose_cap = 3.6, tail_cap = 1.2,
 		cuts = [-3.0, 2.4], fus_mass = [2000.0, 3500.0, 1500.0],
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
 		fus_crush = 0.5, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
 		tail_upsweep = 0.0, squash = Vector2(1.22, 0.9),
-		canopy = { z0 = -5.9, z1 = -3.1, half_width = 0.44, height = 0.62, mass = 70.0 },
+		canopy = { z0 = -6.0, z1 = -2.9, half_width = 0.47, height = 0.68, mass = 70.0 },
+		# The F-16's look: chin intake under the cockpit, root strakes running
+		# forward to the canopy, and ventral fins under the engine.
+		extras = [
+			{ part = &"fus_mid", type = "intake", z0 = -0.7, z1 = 4.2, y_top = -0.42,
+				height = 0.9, half_width = 0.56 },
+			{ part = &"fus_mid", type = "strake", z0 = -2.6, to_wing_le = true, y = 0.0,
+				x_root = 1.0, x_tip = 2.15 },
+			{ part = &"fus_tail", type = "ventral", z0 = 1.1, z1 = 2.6, y = -0.62, x = 0.55,
+				height = 0.62, cant_deg = 18.0 },
+		],
 		wing = {
 			root_c = 5.0, tip_c = 1.0, semi = 4.73, sweep = 32.0, dihedral = 0.0,
 			y = 0.0, z_c4 = -0.9, x_in = 1.0, x_kink = 2.5, x_kink2 = 3.7, thick = 0.045,
@@ -548,6 +558,7 @@ func _build(p: Dictionary) -> AircraftDef:
 	_add_tail(def, p, true)
 	_add_canopy(def, p)
 	_add_cabin(def, p)
+	_add_extras(def, p)
 
 	# Re-origin everything on the centre of mass so "aircraft origin" == CG.
 	var cg := def.center_of_mass()
@@ -1143,6 +1154,34 @@ func _add_cabin(def: AircraftDef, p: Dictionary) -> void:
 			var col := (i * 2) % per_row
 			picks.append(first_cabin + row * per_row + col)
 	def.fred_seats = picks
+
+
+## Shape details (see PartDef.extras), placed against the wing root once
+## the wing has been slid to its final position. `p.fairing` adds the airliner
+## belly fairing; `p.extras` lists explicit ones by part, where `to_wing_le`
+## ends a strake at the wing-root leading edge.
+func _add_extras(def: AircraftDef, p: Dictionary) -> void:
+	var root_index := def.find_part(&"wing_l_in")
+	if root_index < 0:
+		return
+	var root := def.parts[root_index]
+	var le := root.p0.z - 0.25 * root.r0
+	var te := root.p0.z + 0.75 * root.r0
+	if p.get("fairing", false):
+		var mid := def.parts[def.find_part(_fuselage_part_at(def, (le + te) * 0.5))]
+		var r := mid.r0
+		mid.extras.append({
+			type = "fairing", z0 = le - 0.25 * root.r0 - mid.p0.z, z1 = te + 0.55 * root.r0 - mid.p0.z,
+			half_width = 1.03 * r * mid.squash.x, y = -0.32 * r * mid.squash.y, depth = 0.8 * r * mid.squash.y,
+		})
+	for item: Variant in p.get("extras", []):
+		var e := (item as Dictionary).duplicate()
+		var part := def.parts[def.find_part(StringName(e.part))]
+		e.erase("part")
+		if e.get("to_wing_le", false):
+			e.erase("to_wing_le")
+			e.z1 = le - part.p0.z
+		part.extras.append(e)
 
 
 func _fuselage_part_at(def: AircraftDef, z: float) -> StringName:

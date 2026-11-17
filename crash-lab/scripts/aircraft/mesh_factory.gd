@@ -146,7 +146,145 @@ static func build_part(adef: AircraftDef, part: PartDef, detail: int) -> PartMes
 		PartDef.Kind.GEAR:
 			out.strut = gear_strut_mesh(part)
 			out.wheels = gear_wheel_mesh(part)
+	if not part.extras.is_empty():
+		_extras(adef, part, detail, out)
 	return out
+
+
+# ------------------------------------------------------------------ extras
+
+static func _extras(adef: AircraftDef, part: PartDef, detail: int, out: PartMeshes) -> void:
+	var axis := (part.p1 - part.p0).normalized()
+	var origin := part.p0 - part.com
+	var paint := _skin_color(adef, part)
+	var segs := 8 if detail == 0 else 12
+	for item: Variant in part.extras:
+		var e := item as Dictionary
+		var surf := Surf.new()
+		match String(e.get("type", "")):
+			"fairing":
+				_fairing(surf, origin, axis, e, paint.darkened(0.06), segs)
+			"intake":
+				_intake(surf, origin, axis, e, paint, segs)
+			"strake":
+				for side: float in [-1.0, 1.0]:
+					_strake(surf, origin, axis, e, side, paint)
+			"ventral":
+				for side: float in [-1.0, 1.0]:
+					_ventral(surf, origin, axis, e, side, paint.darkened(0.08))
+		if not surf.empty():
+			out.pieces.append(_piece(surf, SKIN_KG_M2))
+
+
+static func _at(origin: Vector3, axis: Vector3, x: float, y: float, z: float) -> Vector3:
+	return origin + axis * z + Vector3(x, y, 0.0)
+
+
+## Lower half of a stretched ellipsoid under the wing box; it swells out of
+## the belly and sinks back into it at both ends.
+static func _fairing(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, col: Color, segs: int) -> void:
+	var z0: float = e.z0
+	var z1: float = e.z1
+	var hw: float = e.half_width
+	var yc: float = e.y
+	var depth: float = e.depth
+	var stations := 10
+	var uv := strip_uv(0.5, 0.5, 2)
+	var inside := _at(origin, axis, 0.0, yc, (z0 + z1) * 0.5)
+	for i: int in stations:
+		var u0 := float(i) / float(stations)
+		var u1 := float(i + 1) / float(stations)
+		# Blunt in front, long and tapering behind, like the real fairings.
+		var s0 := pow(sin(PI * pow(u0, 0.8)), 0.55)
+		var s1 := pow(sin(PI * pow(u1, 0.8)), 0.55)
+		var za := lerpf(z0, z1, u0)
+		var zb := lerpf(z0, z1, u1)
+		for k: int in segs:
+			var a0 := PI * 0.5 + PI * float(k) / float(segs)
+			var a1 := PI * 0.5 + PI * float(k + 1) / float(segs)
+			surf.flat_quad(
+					_at(origin, axis, sin(a0) * hw * s0, yc + cos(a0) * depth * s0, za),
+					_at(origin, axis, sin(a1) * hw * s0, yc + cos(a1) * depth * s0, za),
+					_at(origin, axis, sin(a1) * hw * s1, yc + cos(a1) * depth * s1, zb),
+					_at(origin, axis, sin(a0) * hw * s1, yc + cos(a0) * depth * s1, zb),
+					inside, col, uv)
+
+
+## Chin intake: a rounded duct under the fuselage, open at the front (a dark
+## mouth) and fairing into the belly behind.
+static func _intake(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, col: Color, segs: int) -> void:
+	var z0: float = e.z0
+	var z1: float = e.z1
+	var hw: float = e.half_width
+	var top: float = e.y_top
+	var height: float = e.height
+	var uv := strip_uv(0.5, 0.5, 2)
+	var stations := 8
+	var ring := func(u: float, k: int) -> Vector3:
+		# Rounded-rectangle section, shrinking upward into the belly behind.
+		var h := height * lerpf(1.0, 0.25, pow(u, 1.6))
+		var w := hw * lerpf(1.0, 0.8, u)
+		var a := PI * 0.5 + PI * float(k) / float(segs)
+		var c := Vector2(sin(a), cos(a))
+		var sq := Vector2(signf(c.x) * pow(absf(c.x), 0.6), signf(c.y) * pow(absf(c.y), 0.6))
+		# Sides start at `top` (inside the belly), the floor is `h` below it.
+		return _at(origin, axis, sq.x * w, top + sq.y * h, lerpf(z0, z1, u))
+	var inside := _at(origin, axis, 0.0, top - height * 0.3, (z0 + z1) * 0.5)
+	for i: int in stations:
+		var u0 := float(i) / float(stations)
+		var u1 := float(i + 1) / float(stations)
+		for k: int in segs:
+			surf.flat_quad(ring.call(u0, k), ring.call(u0, k + 1), ring.call(u1, k + 1), ring.call(u1, k),
+					inside, col, uv)
+	# The mouth: a dark face set just inside the lip.
+	var dark := Color(0.04, 0.045, 0.05)
+	var mouth := _at(origin, axis, 0.0, top - height * 0.5, z0 + 0.25)
+	for k: int in segs:
+		var a := ring.call(0.0, k) as Vector3
+		var b := ring.call(0.0, k + 1) as Vector3
+		var lip_a := a + (mouth - a) * 0.12 + axis * 0.2
+		var lip_b := b + (mouth - b) * 0.12 + axis * 0.2
+		surf.tri(lip_a, lip_b, mouth, mouth + axis, dark, uv, uv, uv)
+		surf.flat_quad(a, b, lip_b, lip_a, mouth + axis * 0.6, col.darkened(0.25), uv)
+
+
+## Leading-edge root extension: a thin blade from beside the cockpit back to
+## the wing root, widening as it goes.
+static func _strake(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, side: float, col: Color) -> void:
+	var y: float = e.y
+	var x_root: float = e.x_root * side
+	var x_tip: float = e.x_tip * side
+	var z0: float = e.z0
+	var z1: float = e.z1
+	var t := 0.05
+	var uv := strip_uv(0.5, 0.5, 2)
+	var a := _at(origin, axis, x_root, y, z0)
+	var b := _at(origin, axis, x_tip, y, z1)
+	var c := _at(origin, axis, x_root, y, z1 + 0.6)
+	var up := Vector3(0.0, t, 0.0)
+	var mid := (a + b + c) / 3.0
+	surf.tri(a + up, b + up, c + up, mid - Vector3.UP, col, uv, uv, uv)
+	surf.tri(a - up, b - up, c - up, mid + Vector3.UP, col.darkened(0.15), uv, uv, uv)
+	surf.flat_quad(a + up, b + up, b - up, a - up, c, col, uv)
+
+
+## One of a pair of small fins under the rear fuselage, canted outward.
+static func _ventral(surf: Surf, origin: Vector3, axis: Vector3, e: Dictionary, side: float, col: Color) -> void:
+	var x: float = e.x * side
+	var y: float = e.y
+	var z0: float = e.z0
+	var z1: float = e.z1
+	var h: float = e.height
+	var cant := deg_to_rad(float(e.get("cant_deg", 15.0)))
+	var down := Vector3(sin(cant) * side, -cos(cant), 0.0) * h
+	var uv := strip_uv(0.5, 0.5, 2)
+	var r0 := _at(origin, axis, x, y, z0)
+	var r1 := _at(origin, axis, x, y, z1)
+	var t0 := r0 + down + axis * (z1 - z0) * 0.45
+	var t1 := r1 + down
+	var off := Vector3(cos(cant), sin(cant) * side, 0.0) * 0.03 * side
+	surf.flat_quad(r0 + off, r1 + off, t1 + off, t0 + off, r0 - Vector3(side, 0.0, 0.0), col, uv)
+	surf.flat_quad(r0 - off, r1 - off, t1 - off, t0 - off, r0 + Vector3(side, 0.0, 0.0), col, uv)
 
 
 static func part_hull(part: PartDef) -> PackedVector3Array:

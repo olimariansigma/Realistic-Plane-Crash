@@ -118,6 +118,12 @@ built is marked *(planned)*.
     and the airstream starts taking skin off.
   - Yaw damper (washed-out yaw rate to rudder) and roll spoilers on the
     airliners, as on the real aircraft.
+  - Fly-by-wire (`AircraftDef.fbw_*`, `Aircraft._fbw_pitch/_fbw_roll`): the
+    stick commands load factor and roll rate through gain-scheduled PI loops
+    with an AoA limiter and bank hold. F-16 +9/-3 g, 180 deg/s; Abius
+    +2.5/-1 g, 15 deg/s; Bing direct. Any structural loss drops it out
+    bumplessly to direct control. Without it the F-16 pulled 8.7 g at 40 %
+    stick and was unflyable on a touch screen.
   - Damage changes the aerodynamics: a strip only makes lift in proportion
     to the skin it still has, bare structure adds drag, a control surface
     that has torn off stops responding, and a detached part takes its
@@ -180,7 +186,10 @@ built is marked *(planned)*.
 - **Looks.** One shared material samples one 1024 px atlas
   (`tools/gen_atlas.gd` -> `assets/atlas.png`, imported VRAM-compressed, ASTC
   on Android): cabin windows, windscreen, doors, panel lines, fan face.
-  Vertex colour carries the livery. Skin is two-sided with primer on the
+  Vertex colour carries the livery. Type-specific shape details
+  (`PartDef.extras`: belly fairing, chin intake, strakes, ventral fins) are
+  extra skin pieces placed by `gen_aircraft.gd._add_extras` against the final
+  wing root. Skin is two-sided with primer on the
   inside. Control surfaces are hinged pieces that move with the actuators.
 - **Occupants** (`scripts/occupants/`).
   - `Cabin` flattens the def's seat blocks into `Seat`s, draws them as one
