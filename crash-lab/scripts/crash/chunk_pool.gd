@@ -35,7 +35,8 @@ var _still: PackedFloat32Array
 var _next: int = 0
 var _rng := RandomNumberGenerator.new()
 
-const DENT_PARAMS: Array[StringName] = [&"dent_a", &"dent_a_push", &"dent_b", &"dent_b_push", &"scorch"]
+const DENT_PARAMS: Array[StringName] = [&"dent_a", &"dent_a_push", &"dent_b", &"dent_b_push", &"scorch",
+		&"livery_frame"]
 
 
 var _left: Node3D

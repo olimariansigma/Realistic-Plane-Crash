@@ -433,7 +433,9 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 			bay_end += 1
 		var in_nose := part.shape_a > 0.0 and stations[bay_start] < part.shape_a - 0.01
 		var in_tail := part.shape_b > 0.0 and stations[bay_start] >= length - part.shape_b - 0.01
-		var kind := 2 if window_rows <= 0 or in_tail else mini(window_rows, 2) - 1
+		# Windows, doors and the windscreen are drawn by the shader from the
+		# real dimensions (AircraftDef.livery); the atlas supplies plain skin.
+		var kind := 2
 		var u_start := fposmod(stations[bay_start] + part.p0.z * 0.37, STRIP_METRES) / STRIP_METRES
 		if u_start + (stations[bay_end] - stations[bay_start]) / STRIP_METRES > 1.0:
 			u_start = 0.0
@@ -473,7 +475,7 @@ static func _fuselage(adef: AircraftDef, part: PartDef, detail: int, out: PartMe
 					var uv01: Vector2
 					var uv11: Vector2
 					var uv10: Vector2
-					if in_nose and window_rows > 0:
+					if false:
 						var n0 := d0 / part.shape_a
 						var n1 := d1 / part.shape_a
 						uv00 = tile_uv(TILE_NOSE, n0, v0)

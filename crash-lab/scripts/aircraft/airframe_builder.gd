@@ -150,7 +150,37 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		mi.visibility_range_end_margin = 8.0
 		root.add_child(mi)
 	_add_lights(adef, part, root)
+	if part.kind == PartDef.Kind.FUSELAGE and not adef.livery.is_empty():
+		var frame := Vector4(part.com.x, part.com.y - part.p0.y, part.com.z - nose_station_zero(adef), 1.0)
+		for child: Node in root.get_children():
+			if child is MeshInstance3D and child.name != &"Core":
+				(child as MeshInstance3D).set_instance_shader_parameter(&"livery_frame", frame)
 	return root
+
+
+## Z of the nose tip: stations in the livery are measured aft of it.
+static func nose_station_zero(adef: AircraftDef) -> float:
+	var z := INF
+	for part: PartDef in adef.parts:
+		if part.kind == PartDef.Kind.FUSELAGE:
+			z = minf(z, part.p0.z)
+	return z
+
+
+## Puts the aircraft's window rows, doors and windscreen on the shared
+## airframe material (one aircraft is shown at a time).
+static func apply_livery(adef: AircraftDef) -> void:
+	var mat := material()
+	var l := adef.livery
+	for key: String in ["win_size", "win_row0", "win_row1", "cockpit_a", "cockpit_b", "cockpit_splits",
+			"panel_lines"]:
+		mat.set_shader_parameter(StringName(key), l.get(key, Vector4.ZERO))
+	var doors := PackedVector4Array()
+	doors.resize(12)
+	var list: Array = l.get("doors", [])
+	for i: int in mini(list.size(), 12):
+		doors[i] = list[i]
+	mat.set_shader_parameter(&"doors", doors)
 
 
 static var _light_mats: Dictionary = {}
@@ -224,6 +254,7 @@ static func _add_lights(adef: AircraftDef, part: PartDef, root: Node3D) -> void:
 ## origin. Gear is drawn at its static stroke so the wheels sit on the floor
 ## when the model is placed `ground_clearance` above it.
 static func build_display_model(adef: AircraftDef) -> Node3D:
+	apply_livery(adef)
 	var model := Node3D.new()
 	model.name = "DisplayModel"
 	for part: PartDef in adef.parts:

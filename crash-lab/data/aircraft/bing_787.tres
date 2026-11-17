@@ -1187,6 +1187,16 @@ fbw_min_g = -1.0
 fbw_roll_rate_deg = 0.0
 fbw_aoa_limit_deg = 13.0
 cruise_throttle = 0.33
+livery = {
+&"cockpit_a": Vector4(2.57053, 4.6737, 0.3462, 1.0386),
+&"cockpit_b": Vector4(1.4425, 1.7887, 0.07, 0),
+&"cockpit_splits": Vector4(3.28561, 4.00069, 0, 0),
+&"doors": [Vector4(6.52107, 1.07, 1.93, -0.8455), Vector4(34.3411, 1.07, 1.93, -0.8455), Vector4(15.3971, 1.07, 1.93, -0.8455), Vector4(25.2467, 1.07, 1.93, -0.8455)],
+&"panel_lines": Vector4(2.4, 0.01, 0.2, 0),
+&"win_row0": Vector4(0.1845, 7.92107, 33.1411, 1),
+&"win_row1": Vector4(0, 0, 0, 0),
+&"win_size": Vector4(0.24, 0.34, 0.0912, 0.53)
+}
 engines = Array[ExtResource("1_qncyt")]([SubResource("Resource_akhba"), SubResource("Resource_n7vc7")])
 gear = Array[ExtResource("2_6jlaf")]([SubResource("Resource_vdxtt"), SubResource("Resource_g1vde"), SubResource("Resource_vcnu7")])
 gear_time = 6.0

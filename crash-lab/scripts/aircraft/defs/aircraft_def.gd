@@ -56,6 +56,13 @@ extends Resource
 @export var fbw_aoa_limit_deg: float = 15.0
 @export var cruise_throttle: float = 0.3
 
+@export_group("Livery")
+## Fuselage markings for the airframe shader, in metres in the fuselage frame
+## (station aft of the nose tip, height above the centreline): keys win_size,
+## win_row0, win_row1 (Vector4), doors (Array of Vector4), cockpit_a,
+## cockpit_b, cockpit_splits, panel_lines. See airframe.gdshader.
+@export var livery: Dictionary = {}
+
 @export_group("Propulsion")
 @export var engines: Array[EngineDef] = []
 

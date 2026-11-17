@@ -131,6 +131,7 @@ var _ahead_dist: float = 0.0
 ## Builds the airframe at this node's current transform. Call once, in-tree.
 func setup(aircraft_def: AircraftDef) -> void:
 	def = aircraft_def
+	AirframeBuilder.apply_livery(def)
 	for i: int in def.parts.size():
 		var body := AirframeBuilder.build_part(def, def.parts[i], i)
 		add_child(body)

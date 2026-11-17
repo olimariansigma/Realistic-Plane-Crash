@@ -414,7 +414,9 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		}
 
 	var cal: Dictionary = _calibration.get(String(spec.id), {})
+	var livery := _airliner_livery(spec, cabin, nose_z, nose_cap, r, squash_y, big, wing_le_hint(spec, nose_z, length))
 	return {
+		livery = livery,
 		id = spec.id, name = spec.name, category = spec.category, desc = spec.desc,
 		paint = spec.paint, accent = spec.accent,
 		nose_z = nose_z, tail_z = tail_z, fus_r = r, nose_cap = nose_cap, tail_cap = tail_cap,
@@ -442,6 +444,75 @@ func _airliner(spec: Dictionary) -> Dictionary:
 		v_rotate = spec.v_rotate, v_cruise = spec.v_cruise, v_ne = spec.v_ne,
 		cruise_trim = cal.get("trim", 0.3), cruise_throttle = cal.get("throttle", 0.3),
 	}
+
+
+## Rough station of the wing-root leading edge (for overwing exits); the
+## wing is slid later, so this is only used to place markings.
+func wing_le_hint(spec: Dictionary, nose_z: float, length: float) -> float:
+	return float(spec.get("wing_le_station", length * 0.40))
+
+
+## Window rows, doors and windscreen in the fuselage frame (station aft of the
+## nose tip, height above the centreline). Spec keys override any value:
+## win_w, win_h, win_pitch, win_h_above_floor, doors (Array of
+## [station, width, height]), windscreen = {s0, s1, sill0, sill1, top0, top1,
+## splits, mask}.
+func _airliner_livery(spec: Dictionary, cabin: Dictionary, nose_z: float, nose_cap: float, r: float,
+		squash_y: float, big: bool, wing_le: float) -> Dictionary:
+	var floor_h: float = cabin.floor
+	var first := float(cabin.z_start) - nose_z
+	var last := first + float(cabin.rows) * float(cabin.pitch)
+	var win_w: float = spec.get("win_w", 0.24)
+	var win_h: float = spec.get("win_h", 0.34)
+	var pitch: float = spec.get("win_pitch", 0.53)
+	var row_h := floor_h + float(spec.get("win_h_above_floor", 1.05))
+	var livery := {
+		win_size = Vector4(win_w, win_h, minf(win_w, win_h) * 0.38, pitch),
+		win_row0 = Vector4(row_h, first + 0.3, last - 0.4, 1.0),
+		win_row1 = Vector4.ZERO,
+		panel_lines = Vector4(2.4, 0.01, 0.2, 0.0),
+	}
+	if cabin.has("upper"):
+		var u: Dictionary = cabin.upper
+		var u_first := float(u.z_start) - nose_z
+		livery.win_row1 = Vector4(float(u.floor) + 0.95, u_first + 0.2,
+				u_first + float(u.rows) * float(u.pitch) - 0.3, 1.0)
+	# Doors: [station, width, height]; sill on the cabin floor.
+	var doors: Array = spec.get("doors", [])
+	if doors.is_empty():
+		var door_h := 1.85 if not big else 1.93
+		var door_w := 0.81 if not big else 1.07
+		doors = [[first - 1.1, door_w, door_h], [last + 0.8, door_w, door_h]]
+		if big:
+			doors.append([lerpf(first, last, 0.3), door_w, door_h])
+			doors.append([lerpf(first, last, 0.68), door_w, door_h])
+		else:
+			doors.append([wing_le + 1.0, 0.51, 1.0])
+			doors.append([wing_le + 1.95, 0.51, 1.0])
+	var list: Array = []
+	for d: Variant in doors:
+		var a := d as Array
+		var w := float(a[1])
+		var h := float(a[2])
+		# Small doors (overwing exits) sit higher, at window level.
+		var sill := floor_h + (0.45 if h < 1.3 else 0.02)
+		if a.size() > 3:
+			sill = float(a[3])
+		list.append(Vector4(float(a[0]), w, h, sill))
+	livery.doors = list
+	# Windscreen on the nose cap.
+	var ws: Dictionary = spec.get("windscreen", {})
+	var s0: float = ws.get("s0", nose_cap * 0.33)
+	var s1: float = ws.get("s1", nose_cap * 0.6)
+	livery.cockpit_a = Vector4(s0, s1, ws.get("sill0", r * squash_y * 0.12), ws.get("sill1", r * squash_y * 0.36))
+	livery.cockpit_b = Vector4(ws.get("top0", r * squash_y * 0.5), ws.get("top1", r * squash_y * 0.62), 0.07,
+			ws.get("mask", 0.0))
+	var splits: Array = ws.get("splits", [lerpf(s0, s1, 0.34), lerpf(s0, s1, 0.68)])
+	var sv := Vector4.ZERO
+	for i: int in mini(splits.size(), 4):
+		sv[i] = float(splits[i])
+	livery.cockpit_splits = sv
+	return livery
 
 
 ## The single-engine fighter is hand-specified: a 9 g airframe does not follow
@@ -545,6 +616,7 @@ func _build(p: Dictionary) -> AircraftDef:
 	def.cruise_throttle = p.cruise_throttle
 	def.body_wave_drag = p.get("body_wave_drag", 1.5)
 	def.yaw_damper = p.get("yaw_damper", 1.5)
+	def.livery = p.get("livery", {})
 	def.fbw_max_g = p.get("fbw_max_g", 0.0)
 	def.fbw_min_g = p.get("fbw_min_g", -1.0)
 	def.fbw_roll_rate_deg = p.get("fbw_roll_rate_deg", 0.0)
