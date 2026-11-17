@@ -119,7 +119,8 @@ vec3 markings(vec3 f) {
 		float in_h = min(h - sill, top - h);
 		float inside = min(in_st, in_h);
 		float pane = smoothstep(-aa, aa, inside);
-		float frame = 1.0 - smoothstep(cockpit_b.z * 0.5 - aa, cockpit_b.z * 0.5 + aa, abs(f.x));
+		// Centre post between the two front panes is wider than the frames.
+		float frame = 1.0 - smoothstep(cockpit_b.z * 1.4 - aa, cockpit_b.z * 1.4 + aa, abs(f.x));
 		for (int i = 0; i < 4; i++) {
 			if (cockpit_splits[i] > 0.0) {
 				frame = max(frame, 1.0 - smoothstep(cockpit_b.z * 0.5 - aa, cockpit_b.z * 0.5 + aa,

@@ -123,6 +123,19 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.24, winglet = 2.4, winglet_style = 0,
 			engines = [0.34], thrust = 120000.0, engine_d = 2.2, engine_len = 4.4, engine_mass = 3400.0,
 			rows = 30, groups = [3, 3], wheels = 2,
+			# Measured from the Airbus A320 airport-planning drawings (AC, 2017):
+			# nose section (station, crown, keel, half-width), windows, doors and
+			# windscreen, all from the nose tip and the fuselage mid-height.
+			height = 4.14, nose_cap_m = 6.0,
+			nose_table = [[0.0, -0.5, -0.93, 0.1], [0.25, -0.2, -1.26, 0.45], [0.5, 0.0, -1.42, 0.69],
+				[1.0, 0.27, -1.62, 0.99], [1.5, 0.61, -1.78, 1.21], [2.0, 1.11, -1.89, 1.39],
+				[3.0, 1.58, -2.03, 1.68], [4.0, 1.87, -2.07, 1.86], [5.0, 2.03, -2.07, 1.95],
+				[6.0, 2.07, -2.07, 1.975]],
+			win_w = 0.23, win_h = 0.32, win_pitch = 0.533, win_z = 0.67, win_first = 6.1, win_last = 27.6,
+			doors = [[5.04, 0.81, 1.85, -0.12], [14.43, 0.5, 0.9, 0.05], [15.28, 0.5, 0.9, 0.05],
+				[29.53, 0.81, 1.79, -0.12]],
+			windscreen = { s0 = 1.6, s1 = 3.5, sill0 = 0.32, sill1 = 0.15, top0 = 0.72, top1 = 0.9,
+				splits = [2.3, 2.92] },
 			v_rotate = 74.0, v_cruise = 128.6, v_ne = 196.0,
 		},
 		{
@@ -133,6 +146,17 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.25, winglet = 2.7, winglet_style = 0,
 			engines = [0.31], thrust = 316000.0, engine_d = 3.1, engine_len = 6.2, engine_mass = 7800.0,
 			rows = 37, groups = [2, 4, 2], wheels = 4,
+			# Measured from the Airbus A330 airport-planning drawings (AC, 2013).
+			nose_cap_m = 9.0,
+			nose_table = [[0.0, -0.18, -0.67, 0.2], [0.25, 0.1, -0.96, 0.5], [0.5, 0.28, -1.14, 0.65],
+				[1.0, 0.53, -1.42, 0.92], [1.5, 0.96, -1.63, 1.19], [2.0, 1.38, -1.81, 1.37],
+				[3.0, 1.85, -2.1, 1.75], [4.0, 2.13, -2.35, 2.04], [5.0, 2.35, -2.52, 2.29],
+				[6.0, 2.52, -2.65, 2.49], [8.0, 2.7, -2.8, 2.74], [10.0, 2.82, -2.82, 2.82]],
+			win_w = 0.25, win_h = 0.36, win_pitch = 0.533, win_z = 1.13, win_first = 6.9, win_last = 49.6,
+			doors = [[5.3, 1.07, 1.93, -0.045], [17.74, 1.07, 1.93, -0.045], [35.96, 1.07, 1.66, -0.05],
+				[50.96, 1.07, 1.93, -0.045]],
+			windscreen = { s0 = 1.45, s1 = 3.2, sill0 = 0.38, sill1 = 0.35, top0 = 0.85, top1 = 0.95,
+				splits = [1.95, 2.62] },
 			v_rotate = 80.0, v_cruise = 128.6, v_ne = 185.0,
 		},
 		{
@@ -143,8 +167,17 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.22, winglet = 3.0, winglet_style = 0,
 			engines = [0.3], thrust = 374000.0, engine_d = 3.6, engine_len = 6.8, engine_mass = 9300.0,
 			rows = 35, groups = [3, 3, 3], wheels = 4,
-			# A350: black surround ("mask") around the windscreen.
-			windscreen = { mask = 0.16 },
+			# Measured from the Airbus A350-900 airport-planning drawings (AC, 2012).
+			height = 6.09, nose_cap_m = 9.5,
+			nose_table = [[0.0, -1.4, -1.85, 0.15], [0.25, -1.09, -2.06, 0.5], [0.5, -0.85, -2.23, 0.7],
+				[1.0, -0.4, -2.48, 1.0], [1.5, 0.0, -2.6, 1.22], [2.0, 0.4, -2.74, 1.38],
+				[3.0, 1.35, -2.92, 1.74], [4.0, 1.9, -3.0, 2.02], [5.0, 2.25, -3.045, 2.26],
+				[6.0, 2.5, -3.045, 2.5], [8.0, 2.85, -3.045, 2.82], [9.5, 3.045, -3.045, 2.98]],
+			win_w = 0.28, win_h = 0.4, win_pitch = 0.59, win_z = 0.65, win_first = 8.4, win_last = 51.2,
+			doors = [[6.85, 1.1, 2.1, -0.45], [18.85, 1.1, 2.1, -0.45], [37.93, 0.8, 1.3, 0.1],
+				[52.55, 1.1, 2.1, -0.45]],
+			windscreen = { s0 = 1.95, s1 = 3.65, sill0 = 0.45, sill1 = 0.4, top0 = 1.05, top1 = 1.1,
+				splits = [2.5, 3.12], mask = 0.18 },
 			v_rotate = 79.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
@@ -155,6 +188,19 @@ func _airliner_specs() -> Array[Dictionary]:
 			sweep = 33.5, taper = 0.22, winglet = 2.3, winglet_style = 2, double_deck = true,
 			engines = [0.33, 0.61], thrust = 311000.0, engine_d = 3.5, engine_len = 6.0, engine_mass = 8200.0,
 			rows = 36, groups = [3, 4, 3], upper_rows = 22, upper_groups = [2, 4, 2], wheels = 6,
+			# Measured from the Airbus A380 airport-planning drawings (AC, 2012).
+			nose_cap_m = 10.3,
+			nose_table = [[0.0, -1.34, -2.08, 0.4], [0.25, -0.88, -2.43, 0.78], [0.5, -0.55, -2.65, 1.05],
+				[1.0, -0.09, -2.97, 1.38], [1.5, 0.26, -3.18, 1.65], [2.0, 0.65, -3.36, 1.87],
+				[3.0, 1.54, -3.57, 2.2], [4.0, 2.26, -3.75, 2.5], [5.0, 2.79, -3.86, 2.71],
+				[6.0, 3.22, -3.96, 2.9], [8.0, 3.68, -4.07, 3.21], [10.3, 4.12, -4.205, 3.57]],
+			win_w = 0.25, win_h = 0.35, win_pitch = 0.635, win_z = -0.4, win_first = 7.96, win_last = 51.9,
+			win2 = [2.5, 13.03, 53.05],
+			doors = [[6.32, 1.07, 2.13, -1.55], [16.5, 1.07, 2.13, -1.55], [32.68, 0.9, 1.7, -1.4],
+				[44.74, 1.07, 2.13, -1.55], [53.63, 1.07, 2.13, -1.55],
+				[20.94, 1.07, 1.9, 1.3], [40.3, 1.07, 1.9, 1.3], [49.19, 1.07, 1.9, 1.3]],
+			windscreen = { s0 = 1.65, s1 = 3.6, sill0 = 0.25, sill1 = 0.2, top0 = 0.8, top1 = 0.75,
+				splits = [2.4, 3.02] },
 			v_rotate = 82.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
@@ -168,6 +214,19 @@ func _airliner_specs() -> Array[Dictionary]:
 			engine_drop = 0.03, dorsal = 0.45, tail_upsweep = 0.85, nose_droop = 0.18, engine_flat = 0.28,
 			rows = 31, groups = [3, 3], wheels = 2,
 			win_w = 0.25, win_h = 0.36, win_pitch = 0.51,
+			# Measured from Boeing's 737NG airport-planning drawings (D6-58325-7):
+			# nose section (station, crown, keel, half-width), windows, doors and
+			# windscreen, from the nose tip and the fuselage mid-height.
+			height = 4.01, nose_cap_m = 7.9,
+			nose_table = [[0.0, -0.31, -0.65, 0.09], [0.25, 0.01, -1.0, 0.37], [0.5, 0.17, -1.19, 0.56],
+				[1.0, 0.47, -1.43, 0.75], [1.5, 0.81, -1.64, 0.92], [2.0, 1.16, -1.8, 1.08],
+				[3.0, 1.53, -1.99, 1.37], [4.0, 1.72, -2.04, 1.6], [5.0, 1.83, -2.04, 1.77],
+				[6.0, 1.93, -2.02, 1.85], [7.9, 2.005, -2.005, 1.88]],
+			win_z = 0.45, win_first = 6.15, win_last = 30.9,
+			doors = [[5.03, 0.86, 1.83, -0.45], [16.75, 0.5, 0.9, -0.1], [17.85, 0.5, 0.9, -0.1],
+				[31.88, 0.76, 1.83, -0.41]],
+			windscreen = { s0 = 1.5, s1 = 3.05, sill0 = 0.3, sill1 = 0.3, top0 = 0.66, top1 = 1.0,
+				splits = [1.85, 2.35] },
 			v_rotate = 75.0, v_cruise = 128.6, v_ne = 190.0,
 		},
 		{
@@ -175,10 +234,22 @@ func _airliner_specs() -> Array[Dictionary]:
 			desc = "The original jumbo, hump and all. 388 seats, four engines, a heavily swept wing.",
 			paint = bing, accent = Color(0.02, 0.2, 0.42), nose_power = 0.66,
 			length = 70.66, width = 6.5, mass = 330000.0, span = 64.4, area = 541.0, sweep = 37.5,
-			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.55, nose_droop = 0.08,
+			taper = 0.25, winglet = 1.8, winglet_style = 0, hump = 1.25, nose_droop = 0.08,
 			engines = [0.36, 0.63], thrust = 282000.0, engine_d = 2.8, engine_len = 5.6, engine_mass = 5800.0,
 			rows = 34, groups = [3, 4, 3], upper_rows = 8, upper_groups = [3, 3], wheels = 4,
 			win_w = 0.25, win_h = 0.36, win_pitch = 0.51,
+			# Measured from Boeing's 747-400 airport-planning drawings (D6-58326-1).
+			# The upper deck stands about 0.9 m above the main crown.
+			height = 7.04, nose_cap_m = 10.0,
+			nose_table = [[0.0, -0.28, -0.47, 0.05], [0.25, 0.22, -0.97, 0.53], [0.5, 0.46, -1.15, 0.84],
+				[1.0, 0.78, -1.53, 1.18], [1.5, 1.09, -1.78, 1.34], [2.0, 1.34, -1.96, 1.53],
+				[3.0, 1.9, -2.34, 1.77], [4.0, 2.39, -2.65, 2.02], [5.0, 3.14, -2.9, 2.24],
+				[6.0, 3.76, -3.08, 2.46], [8.0, 4.14, -3.4, 2.77], [10.0, 4.33, -3.52, 3.1]],
+			win_z = 0.19, win_first = 6.0, win_last = 62.3, win2 = [2.77, 9.59, 21.54],
+			doors = [[9.5, 1.07, 1.93, -0.84], [18.8, 1.07, 1.93, -0.84], [30.61, 1.07, 1.93, -0.84],
+				[40.74, 1.07, 1.93, -0.84], [55.14, 1.07, 1.93, -0.84], [15.45, 0.7, 1.3, 2.15]],
+			windscreen = { s0 = 4.55, s1 = 6.3, sill0 = 2.8, sill1 = 2.8, top0 = 3.25, top1 = 3.31,
+				splits = [4.95, 5.4] },
 			v_rotate = 84.0, v_cruise = 128.6, v_ne = 203.0,
 		},
 		{
@@ -189,7 +260,18 @@ func _airliner_specs() -> Array[Dictionary]:
 			taper = 0.15, winglet = 2.0, winglet_style = 1,
 			engines = [0.31], thrust = 513000.0, engine_d = 3.9, engine_len = 7.3, engine_mass = 10500.0,
 			rows = 37, groups = [3, 4, 3], wheels = 6,
-			win_w = 0.25, win_h = 0.36, win_pitch = 0.51,
+			win_w = 0.27, win_h = 0.4, win_pitch = 0.57,
+			# Measured from Boeing's 777-300ER airport-planning drawings (D6-58329-2).
+			height = 6.28, nose_cap_m = 10.0,
+			nose_table = [[0.0, -0.51, -0.69, 0.37], [0.25, -0.06, -1.2, 0.6], [0.5, 0.23, -1.37, 0.83],
+				[1.0, 0.51, -1.66, 1.14], [1.5, 0.91, -1.89, 1.34], [2.0, 1.37, -2.06, 1.63],
+				[3.0, 1.83, -2.34, 1.97], [4.0, 2.23, -2.63, 2.31], [5.0, 2.51, -2.8, 2.6],
+				[6.0, 2.68, -2.95, 2.8], [8.0, 3.03, -3.14, 3.08], [10.0, 3.14, -3.14, 3.1]],
+			win_z = 0.43, win_first = 8.0, win_last = 58.7,
+			doors = [[6.74, 1.07, 1.88, -0.55], [17.07, 1.07, 1.88, -0.55], [32.92, 1.07, 1.88, -0.55],
+				[46.46, 1.07, 1.88, -0.55], [59.67, 1.07, 1.88, -0.55]],
+			windscreen = { s0 = 1.5, s1 = 3.14, sill0 = 0.34, sill1 = 0.34, top0 = 0.8, top1 = 0.97,
+				splits = [1.95, 2.5] },
 			v_rotate = 86.0, v_cruise = 128.6, v_ne = 185.0,
 		},
 		{
@@ -201,7 +283,19 @@ func _airliner_specs() -> Array[Dictionary]:
 			engines = [0.31], thrust = 320000.0, engine_d = 3.4, engine_len = 6.0, engine_mass = 8000.0,
 			rows = 32, groups = [3, 3, 3], wheels = 4,
 			# 787: the largest airliner windows (about 0.27 x 0.47 m).
-			win_w = 0.27, win_h = 0.47, win_pitch = 0.535,
+			win_w = 0.27, win_h = 0.47,
+			# Measured from Boeing's 787 airport-planning drawings (D6-58333): the
+			# smooth nose, four-pane windscreen and the big, high-set windows.
+			height = 5.94, nose_cap_m = 8.97,
+			nose_table = [[0.0, -0.75, -1.1, 0.2], [0.25, -0.57, -1.78, 0.59], [0.5, -0.32, -1.94, 0.75],
+				[1.0, 0.16, -2.19, 1.11], [1.5, 0.57, -2.31, 1.36], [2.0, 1.01, -2.43, 1.56],
+				[3.0, 1.7, -2.63, 1.92], [4.0, 2.11, -2.76, 2.19], [5.0, 2.39, -2.86, 2.41],
+				[6.0, 2.63, -2.92, 2.61], [8.0, 2.88, -2.97, 2.86], [8.97, 2.97, -2.97, 2.885]],
+			win_z = 0.77, win_first = 8.0, win_last = 48.9, win_pitch = 0.61,
+			doors = [[6.3, 1.07, 1.88, -0.38], [18.36, 1.07, 1.88, -0.38], [35.43, 1.07, 1.88, -0.38],
+				[49.66, 1.07, 1.88, -0.38]],
+			windscreen = { s0 = 1.85, s1 = 3.4, sill0 = 0.3, sill1 = 0.3, top0 = 0.85, top1 = 1.0,
+				splits = [2.35] },
 			v_rotate = 80.0, v_cruise = 128.6, v_ne = 196.0,
 		},
 	]
@@ -251,7 +345,7 @@ func _airliner(spec: Dictionary) -> Dictionary:
 	# Fuselage stations. Z = 0 is where the wing's mean quarter chord starts out.
 	var nose_z := -0.44 * length
 	var tail_z := nose_z + length
-	var nose_cap := 1.35 * width
+	var nose_cap: float = spec.get("nose_cap_m", 1.35 * width)
 	var tail_cap := 2.5 * width
 	var mid_len := length * (0.26 if sections == 5 else 0.17)
 	var nose_end := nose_z + nose_cap + length * 0.03
@@ -474,6 +568,10 @@ func _airliner_livery(spec: Dictionary, cabin: Dictionary, nose_z: float, nose_c
 	var win_h: float = spec.get("win_h", 0.34)
 	var pitch: float = spec.get("win_pitch", 0.53)
 	var row_h := floor_h + float(spec.get("win_h_above_floor", 1.05))
+	if spec.has("win_z"):
+		row_h = spec.win_z
+		first = float(spec.win_first) - 0.3
+		last = float(spec.win_last) + 0.4
 	var livery := {
 		win_size = Vector4(win_w, win_h, minf(win_w, win_h) * 0.38, pitch),
 		win_row0 = Vector4(row_h, first + 0.3, last - 0.4, 1.0),
@@ -485,6 +583,9 @@ func _airliner_livery(spec: Dictionary, cabin: Dictionary, nose_z: float, nose_c
 		var u_first := float(u.z_start) - nose_z
 		livery.win_row1 = Vector4(float(u.floor) + 0.95, u_first + 0.2,
 				u_first + float(u.rows) * float(u.pitch) - 0.3, 1.0)
+	if spec.has("win2"):
+		var w2: Array = spec.win2
+		livery.win_row1 = Vector4(w2[0], w2[1], w2[2], 1.0)
 	# Doors: [station, width, height]; sill on the cabin floor.
 	var doors: Array = spec.get("doors", [])
 	if doors.is_empty():
@@ -536,14 +637,14 @@ func _fighter() -> Dictionary:
 		fus_break_force = [1.5e6, 1.6e6], fus_break_torque = [2.6e6, 2.8e6],
 		fus_crush = 0.5, nose_power = 0.95, nose_droop = 0.12, tail_ratio = 0.72,
 		tail_upsweep = 0.0, squash = Vector2(1.1, 0.82),
-		canopy = { z0 = -6.0, z1 = -2.9, half_width = 0.47, height = 0.68, mass = 70.0 },
+		canopy = { z0 = -5.8, z1 = -1.9, half_width = 0.45, height = 0.72, mass = 70.0 },
 		# The F-16's look: chin intake under the cockpit, root strakes running
 		# forward to the canopy, and ventral fins under the engine.
 		extras = [
-			{ part = &"fus_mid", type = "intake", z0 = -0.7, z1 = 4.2, y_top = -0.42,
-				height = 0.85, half_width = 0.5 },
-			{ part = &"fus_mid", type = "strake", z0 = -3.0, to_wing_le = true, y = 0.0,
-				x_root = 0.9, x_tip = 1.75 },
+			{ part = &"fus_mid", type = "intake", z0 = -1.0, z1 = 4.2, y_top = -0.42,
+				height = 0.75, half_width = 0.72 },
+			{ part = &"fus_mid", type = "strake", z0 = -1.7, to_wing_le = true, y = 0.0,
+				x_root = 0.75, x_tip = 1.55 },
 			{ part = &"fus_tail", type = "ventral", z0 = 1.1, z1 = 2.6, y = -0.62, x = 0.55,
 				height = 0.62, cant_deg = 18.0 },
 		],

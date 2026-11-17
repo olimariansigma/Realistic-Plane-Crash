@@ -186,7 +186,14 @@ built is marked *(planned)*.
 - **Looks.** One shared material samples one 1024 px atlas
   (`tools/gen_atlas.gd` -> `assets/atlas.png`, imported VRAM-compressed, ASTC
   on Android): cabin windows, windscreen, doors, panel lines, fan face.
-  Vertex colour carries the livery. Type-specific shape details
+  Vertex colour carries the livery. Cabin windows, doors and exits, the
+  windscreen panes and skin seams are drawn analytically by
+  `airframe.gdshader` in a fuselage frame (station from the nose tip, height
+  from the centreline) from `AircraftDef.livery`, so they are sharp at any
+  distance. Noses are lofted from measured `PartDef.nose_table` sections. The
+  numbers come from the manufacturers' published airport-planning drawings
+  (Airbus AC, Boeing ACAPS), cited in the spec comments in `gen_aircraft.gd`.
+  Type-specific shape details
   (`PartDef.extras`: belly fairing, chin intake, strakes, ventral fins,
   dorsal fin fillet) are
   extra skin pieces placed by `gen_aircraft.gd._add_extras` against the final
@@ -341,6 +348,11 @@ Made without asking, per the brief. Revisit if they stop fitting.
   resume switched it on all at once and tore the aircraft apart. GameState
   and FlightScene now switch it back on; the playtest checks the restarted
   aircraft moves.
+- **Pools must never recycle a body that is still in use.** The chunk and
+  debris pools recycled round-robin, so a big crash made the oldest flying
+  panels vanish about a second in. A body is reused only after its piece has
+  settled, leaving a static copy behind, and skin is only torn off while a
+  body is free (`CrashDirector.shed_room`).
 - **Clamp what the OS says about the safe area.** A wrong-orientation safe
   rect would push the flight controls off screen; `UiStyle.safe_margins`
   caps each margin at 7 % of the display.

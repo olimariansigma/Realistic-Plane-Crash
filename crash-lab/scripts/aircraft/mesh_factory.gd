@@ -426,7 +426,15 @@ static func _nose_row(part: PartDef, d: float) -> Vector4:
 		i += 1
 	var a := table[i - 1]
 	var b := table[i]
+	if i == 1:
+		# The first row describes the blunt tip; close it to a point there so
+		# the nose has no hole.
+		var mid := (a.y + a.z) * 0.5
+		a = Vector4(a.x, mid, mid, 0.0)
 	var t := clampf((d - a.x) / maxf(b.x - a.x, 0.001), 0.0, 1.0)
+	# Round over the tip: a blunt nose fills out quickly from the point.
+	if i == 1:
+		t = sqrt(t)
 	# Rounded tip: the first row's width is never quite zero.
 	var row := a.lerp(b, t)
 	row.w = maxf(row.w, 0.04)
