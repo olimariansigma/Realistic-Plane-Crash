@@ -7,6 +7,8 @@ extends PanelContainer
 ## so every type gets the list that matches its parts.
 
 signal closed
+## A failure was triggered: the component and the action, for the warning.
+signal triggered(component: String, action: String)
 
 const ROW_HEIGHT := 50.0
 
@@ -123,8 +125,10 @@ func _row(label_text: String, actions: Array) -> void:
 		var b := _make_button(String(a[0]))
 		var kind := int(a[1])
 		var index := int(a[2])
+		var action := String(a[0])
 		b.pressed.connect(func() -> void:
-			_aircraft.trigger_failure(kind as Aircraft.Failure, index)
+			if _aircraft.trigger_failure(kind as Aircraft.Failure, index):
+				triggered.emit(label_text, action)
 			refresh())
 		row.add_child(b)
 		_buttons.append(b)

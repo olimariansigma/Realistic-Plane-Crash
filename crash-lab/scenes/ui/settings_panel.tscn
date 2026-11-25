@@ -259,6 +259,23 @@ custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="RowSound" type="HBoxContainer" parent="Panel/Outer/Scroll/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="LabelSound" type="Label" parent="Panel/Outer/Scroll/Rows/RowSound"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Sound"
+vertical_alignment = 1
+
+[node name="SoundOn" type="CheckButton" parent="Panel/Outer/Scroll/Rows/RowSound"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="ButtonRow" type="HBoxContainer" parent="Panel/Outer"]
 layout_mode = 2
 theme_override_constants/separation = 12

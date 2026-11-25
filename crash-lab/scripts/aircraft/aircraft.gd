@@ -932,6 +932,12 @@ func _fbw_roll(stick: float) -> float:
 
 
 ## Swings the visible control surfaces to match the actuators.
+## Makes the next tick redraw every control surface, whatever it was showing
+## (the replay poses the airframe itself).
+func refresh_surfaces() -> void:
+	_hinged_last.fill(1.0e9)
+
+
 func _animate_surfaces() -> void:
 	for i: int in _hinged_nodes.size():
 		var node := _hinged_nodes[i]

@@ -15,6 +15,17 @@ var running: bool = true
 var thrust: float = 0.0
 ## Afterburner setting 0..1 (0 when unlit or not fitted).
 var afterburner: float = 0.0
+## 1 = healthy. A fire eats it over FIRE_LIFE seconds: the engine surges and
+## loses thrust, then fails, and the thrust asymmetry yaws and banks the
+## aircraft toward the dead side.
+var health: float = 1.0
+var _surge_phase: float = 0.0
+## Set when the fire has destroyed the engine (read once by the HUD).
+var burned_out: bool = false
+
+const FIRE_LIFE := 25.0
+## Drag area of a stopped, windmilling engine as a share of its frontal area.
+const WINDMILL_CD := 0.55
 
 
 func setup(engine: EngineDef, owner: AircraftPart) -> void:
@@ -26,6 +37,14 @@ func setup(engine: EngineDef, owner: AircraftPart) -> void:
 
 ## `sound_speed` is the local speed of sound (m/s).
 func apply(throttle: float, rho: float, dt: float, sound_speed: float) -> void:
+	if part.burning > 0.0 and running:
+		health -= dt * part.burning / FIRE_LIFE
+		if health <= 0.0:
+			health = 0.0
+			running = false
+			burned_out = true
+	if not running and part.joint != null:
+		_windmill_drag(rho)
 	var target := 0.0
 	if running:
 		target = def.idle_fraction + (1.0 - def.idle_fraction) * throttle
@@ -46,4 +65,21 @@ func apply(throttle: float, rho: float, dt: float, sound_speed: float) -> void:
 		afterburner = (throttle - 0.9) * 10.0
 		rated += (def.afterburner_thrust - def.max_thrust) * afterburner
 	thrust = rated * pow(rho / RHO0, 0.7) * maxf(1.0 - def.mach_lapse * mach, 0.0)
+	if health < 1.0:
+		# A burning engine surges: thrust drops with the damage and pulses.
+		_surge_phase += dt * 6.3
+		thrust *= health * (0.8 + 0.2 * sin(_surge_phase) * sin(_surge_phase * 0.37))
 	part.push_force(dir * thrust, pos)
+
+
+## A failed engine still in the airflow windmills: a large drag on its side,
+## which is what makes an engine failure yaw the aircraft so hard.
+func _windmill_drag(rho: float) -> void:
+	var basis := part.xf.basis
+	var pos := part.xf.origin + basis * local_pos
+	var v := part.velocity_at(pos)
+	var speed := v.length()
+	if speed < 5.0:
+		return
+	var area := PI * part.def.r0 * part.def.r0 * WINDMILL_CD
+	part.push_force(v * (-0.5 * rho * speed * area), pos)

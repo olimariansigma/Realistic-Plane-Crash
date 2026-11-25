@@ -13,6 +13,7 @@ const REST_MESSAGE_TIME := 3.0
 ## True while the report holds the flight paused (opened before rest).
 var _report_paused: bool = false
 var failure_panel: FailurePanel
+var sound: SoundDirector
 var world: World
 var aircraft: Aircraft
 var camera_rig: CameraRig
@@ -62,6 +63,11 @@ func _ready() -> void:
 	# Records all flight; only the last CrashRecorder.WINDOW_SECONDS are kept.
 	recorder.start_recording()
 
+	sound = SoundDirector.new()
+	sound.name = "Sound"
+	add_child(sound)
+	sound.setup(aircraft, director, recorder)
+
 	camera_rig = CameraRig.new()
 	camera_rig.name = "CameraRig"
 	add_child(camera_rig)
@@ -95,6 +101,8 @@ func _ready() -> void:
 		failure_panel.refresh()
 		failure_panel.visible = not failure_panel.visible)
 	hud.touch_blockers.append(failure_panel)
+	failure_panel.triggered.connect(func(component: String, action: String) -> void:
+		hud.show_message("%s  %s" % [component.to_upper(), action], 3.0))
 	_settings.changed.connect(_on_settings_changed)
 
 	report_screen = (load(REPORT_SCENE_PATH) as PackedScene).instantiate() as CrashReportScreen
@@ -223,12 +231,17 @@ func _on_replay_speed(speed: float) -> void:
 
 func _on_replay_closed() -> void:
 	recorder.stop()
+	aircraft.refresh_surfaces()
 	report_screen.show_replay_controls(false)
 	if _report_paused and report_screen.visible:
 		get_tree().paused = true
 
 
 func _physics_process(_delta: float) -> void:
+	for e: EngineUnit in aircraft.engines:
+		if e.burned_out:
+			e.burned_out = false
+			hud.show_message("%s FAILED" % FailurePanel.pretty_name(e.part.name).to_upper(), 3.0)
 	# Chase and cockpit views are useless on a tumbling or stationary wreck, but
 	# a scrape the aircraft flies away from should not take the view away.
 	if director.crash_active and not _wreck_view and camera_rig.mode != CameraRig.Mode.FLYBY \

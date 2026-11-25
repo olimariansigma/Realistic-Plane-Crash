@@ -75,6 +75,7 @@ func _notification(what: int) -> void:
 ## Applies the graphics quality tier to everything that is not scene-specific:
 ## mesh detail for the next aircraft build, and the 3D render scale.
 func apply_quality() -> void:
+	AudioServer.set_bus_mute(0, not SettingsStore.instance().sound_on)
 	var quality := SettingsStore.instance().graphics_quality
 	AirframeBuilder.detail = quality
 	# Render 3D at a target height, not the phone's native resolution: a

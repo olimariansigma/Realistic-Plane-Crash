@@ -22,6 +22,11 @@ var _blob: GradientTexture2D
 var _spark: Array[GPUParticles3D] = []
 var _spray: Array[GPUParticles3D] = []
 var _scrape_frames: PackedInt32Array = PackedInt32Array()
+## Each scrape slot's last position, rate 0..1 and whether it is on concrete,
+## for the sound.
+var scrape_pos: PackedVector3Array = PackedVector3Array()
+var scrape_rate: PackedFloat32Array = PackedFloat32Array()
+var scrape_paved: PackedByteArray = PackedByteArray()
 
 
 ## `quality` 0..2 scales emitter count and particle amounts.
@@ -56,6 +61,9 @@ func setup(quality: int) -> void:
 		_spray.append(spray)
 	_scrape_frames.resize(SCRAPE_SLOTS)
 	_scrape_frames.fill(0)
+	scrape_pos.resize(SCRAPE_SLOTS)
+	scrape_rate.resize(SCRAPE_SLOTS)
+	scrape_paved.resize(SCRAPE_SLOTS)
 	for i: int in DUST_COUNT:
 		var dust := _make_emitter("Dust%d" % i, int(16.0 * density), 1.6, _dust_process(), _billboard(false), 3.2)
 		dust.one_shot = true
@@ -117,6 +125,18 @@ func set_scrape(slot: int, pos: Vector3, velocity: Vector3, rate: float) -> void
 	if not on.emitting:
 		on.emitting = true
 	_scrape_frames[slot] = SCRAPE_HOLD
+	scrape_pos[slot] = pos
+	scrape_rate[slot] = rate
+	scrape_paved[slot] = 1 if paved else 0
+
+
+func scrape_active(slot: int) -> bool:
+	return _scrape_frames[slot] > 0
+
+
+## The burning source in fire slot `i` (null if out), for the sound.
+func fire_source(i: int) -> FireSource:
+	return _fire_source[i] if i < _fires_used else null
 
 
 func active_fires() -> int:

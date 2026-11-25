@@ -20,6 +20,7 @@ var _settings: SettingsStore = SettingsStore.instance()
 @onready var _metric: CheckButton = %UnitsMetric
 @onready var _quality: OptionButton = %Quality
 @onready var _fps: CheckButton = %ShowFps
+@onready var _sound: CheckButton = %SoundOn
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func _ready() -> void:
 	_auto_trim.toggled.connect(_on_bool.bind(&"auto_trim"))
 	_metric.toggled.connect(_on_bool.bind(&"units_metric"))
 	_fps.toggled.connect(_on_bool.bind(&"show_fps"))
+	_sound.toggled.connect(_on_bool.bind(&"sound_on"))
 	_quality.item_selected.connect(_on_quality)
 	UiStyle.style_button(%ResetButton)
 	UiStyle.style_button(%DoneButton)
@@ -68,6 +70,7 @@ func _refresh() -> void:
 	_auto_trim.set_pressed_no_signal(_settings.auto_trim)
 	_metric.set_pressed_no_signal(_settings.units_metric)
 	_fps.set_pressed_no_signal(_settings.show_fps)
+	_sound.set_pressed_no_signal(_settings.sound_on)
 	_quality.select(clampi(_settings.graphics_quality, 0, _quality.item_count - 1))
 
 

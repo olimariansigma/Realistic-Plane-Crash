@@ -13,7 +13,7 @@ const SECTION := "settings"
 const KEYS: Array[StringName] = [
 	&"stick_sensitivity", &"stick_deadzone", &"stick_smoothing", &"invert_pitch",
 	&"gyro_enabled", &"gyro_sensitivity", &"auto_trim", &"units_metric",
-	&"graphics_quality", &"show_fps",
+	&"graphics_quality", &"show_fps", &"sound_on",
 ]
 const _DEBRIS: Array[int] = [24, 48, 80]
 const _FREDS: Array[int] = [4, 8, 12]
@@ -32,6 +32,7 @@ var units_metric: bool = false
 ## 0 low, 1 medium, 2 high.
 var graphics_quality: int = 1
 var show_fps: bool = true
+var sound_on: bool = true
 
 
 ## The autoload node, cached. Falls back to a detached default instance when the
@@ -77,6 +78,7 @@ func reset_defaults() -> void:
 	units_metric = false
 	graphics_quality = 1
 	show_fps = true
+	sound_on = true
 	changed.emit()
 
 
