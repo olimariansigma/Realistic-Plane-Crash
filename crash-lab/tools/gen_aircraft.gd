@@ -654,6 +654,30 @@ func _section_rows(p: Dictionary, index: int, s0: float, s1: float) -> PackedVec
 	return rows
 
 
+## Rows sampled past the end of the measured nose table fall back to the
+## plain section, but a section that carries a hump (the 747's upper deck)
+## must keep its raised crown there: otherwise the nose section ended 0.9 m
+## lower than the hump section it joins, leaving an open step in the skin.
+func _keep_hump(p: Dictionary, index: int, part: PartDef, z0: float, z1: float) -> void:
+	if not p.has("fus_top") or part.nose_table.is_empty():
+		return
+	var top: Vector2 = p.fus_top[index]
+	if top == Vector2.ONE:
+		return
+	var nose: Array = p.get("nose_table", [])
+	var nose_end := float((nose.back() as Array)[0]) if not nose.is_empty() else -1.0
+	var start := z0 - float(p.nose_z)
+	var length := z1 - z0
+	var sq: Vector2 = p.squash
+	var rows := part.nose_table
+	for k: int in rows.size():
+		var row := rows[k]
+		if row.x + start > nose_end + 0.01:
+			row.y = maxf(row.y, float(p.fus_r) * sq.y * lerpf(top.x, top.y, row.x / maxf(length, 0.001)))
+			rows[k] = row
+	part.nose_table = rows
+
+
 ## Crown, keel and half-width at station `st`, from the measured nose and
 ## tail tables, or the constant section between them.
 func _sample_body(p: Dictionary, nose: Array, tail: Array, st: float) -> Vector3:
@@ -1012,6 +1036,7 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 		part.crush_depth = p.fus_crush
 		part.nose_power = p.nose_power
 		part.nose_table = _section_rows(p, i, z0 - float(p.nose_z), z1 - float(p.nose_z))
+		_keep_hump(p, i, part, z0, z1)
 		part.nose_droop = p.nose_droop
 		part.tail_ratio = p.tail_ratio
 		part.tail_upsweep = p.tail_upsweep
@@ -1022,8 +1047,17 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 			part.top_scale1 = top.y
 		part.window_rows = int(p.fus_windows[i]) if p.has("fus_windows") else (1 if int(p.cabin.rows) > 0 else 0)
 		made.append(part)
+	# The wing section is split across the wing box into a front half (the
+	# root, carrying the wings) and an aft half on its own joint, so the centre
+	# fuselage can break too. Airliners only: the F-16's sections are measured
+	# tables that do not split.
+	var mid_aft: PartDef = null
+	if not p.has("section_tables"):
+		mid_aft = _split_mid(made[mid], p)
 	# Root (mid) first, then outward so parents precede children.
 	def.parts.append(made[mid])
+	if mid_aft != null:
+		def.parts.append(mid_aft)
 	for i: int in range(mid - 1, -1, -1):
 		made[i].parent = made[i + 1].name
 		made[i].anchor = Vector3(0.0, 0.0, cuts[i + 1])
@@ -1032,10 +1066,51 @@ func _add_fuselage(def: AircraftDef, p: Dictionary) -> void:
 		def.parts.append(made[i])
 	for i: int in range(mid + 1, n):
 		made[i].parent = made[i - 1].name
+		if i == mid + 1 and mid_aft != null:
+			made[i].parent = mid_aft.name
 		made[i].anchor = Vector3(0.0, 0.0, cuts[i])
 		made[i].break_force = p.fus_break_force[i - 1]
 		made[i].break_torque = p.fus_break_torque[i - 1]
 		def.parts.append(made[i])
+
+
+## Cuts `mid` (the wing section, left as the front part) in two behind the
+## wing box, at three quarters of its length, and returns the aft part,
+## jointed to it. Cut at the middle, the landing load from gear behind the
+## cut came back forward through the wing roots (747 wing root at 65 % of
+## break on a firm landing, from 27 %). The joint is the strongest
+## in the fuselage (1.3x the joints either side): the wing box carries the
+## centre section's bending.
+func _split_mid(mid: PartDef, p: Dictionary) -> PartDef:
+	var r: float = p.fus_r
+	var z0 := mid.p0.z
+	var z1 := mid.p1.z
+	var zc := lerpf(z0, z1, 0.75)
+	var aft := mid.duplicate() as PartDef
+	aft.name = &"fus_mid_aft"
+	aft.extras = []
+	var total := mid.mass
+	var drag := mid.drag_area
+	mid.p1 = Vector3(0.0, 0.0, zc)
+	aft.p0 = Vector3(0.0, 0.0, zc)
+	for part: PartDef in [mid, aft]:
+		var share := (part.p1.z - part.p0.z) / (z1 - z0)
+		var len := part.p1.z - part.p0.z
+		part.mass = total * share
+		part.com = Vector3(0.0, mid.com.y, (part.p0.z + part.p1.z) * 0.5)
+		part.inertia = Vector3(
+				part.mass * (3.0 * r * r + len * len) / 12.0,
+				part.mass * (3.0 * r * r + len * len) / 12.0,
+				part.mass * r * r * 0.72)
+		part.drag_area = drag * share
+	aft.parent = mid.name
+	aft.anchor = Vector3(0.0, 0.0, zc)
+	var forces: Array = p.fus_break_force
+	var torques: Array = p.fus_break_torque
+	var mid_index := forces.size() / 2
+	aft.break_force = float(forces[mid_index]) * 1.3
+	aft.break_torque = float(torques[mid_index]) * 1.3
+	return aft
 
 
 ## Chord at span station x of a straight-tapered planform.

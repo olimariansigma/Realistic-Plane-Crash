@@ -121,12 +121,19 @@ var _ticks: int = 0
 ## True once the main assembly is itself wreckage (see WRECK_ROOT_SHARE).
 var _root_wrecked: bool = false
 var _rest_brake_left: float = 0.0
-## Pairs of parts (i * count + j) that do not collide with each other: all of
-## them while the airframe is whole, since jointed parts overlap at their
-## seams. Once a joint breaks, pairs that end up in different pieces of
-## wreckage start colliding as soon as their hulls have separated.
+## Collision state of each pair of parts (i * count + j, i < j): 0 they
+## collide, 1 jointed to each other (no collision while the joint holds),
+## 2 waiting to collide until their hulls stop overlapping (pairs that overlap
+## in the built airframe, and jointed pairs once the joint has broken).
 var _no_collide: PackedByteArray = PackedByteArray()
 var _pending_pairs: Array[Vector2i] = []
+var _overlap_query := PhysicsShapeQueryParameters3D.new()
+## Gap (m) two parts must open before they start colliding, and the wider
+## gap that counts as touching in the built airframe: parts that close only
+## rub against each other through the joints' slight give (a wing root beside
+## the aft half of the centre section loaded its joint to 65 % on landing).
+const PAIR_CLEARANCE := 0.15
+const BUILD_CLEARANCE := 0.6
 var _airborne_time: float = 0.0
 var _fbw_pitch_i: float = 0.0
 ## How many skin pieces can be torn off right now (set by CrashDirector): a
@@ -213,7 +220,12 @@ func setup(aircraft_def: AircraftDef) -> void:
 		for j: int in range(i + 1, count):
 			parts[i].add_collision_exception_with(parts[j])
 			parts[j].add_collision_exception_with(parts[i])
-			_no_collide[i * count + j] = 1
+			var jointed := parts[j].parent_index == i or parts[i].parent_index == j
+			_no_collide[i * count + j] = 1 if jointed else 2
+			if not jointed:
+				_pending_pairs.append(Vector2i(i, j))
+	_overlap_query.collision_mask = AirframeBuilder.LAYER_AIRFRAME
+	_overlap_query.margin = PAIR_CLEARANCE
 	structure = StructureMonitor.new()
 	structure.setup(parts)
 	cabin = Cabin.new()
@@ -440,7 +452,11 @@ func _physics_process(dt: float) -> void:
 			# the outboard one is then no longer overloaded in fact, but it was
 			# measured so, and both letting go is the physical outcome.
 			detach(idx, structure.load_ratio[idx])
-	if not _pending_pairs.is_empty() and _ticks % 3 == 0:
+	# Non-adjacent parts that are clear of each other collide from the first
+	# tick (a folding wing hits the fuselage); after that, waiting pairs are
+	# only re-checked once something has broken or hit.
+	if not _pending_pairs.is_empty() and (_ticks == 1 or (crash_time >= 0.0 and _ticks % 3 == 0)):
+		_overlap_query.margin = BUILD_CLEARANCE if _ticks == 1 else PAIR_CLEARANCE
 		_update_part_collisions()
 	_process_impacts(dt)
 	for i: int in count:
@@ -481,6 +497,7 @@ func _physics_process(dt: float) -> void:
 	var brake := clampf(controls.brake, 0.0, 1.0)
 	for i: int in gears.size():
 		var gear := gears[i]
+		gear.throttle = clampf(controls.throttle, 0.0, 1.0)
 		gear.apply(gear_ratio, _act.z, brake, dt, parts[gear.part.assembly_root])
 		if gear.burst_now:
 			gear.burst_now = false
@@ -559,14 +576,14 @@ func detach(index: int, load_ratio: float) -> void:
 		else:
 			root_mass += p.mass
 	_root_wrecked = root_mass < WRECK_ROOT_SHARE * all_mass
-	# Pieces of wreckage that are now separate must be able to hit each other.
+	# The two halves of the broken joint must be able to hit each other once
+	# they have come apart.
 	var count := parts.size()
-	for i: int in count:
-		for j: int in range(i + 1, count):
-			if _no_collide[i * count + j] == 1 and parts[i].assembly_root != parts[j].assembly_root:
-				_no_collide[i * count + j] = 2
-				_pending_pairs.append(Vector2i(i, j))
-	_update_part_collisions()
+	var lo := mini(index, part.parent_index)
+	var hi := maxi(index, part.parent_index)
+	if _no_collide[lo * count + hi] == 1:
+		_no_collide[lo * count + hi] = 2
+		_pending_pairs.append(Vector2i(lo, hi))
 	for engine: EngineUnit in engines:
 		# Torn from the fuel system: the engine runs down.
 		if engine.part.assembly_root != 0:
@@ -606,6 +623,59 @@ func detach(index: int, load_ratio: float) -> void:
 		ignite(part, part.anchor_local, clampf(part.def.fuel_kg / 3000.0, 0.35, 1.0))
 		if parent.def.fuel_kg > 0.0:
 			ignite(parent, part.def.anchor - parent.def.com, clampf(parent.def.fuel_kg / 3000.0, 0.35, 1.0))
+
+
+## Failure kinds the player can trigger (FailurePanel).
+enum Failure { FLAME_OUT, ENGINE_FIRE, BREAK_OFF, CRACK, TYRES, CONTROLS_JAM }
+
+## True while the flight controls are jammed (surfaces frozen where they are).
+var controls_jammed: bool = false
+
+
+## True if failure `kind` can still be triggered on `index` (an engine
+## index for engine failures, a gear index for TYRES, a part index otherwise).
+func failure_available(kind: Failure, index: int) -> bool:
+	match kind:
+		Failure.FLAME_OUT:
+			return index < engines.size() and engines[index].running and engines[index].part.joint != null
+		Failure.ENGINE_FIRE:
+			return index < engines.size() and engines[index].part.burning <= 0.0
+		Failure.BREAK_OFF:
+			return index > 0 and index < parts.size() and parts[index].joint != null
+		Failure.CRACK:
+			return index > 0 and index < parts.size() and parts[index].joint != null \
+					and structure.cracked[index] == 0
+		Failure.TYRES:
+			return index < gears.size() and not gears[index].burst and gears[index].part.joint != null
+		Failure.CONTROLS_JAM:
+			return not controls_jammed
+	return false
+
+
+## Triggers a failure (see failure_available). Returns false if it no longer
+## applies.
+func trigger_failure(kind: Failure, index: int) -> bool:
+	if not failure_available(kind, index):
+		return false
+	match kind:
+		Failure.FLAME_OUT:
+			engines[index].running = false
+		Failure.ENGINE_FIRE:
+			var e := engines[index]
+			ignite(e.part, e.local_pos, 0.8)
+		Failure.BREAK_OFF:
+			# As a violent overload: skin, frames and debris go with it.
+			detach(index, 3.5)
+		Failure.CRACK:
+			structure.cracked[index] = 1
+			_crack(index)
+		Failure.TYRES:
+			var g := gears[index]
+			g.burst = true
+			tyre_burst.emit(g, g.contact if g.on_ground else g.part.xf.origin)
+		Failure.CONTROLS_JAM:
+			controls_jammed = true
+	return true
 
 
 ## Starts (or intensifies) a fire on a part at a part-local position.
@@ -660,6 +730,10 @@ func _process_impacts(dt: float) -> void:
 		var part := parts[i]
 		if part.burning > 0.0:
 			part.burn_time += dt
+			# Fire softens the structure it burns on: a burning engine or wing
+			# loses strength at its joint over a minute or two.
+			if part.joint != null:
+				structure.damage[i] = minf(structure.damage[i] + dt * 0.004 * part.burning, StructureMonitor.MAX_DAMAGE)
 			if (_ticks + i) % 20 == 0:
 				part.set_scorch(minf(part.burn_time / 25.0, 0.85) * part.burning)
 		# Past the never-exceed speed flutter and air loads start taking the
@@ -726,7 +800,7 @@ func _process_impacts(dt: float) -> void:
 			part_dented.emit(part)
 			# Roughly one panel per 0.4 m of crush, nearest first.
 			shed_pieces(part, local_pos, clampf(1.2 + depth * 2.0, 1.5, 5.0),
-					clampi(int(depth * 2.5), 0, 4), 3.0 + minf(part.hit_speed * 0.2, 8.0))
+					clampi(int(depth * 2.5) + int(energy / 4.0e5), 0, 6), 3.0 + minf(part.hit_speed * 0.2, 8.0))
 			if part.hit_speed > 4.0:
 				# A fresh hard impact after time in the air is the one the
 				# report should describe, even if an earlier scrape began it.
@@ -772,6 +846,9 @@ func _update_actuators(dt: float) -> void:
 		_fbw_pitch_i = _act.x
 	if fbw and def.fbw_roll_rate_deg > 0.0:
 		roll_demand = _fbw_roll(c.roll)
+	if controls_jammed:
+		# Hydraulics lost: the surfaces stay where they were.
+		rate = 0.0
 	_act.x = move_toward(_act.x, pitch_demand, rate)
 	_act.y = move_toward(_act.y, roll_demand, rate)
 	# Yaw damper: rudder against the washed-out yaw rate (airborne only, so it
@@ -897,23 +974,44 @@ func shed_pieces(part: AircraftPart, local_pos: Vector3, radius: float, max_coun
 	return shed
 
 
-## Lets broken-apart parts collide once their hulls no longer overlap (two
-## parts that were jointed overlap at the seam; colliding at once would shove
-## them apart with a jolt the break did not have).
+## Lets waiting pairs collide once their hulls (grown by PAIR_CLEARANCE) no
+## longer overlap: two parts that overlap, such as the halves of a joint that
+## has just broken, would otherwise be shoved apart with a jolt the break did
+## not have. Exact shape queries; bounding boxes stayed overlapping for a
+## broken wing lying beside the fuselage, so it never collided.
 func _update_part_collisions() -> void:
 	var count := parts.size()
+	var overlaps: Dictionary = {}
 	for n: int in range(_pending_pairs.size() - 1, -1, -1):
 		var pair := _pending_pairs[n]
 		var a := parts[pair.x]
 		var b := parts[pair.y]
-		var box_a := (a.global_transform * a.hull_aabb).grow(0.05)
-		var box_b := b.global_transform * b.hull_aabb
-		if box_a.intersects(box_b):
+		if not overlaps.has(pair.x):
+			overlaps[pair.x] = _overlapping(a)
+		if (overlaps[pair.x] as Dictionary).has(b.get_rid()):
 			continue
 		a.remove_collision_exception_with(b)
 		b.remove_collision_exception_with(a)
 		_no_collide[pair.x * count + pair.y] = 0
 		_pending_pairs.remove_at(n)
+
+
+## RIDs of the airframe bodies `part`'s collider (grown by PAIR_CLEARANCE)
+## touches right now.
+func _overlapping(part: AircraftPart) -> Dictionary:
+	var found: Dictionary = {}
+	for child: Node in part.get_children():
+		var cs := child as CollisionShape3D
+		# Disabled colliders count too: a retracted gear leg's comes back on
+		# when the gear goes down, inside the wing or fuselage around it.
+		if cs == null or cs.shape == null:
+			continue
+		_overlap_query.shape = cs.shape
+		_overlap_query.transform = part.global_transform * cs.transform
+		_overlap_query.exclude = [part.get_rid()]
+		for hit: Dictionary in get_world_3d().direct_space_state.intersect_shape(_overlap_query, 32):
+			found[hit.rid] = true
+	return found
 
 
 func _apply_gear_state() -> void:

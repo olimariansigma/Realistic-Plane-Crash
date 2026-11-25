@@ -152,7 +152,7 @@ toggle_mode = true
 layout_mode = 0
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -460.0
+offset_left = -540.0
 offset_top = 0.0
 offset_right = 0.0
 offset_bottom = 56.0
@@ -162,7 +162,7 @@ alignment = 2
 
 [node name="CamButton" type="Control" parent="FlightLayer/TopRightRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(140, 56)
+custom_minimum_size = Vector2(130, 56)
 layout_mode = 2
 mouse_filter = 2
 script = ExtResource("4_nilo6")
@@ -176,6 +176,14 @@ mouse_filter = 2
 script = ExtResource("4_nilo6")
 text = "CUT"
 toggle_mode = true
+
+[node name="FailButton" type="Control" parent="FlightLayer/TopRightRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 56)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("4_nilo6")
+text = "FAIL"
 
 [node name="ReportButton" type="Control" parent="FlightLayer/TopRightRow"]
 unique_name_in_owner = true

@@ -4,22 +4,12 @@ extends RefCounted
 ## leg's own rigid body, so it reaches the airframe through the leg's joint.
 
 const SLIP_PEAK := 0.14  # tan of the slip angle where lateral grip saturates (~8 deg)
-## Tyre failures. Anti-skid releases the brakes before a wheel locks, but it
-## switches off below ANTI_SKID_SPEED (m/s): there, brakes held against
-## engine thrust lock the wheels and the tyres scrub along the runway. After
-## SCRUB_BURST metres of locked scrubbing under load they burst. A touchdown
-## sinking faster than BURST_SINK (m/s) on this gear, or rolling faster than
-## the tyre speed rating TYRE_SPEED_LIMIT (m/s, ~205 kt), bursts them too.
-const ANTI_SKID_SPEED := 6.0
-const SCRUB_BURST := 3.0
-## Brake heat as braking work per newton of wheel load (J/N, i.e. mu times
-## braked distance). A maximum-energy rejected take-off is about 250; past
-## BRAKE_HEAT_BURST the fusible plugs melt and the tyres deflate. It cools at
-## BRAKE_COOL per second.
-const BRAKE_HEAT_BURST := 400.0
-const BRAKE_COOL := 1.0
-const BURST_SINK := 5.0
-const TYRE_SPEED_LIMIT := 105.0
+## Tyre failure: brakes held (>= 50 %) while the engines push with more than
+## BURST_THROTTLE for BURST_TIME seconds, on a braked gear on the ground: the
+## locked tyres are dragged and scrubbed until they burst. Nothing else
+## bursts them.
+const BURST_THROTTLE := 0.3
+const BURST_TIME := 2.0
 ## On the rims: far more rolling drag, less side grip, and the gear sits lower
 ## by this share of the wheel radius.
 const RIM_ROLLING_MU := 0.1
@@ -44,9 +34,10 @@ var steer_rad: float = 0.0
 var burst: bool = false
 var burst_now: bool = false
 var burst_at: Vector3
-## Metres of locked-wheel scrubbing so far, and brake heat (J/N).
+## Seconds of brakes held against thrust so far; the throttle (0..1) is set
+## by Aircraft each tick.
 var scrub: float = 0.0
-var brake_heat: float = 0.0
+var throttle: float = 0.0
 var _was_on_ground: bool = false
 ## Contact patch (world) and rolling speed while on the ground, for effects.
 var contact: Vector3
@@ -122,21 +113,15 @@ func apply(deployed: float, yaw_input: float, brake: float, dt: float, frame: Ai
 	var lat := normal.cross(fwd)
 	var v_f := v_c.dot(fwd)
 	var v_l := v_c.dot(lat)
-	if not burst:
-		var speed_f := absf(v_f)
-		var braked := def.brake_mu > 0.0
-		brake_heat = maxf(brake_heat + (def.brake_mu * brake * speed_f - BRAKE_COOL) * dt, 0.0)
-		if braked and brake >= 0.5 and speed_f < ANTI_SKID_SPEED and speed_f > 0.15:
-			# Locked and being dragged: scrub in proportion to how hard the
-			# brakes are fighting (full brakes, full scrub).
-			scrub += speed_f * dt * brake
-		elif speed_f < 0.05 or brake < 0.5:
-			scrub = maxf(scrub - dt * 0.2, 0.0)
-		if scrub > SCRUB_BURST or brake_heat > BRAKE_HEAT_BURST or speed_f > TYRE_SPEED_LIMIT \
-				or (touchdown and rate > BURST_SINK):
-			burst = true
-			burst_now = true
-			burst_at = hit
+	if not burst and def.brake_mu > 0.0:
+		if brake >= 0.5 and throttle > BURST_THROTTLE:
+			scrub += dt
+			if scrub >= BURST_TIME:
+				burst = true
+				burst_now = true
+				burst_at = hit
+		else:
+			scrub = 0.0
 	var rolling := def.rolling_mu + (RIM_ROLLING_MU if burst else 0.0)
 	var lateral := def.lateral_mu * (RIM_LATERAL_FACTOR if burst else 1.0)
 	var f_long := -f * (rolling + def.brake_mu * brake) * clampf(v_f * 2.0, -1.0, 1.0)

@@ -15,6 +15,11 @@ signal hangar_requested
 signal pause_changed(paused: bool)
 ## The REPORT button: show the crash report now (any time, crashed or not).
 signal report_requested
+## The FAIL button: open or close the failures menu.
+signal failures_requested
+
+## Controls (such as the failures menu) whose area does not turn the camera.
+var touch_blockers: Array[Control] = []
 
 const EXPO: float = 1.6
 ## Seconds per unit of _settings.stick_smoothing.
@@ -62,6 +67,7 @@ var _settings: SettingsStore = SettingsStore.instance()
 @onready var _cut_button: TouchButton = %CutButton
 @onready var _pause_button: TouchButton = %PauseButton
 @onready var _report_button: TouchButton = %ReportButton
+@onready var _fail_button: TouchButton = %FailButton
 @onready var _telemetry_label: Label = %TelemetryLabel
 @onready var _attitude: AttitudeIndicator = %AttitudeIndicator
 @onready var _stall_label: Label = %StallLabel
@@ -89,6 +95,7 @@ func _ready() -> void:
 	_cut_button.pressed_changed.connect(cutaway_toggled.emit)
 	_pause_button.tapped.connect(_set_paused.bind(true))
 	_report_button.tapped.connect(report_requested.emit)
+	_fail_button.tapped.connect(failures_requested.emit)
 	_flap_up.tapped.connect(_step_flap.bind(1))
 	_flap_down.tapped.connect(_step_flap.bind(-1))
 	%ResumeButton.pressed.connect(_set_paused.bind(false))
@@ -175,7 +182,7 @@ func _release_all_touches() -> void:
 	_rudder.cancel_touch()
 	_throttle.cancel_touch()
 	for b: TouchButton in [_flap_up, _flap_down, _brake, _cam_button, _pause_button, _gear, _spoilers, _cut_button,
-			_report_button]:
+			_report_button, _fail_button]:
 		b.cancel_touch()
 	_cam_index[0] = -1
 	_cam_index[1] = -1
@@ -326,6 +333,10 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var touch := event as InputEventScreenTouch
 		if touch.pressed:
+			for blocker: Control in touch_blockers:
+				if blocker.is_visible_in_tree() and blocker.get_global_rect().has_point(
+						get_global_transform_with_canvas().affine_inverse() * touch.position):
+					return
 			var slot: int = 0 if _cam_index[0] == -1 else (1 if _cam_index[1] == -1 else -1)
 			if slot >= 0:
 				_cam_index[slot] = touch.index

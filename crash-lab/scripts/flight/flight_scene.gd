@@ -12,6 +12,7 @@ const REST_MESSAGE_TIME := 3.0
 
 ## True while the report holds the flight paused (opened before rest).
 var _report_paused: bool = false
+var failure_panel: FailurePanel
 var world: World
 var aircraft: Aircraft
 var camera_rig: CameraRig
@@ -80,6 +81,20 @@ func _ready() -> void:
 	hud.restart_requested.connect(_on_restart)
 	hud.hangar_requested.connect(_on_hangar)
 	hud.report_requested.connect(_open_report)
+	failure_panel = FailurePanel.new()
+	failure_panel.name = "FailurePanel"
+	failure_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	failure_panel.offset_left = -600.0
+	failure_panel.offset_top = 66.0
+	failure_panel.offset_bottom = -4.0
+	failure_panel.visible = false
+	hud.get_node(^"FlightLayer").add_child(failure_panel)
+	failure_panel.setup(aircraft)
+	failure_panel.closed.connect(func() -> void: failure_panel.visible = false)
+	hud.failures_requested.connect(func() -> void:
+		failure_panel.refresh()
+		failure_panel.visible = not failure_panel.visible)
+	hud.touch_blockers.append(failure_panel)
 	_settings.changed.connect(_on_settings_changed)
 
 	report_screen = (load(REPORT_SCENE_PATH) as PackedScene).instantiate() as CrashReportScreen

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AircraftDef" load_steps=53 format=4]
+[gd_resource type="Resource" script_class="AircraftDef" load_steps=55 format=4]
 
 [ext_resource type="Script" path="res://scripts/aircraft/defs/engine_def.gd" id="1_r7v8e"]
 [ext_resource type="Script" path="res://scripts/aircraft/defs/gear_def.gd" id="2_7lto2"]
@@ -86,14 +86,14 @@ script = ExtResource("3_p8e8f")
 name = &"fus_mid"
 parent = &""
 kind = 0
-mass = 48394.3
-com = Vector3(1.04167e-07, 0.344893, -3.56897)
-inertia = Vector3(752080, 752080, 334850)
+mass = 36295.7
+com = Vector3(1.04167e-07, 0.344893, -5.13849)
+inertia = Vector3(355434, 355434, 251137)
 anchor = Vector3(1.04167e-07, 0.716893, -3.56897)
 break_force = 1e+06
 break_torque = 1e+06
 p0 = Vector3(1.04167e-07, 0.716893, -9.84707)
-p1 = Vector3(1.04167e-07, 0.716893, 2.70913)
+p1 = Vector3(1.04167e-07, 0.716893, -0.429917)
 r0 = 3.1
 r1 = 3.1
 shape_a = 0.0
@@ -119,11 +119,46 @@ extras = [{
 }]
 nose_table = PackedVector4Array()
 flat_bottom = 0.0
-drag_area = Vector3(54.4939, 54.4939, 0.807075)
+drag_area = Vector3(40.8704, 40.8704, 0.605306)
 fuel_kg = 0.0
 crush_depth = 1.1
 
 [sub_resource type="Resource" id="Resource_fv50u"]
+script = ExtResource("3_p8e8f")
+name = &"fus_mid_aft"
+parent = &"fus_mid"
+kind = 0
+mass = 12098.6
+com = Vector3(1.04167e-07, 0.344893, 1.13961)
+inertia = Vector3(39001.4, 39001.4, 83712.4)
+anchor = Vector3(1.04167e-07, 0.716893, -0.429917)
+break_force = 9.17902e+06
+break_torque = 1.04519e+08
+p0 = Vector3(1.04167e-07, 0.716893, -0.429917)
+p1 = Vector3(1.04167e-07, 0.716893, 2.70913)
+r0 = 3.1
+r1 = 3.1
+shape_a = 0.0
+shape_b = 0.0
+skin = 0
+nose_power = 0.68
+nose_droop = 0.22
+tail_ratio = 0.22
+tail_upsweep = 0.72
+squash = Vector2(1, 1.0129)
+winglet = 0.0
+winglet_style = 0
+top_scale0 = 1.0
+top_scale1 = 1.0
+window_rows = 1
+extras = []
+nose_table = PackedVector4Array()
+flat_bottom = 0.0
+drag_area = Vector3(13.6235, 13.6235, 0.201769)
+fuel_kg = 0.0
+crush_depth = 1.1
+
+[sub_resource type="Resource" id="Resource_u0ymh"]
 script = ExtResource("3_p8e8f")
 name = &"fus_fwd"
 parent = &"fus_mid"
@@ -158,7 +193,7 @@ drag_area = Vector3(30.3898, 30.3898, 0.450084)
 fuel_kg = 0.0
 crush_depth = 1.1
 
-[sub_resource type="Resource" id="Resource_u0ymh"]
+[sub_resource type="Resource" id="Resource_mblmo"]
 script = ExtResource("3_p8e8f")
 name = &"fus_fwd2"
 parent = &"fus_fwd"
@@ -193,7 +228,7 @@ drag_area = Vector3(30.3898, 30.3898, 0.450084)
 fuel_kg = 0.0
 crush_depth = 1.1
 
-[sub_resource type="Resource" id="Resource_mblmo"]
+[sub_resource type="Resource" id="Resource_xte4o"]
 script = ExtResource("3_p8e8f")
 name = &"fus_nose"
 parent = &"fus_fwd2"
@@ -228,10 +263,10 @@ drag_area = Vector3(42.4133, 42.4133, 0.942234)
 fuel_kg = 0.0
 crush_depth = 1.1
 
-[sub_resource type="Resource" id="Resource_xte4o"]
+[sub_resource type="Resource" id="Resource_btqh6"]
 script = ExtResource("3_p8e8f")
 name = &"fus_aft"
-parent = &"fus_mid"
+parent = &"fus_mid_aft"
 kind = 0
 mass = 24517.3
 com = Vector3(1.04167e-07, 0.344893, 7.48001)
@@ -263,7 +298,7 @@ drag_area = Vector3(41.4112, 41.4112, 0.613315)
 fuel_kg = 0.0
 crush_depth = 1.1
 
-[sub_resource type="Resource" id="Resource_btqh6"]
+[sub_resource type="Resource" id="Resource_lxxri"]
 script = ExtResource("3_p8e8f")
 name = &"fus_aft2"
 parent = &"fus_aft"
@@ -298,7 +333,7 @@ drag_area = Vector3(41.4112, 41.4112, 0.613315)
 fuel_kg = 0.0
 crush_depth = 1.1
 
-[sub_resource type="Resource" id="Resource_lxxri"]
+[sub_resource type="Resource" id="Resource_bppj8"]
 script = ExtResource("3_p8e8f")
 name = &"fus_tail"
 parent = &"fus_aft2"
@@ -340,7 +375,7 @@ drag_area = Vector3(55.552, 55.552, 1.23412)
 fuel_kg = 0.0
 crush_depth = 1.1
 
-[sub_resource type="Resource" id="Resource_bppj8"]
+[sub_resource type="Resource" id="Resource_ca0rm"]
 script = ExtResource("3_p8e8f")
 name = &"wing_l_in"
 parent = &"fus_mid"
@@ -378,7 +413,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 14040.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_ca0rm"]
+[sub_resource type="Resource" id="Resource_4ce70"]
 script = ExtResource("3_p8e8f")
 name = &"wing_l_mid"
 parent = &"wing_l_in"
@@ -416,7 +451,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 6240.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_4ce70"]
+[sub_resource type="Resource" id="Resource_6dxw1"]
 script = ExtResource("3_p8e8f")
 name = &"wing_l_out"
 parent = &"wing_l_mid"
@@ -451,7 +486,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 1950.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_6dxw1"]
+[sub_resource type="Resource" id="Resource_cxn8k"]
 script = ExtResource("3_p8e8f")
 name = &"engine_l"
 parent = &"wing_l_in"
@@ -486,7 +521,7 @@ drag_area = Vector3(19.929, 19.929, 0.716754)
 fuel_kg = 472.5
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_cxn8k"]
+[sub_resource type="Resource" id="Resource_iuvr6"]
 script = ExtResource("3_p8e8f")
 name = &"gear_main_l"
 parent = &"wing_l_in"
@@ -521,7 +556,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.1
 
-[sub_resource type="Resource" id="Resource_iuvr6"]
+[sub_resource type="Resource" id="Resource_tja6t"]
 script = ExtResource("3_p8e8f")
 name = &"wing_r_in"
 parent = &"fus_mid"
@@ -559,7 +594,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 14040.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_tja6t"]
+[sub_resource type="Resource" id="Resource_wx8a3"]
 script = ExtResource("3_p8e8f")
 name = &"wing_r_mid"
 parent = &"wing_r_in"
@@ -597,7 +632,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 6240.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_wx8a3"]
+[sub_resource type="Resource" id="Resource_1eivx"]
 script = ExtResource("3_p8e8f")
 name = &"wing_r_out"
 parent = &"wing_r_mid"
@@ -632,7 +667,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 1950.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_1eivx"]
+[sub_resource type="Resource" id="Resource_0vuv4"]
 script = ExtResource("3_p8e8f")
 name = &"engine_r"
 parent = &"wing_r_in"
@@ -667,7 +702,7 @@ drag_area = Vector3(19.929, 19.929, 0.716754)
 fuel_kg = 472.5
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_0vuv4"]
+[sub_resource type="Resource" id="Resource_g3p3g"]
 script = ExtResource("3_p8e8f")
 name = &"gear_main_r"
 parent = &"wing_r_in"
@@ -702,7 +737,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.1
 
-[sub_resource type="Resource" id="Resource_g3p3g"]
+[sub_resource type="Resource" id="Resource_xgiy2"]
 script = ExtResource("3_p8e8f")
 name = &"hstab_l"
 parent = &"fus_tail"
@@ -737,7 +772,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_xgiy2"]
+[sub_resource type="Resource" id="Resource_bc53n"]
 script = ExtResource("3_p8e8f")
 name = &"hstab_r"
 parent = &"fus_tail"
@@ -772,7 +807,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_bc53n"]
+[sub_resource type="Resource" id="Resource_7c4gt"]
 script = ExtResource("3_p8e8f")
 name = &"fin"
 parent = &"fus_tail"
@@ -807,7 +842,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.5
 
-[sub_resource type="Resource" id="Resource_7c4gt"]
+[sub_resource type="Resource" id="Resource_t81q1"]
 script = ExtResource("3_p8e8f")
 name = &"gear_nose"
 parent = &"fus_nose"
@@ -842,7 +877,7 @@ drag_area = Vector3(0, 0, 0)
 fuel_kg = 0.0
 crush_depth = 0.1
 
-[sub_resource type="Resource" id="Resource_t81q1"]
+[sub_resource type="Resource" id="Resource_vslcb"]
 script = ExtResource("5_qvl8n")
 label = "Flight deck"
 part = &"fus_nose"
@@ -854,7 +889,7 @@ abreast = PackedFloat32Array(-0.62, 0.62)
 floor_y = 0.0248928
 is_crew = true
 
-[sub_resource type="Resource" id="Resource_vslcb"]
+[sub_resource type="Resource" id="Resource_ydbb7"]
 script = ExtResource("5_qvl8n")
 label = "Cabin"
 part = &"fus_nose"
@@ -866,7 +901,7 @@ abreast = PackedFloat32Array(-2.77, -2.27, -1.77, -0.75, -0.25, 0.25, 0.75, 1.77
 floor_y = -0.225107
 is_crew = false
 
-[sub_resource type="Resource" id="Resource_ydbb7"]
+[sub_resource type="Resource" id="Resource_p3u4w"]
 script = ExtResource("5_qvl8n")
 label = "Cabin"
 part = &"fus_fwd2"
@@ -878,7 +913,7 @@ abreast = PackedFloat32Array(-2.77, -2.27, -1.77, -0.75, -0.25, 0.25, 0.75, 1.77
 floor_y = -0.225107
 is_crew = false
 
-[sub_resource type="Resource" id="Resource_p3u4w"]
+[sub_resource type="Resource" id="Resource_tcxtl"]
 script = ExtResource("5_qvl8n")
 label = "Cabin"
 part = &"fus_fwd"
@@ -890,19 +925,31 @@ abreast = PackedFloat32Array(-2.77, -2.27, -1.77, -0.75, -0.25, 0.25, 0.75, 1.77
 floor_y = -0.225107
 is_crew = false
 
-[sub_resource type="Resource" id="Resource_tcxtl"]
+[sub_resource type="Resource" id="Resource_lrsbu"]
 script = ExtResource("5_qvl8n")
 label = "Cabin"
 part = &"fus_mid"
 first_row = 22
-rows = 16
+rows = 12
 z_start = -9.55737
 pitch = 0.81
 abreast = PackedFloat32Array(-2.77, -2.27, -1.77, -0.75, -0.25, 0.25, 0.75, 1.77, 2.27, 2.77)
 floor_y = -0.225107
 is_crew = false
 
-[sub_resource type="Resource" id="Resource_lrsbu"]
+[sub_resource type="Resource" id="Resource_u6oan"]
+script = ExtResource("5_qvl8n")
+label = "Cabin"
+part = &"fus_mid_aft"
+first_row = 34
+rows = 4
+z_start = 0.162633
+pitch = 0.81
+abreast = PackedFloat32Array(-2.77, -2.27, -1.77, -0.75, -0.25, 0.25, 0.75, 1.77, 2.27, 2.77)
+floor_y = -0.225107
+is_crew = false
+
+[sub_resource type="Resource" id="Resource_7kd0s"]
 script = ExtResource("6_wyj2g")
 name = &"wing_l_0"
 part = &"wing_l_in"
@@ -925,7 +972,7 @@ roll_spoiler = 0.0
 downwash_source = true
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_u6oan"]
+[sub_resource type="Resource" id="Resource_gnw7a"]
 script = ExtResource("6_wyj2g")
 name = &"wing_l_1"
 part = &"wing_l_in"
@@ -948,7 +995,7 @@ roll_spoiler = 0.6
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_7kd0s"]
+[sub_resource type="Resource" id="Resource_ld6yo"]
 script = ExtResource("6_wyj2g")
 name = &"wing_l_2"
 part = &"wing_l_mid"
@@ -971,7 +1018,7 @@ roll_spoiler = 0.6
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_gnw7a"]
+[sub_resource type="Resource" id="Resource_sfnqd"]
 script = ExtResource("6_wyj2g")
 name = &"wing_l_3"
 part = &"wing_l_out"
@@ -994,7 +1041,7 @@ roll_spoiler = 0.0
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_ld6yo"]
+[sub_resource type="Resource" id="Resource_igmx3"]
 script = ExtResource("6_wyj2g")
 name = &"wing_r_0"
 part = &"wing_r_in"
@@ -1017,7 +1064,7 @@ roll_spoiler = 0.0
 downwash_source = true
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_sfnqd"]
+[sub_resource type="Resource" id="Resource_5jdc6"]
 script = ExtResource("6_wyj2g")
 name = &"wing_r_1"
 part = &"wing_r_in"
@@ -1040,7 +1087,7 @@ roll_spoiler = 0.6
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_igmx3"]
+[sub_resource type="Resource" id="Resource_hmtlu"]
 script = ExtResource("6_wyj2g")
 name = &"wing_r_2"
 part = &"wing_r_mid"
@@ -1063,7 +1110,7 @@ roll_spoiler = 0.6
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_5jdc6"]
+[sub_resource type="Resource" id="Resource_gnlfe"]
 script = ExtResource("6_wyj2g")
 name = &"wing_r_3"
 part = &"wing_r_out"
@@ -1086,7 +1133,7 @@ roll_spoiler = 0.0
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_hmtlu"]
+[sub_resource type="Resource" id="Resource_7djhr"]
 script = ExtResource("6_wyj2g")
 name = &"wing_center"
 part = &"fus_mid"
@@ -1109,7 +1156,7 @@ roll_spoiler = 0.0
 downwash_source = true
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_gnlfe"]
+[sub_resource type="Resource" id="Resource_1d0c7"]
 script = ExtResource("6_wyj2g")
 name = &"hstab_l"
 part = &"hstab_l"
@@ -1132,7 +1179,7 @@ roll_spoiler = 0.0
 downwash_source = false
 downwash = 1.0
 
-[sub_resource type="Resource" id="Resource_7djhr"]
+[sub_resource type="Resource" id="Resource_fss5c"]
 script = ExtResource("6_wyj2g")
 name = &"hstab_r"
 part = &"hstab_r"
@@ -1155,7 +1202,7 @@ roll_spoiler = 0.0
 downwash_source = false
 downwash = 1.0
 
-[sub_resource type="Resource" id="Resource_1d0c7"]
+[sub_resource type="Resource" id="Resource_2siu6"]
 script = ExtResource("6_wyj2g")
 name = &"fin_0"
 part = &"fin"
@@ -1178,7 +1225,7 @@ roll_spoiler = 0.0
 downwash_source = false
 downwash = 0.0
 
-[sub_resource type="Resource" id="Resource_fss5c"]
+[sub_resource type="Resource" id="Resource_yfe6u"]
 script = ExtResource("6_wyj2g")
 name = &"fin_1"
 part = &"fin"
@@ -1209,8 +1256,8 @@ category = "Wide-body twin"
 description = "The big twin: 370 seats and the largest engines ever fitted to an airliner."
 paint = Color(0.95, 0.95, 0.93, 1)
 accent = Color(0.00699541, 0.0152085, 0.0466651, 1)
-parts = Array[ExtResource("3_p8e8f")]([SubResource("Resource_lwyj3"), SubResource("Resource_fv50u"), SubResource("Resource_u0ymh"), SubResource("Resource_mblmo"), SubResource("Resource_xte4o"), SubResource("Resource_btqh6"), SubResource("Resource_lxxri"), SubResource("Resource_bppj8"), SubResource("Resource_ca0rm"), SubResource("Resource_4ce70"), SubResource("Resource_6dxw1"), SubResource("Resource_cxn8k"), SubResource("Resource_iuvr6"), SubResource("Resource_tja6t"), SubResource("Resource_wx8a3"), SubResource("Resource_1eivx"), SubResource("Resource_0vuv4"), SubResource("Resource_g3p3g"), SubResource("Resource_xgiy2"), SubResource("Resource_bc53n"), SubResource("Resource_7c4gt")])
-surfaces = Array[ExtResource("6_wyj2g")]([SubResource("Resource_lrsbu"), SubResource("Resource_u6oan"), SubResource("Resource_7kd0s"), SubResource("Resource_gnw7a"), SubResource("Resource_ld6yo"), SubResource("Resource_sfnqd"), SubResource("Resource_igmx3"), SubResource("Resource_5jdc6"), SubResource("Resource_hmtlu"), SubResource("Resource_gnlfe"), SubResource("Resource_7djhr"), SubResource("Resource_1d0c7"), SubResource("Resource_fss5c")])
+parts = Array[ExtResource("3_p8e8f")]([SubResource("Resource_lwyj3"), SubResource("Resource_fv50u"), SubResource("Resource_u0ymh"), SubResource("Resource_mblmo"), SubResource("Resource_xte4o"), SubResource("Resource_btqh6"), SubResource("Resource_lxxri"), SubResource("Resource_bppj8"), SubResource("Resource_ca0rm"), SubResource("Resource_4ce70"), SubResource("Resource_6dxw1"), SubResource("Resource_cxn8k"), SubResource("Resource_iuvr6"), SubResource("Resource_tja6t"), SubResource("Resource_wx8a3"), SubResource("Resource_1eivx"), SubResource("Resource_0vuv4"), SubResource("Resource_g3p3g"), SubResource("Resource_xgiy2"), SubResource("Resource_bc53n"), SubResource("Resource_7c4gt"), SubResource("Resource_t81q1")])
+surfaces = Array[ExtResource("6_wyj2g")]([SubResource("Resource_7kd0s"), SubResource("Resource_gnw7a"), SubResource("Resource_ld6yo"), SubResource("Resource_sfnqd"), SubResource("Resource_igmx3"), SubResource("Resource_5jdc6"), SubResource("Resource_hmtlu"), SubResource("Resource_gnlfe"), SubResource("Resource_7djhr"), SubResource("Resource_1d0c7"), SubResource("Resource_fss5c"), SubResource("Resource_2siu6"), SubResource("Resource_yfe6u")])
 wing_area = 436.8
 wing_span = 64.8
 flap_steps_deg = PackedFloat32Array(0, 5, 15, 25, 35)
@@ -1256,7 +1303,7 @@ livery = {
 engines = Array[ExtResource("1_r7v8e")]([SubResource("Resource_c3q4d"), SubResource("Resource_gtm8r")])
 gear = Array[ExtResource("2_7lto2")]([SubResource("Resource_t5mcl"), SubResource("Resource_fhcu7"), SubResource("Resource_2vdqm")])
 gear_time = 6.0
-seat_blocks = Array[ExtResource("5_qvl8n")]([SubResource("Resource_t81q1"), SubResource("Resource_vslcb"), SubResource("Resource_ydbb7"), SubResource("Resource_p3u4w"), SubResource("Resource_tcxtl")])
+seat_blocks = Array[ExtResource("5_qvl8n")]([SubResource("Resource_vslcb"), SubResource("Resource_ydbb7"), SubResource("Resource_p3u4w"), SubResource("Resource_tcxtl"), SubResource("Resource_lrsbu"), SubResource("Resource_u6oan")])
 fred_seats = PackedInt32Array(0, 182, 4, 366, 98, 280, 142, 224, 46, 328, 170, 202)
 body_wave_drag = 1.5
 v_rotate = 86.0

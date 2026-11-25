@@ -92,10 +92,25 @@ built is marked *(planned)*.
   `_airliner()`, so a new airliner is one more spec entry.
 - **Airframe is multi-body from the start.** Every part is an `AircraftPart`
   (`RigidBody3D`, origin at its own centre of mass, explicit inertia) held to
-  its parent by a locked `Generic6DOFJoint3D`. Parts of one aircraft ignore
-  each other (collision exceptions) while jointed; once a joint breaks, parts
-  that end up in different pieces of wreckage collide as soon as their hulls
-  have separated (`Aircraft._update_part_collisions`).
+  its parent by a locked `Generic6DOFJoint3D`. Parts of one aircraft collide
+  with each other except where an exception is in place
+  (`Aircraft._no_collide`): a part and its jointed parent, while the joint
+  holds, and pairs whose hulls are within 0.6 m in the built airframe.
+  Waiting pairs (those, and the halves of a broken joint) start colliding
+  once an exact shape query finds them 0.15 m apart
+  (`_update_part_collisions`). Bounding boxes were used before and stayed
+  overlapping for a broken wing lying beside the fuselage, so it never
+  collided; non-adjacent parts never collided at all.
+  Airliners' wing sections are split behind the wing box (at 3/4 of its
+  length) into `fus_mid` (the root, carrying the wings) and `fus_mid_aft` on
+  a 1.3x-strength joint, so the centre fuselage can break too. Cut at the
+  middle, the 747's firm-landing load came back through the wing roots
+  (65 % of break, from 27 %).
+- **Failures** (`FailurePanel`, FAIL button; `Aircraft.trigger_failure`):
+  flight controls jam (surfaces freeze), each engine flame-out / fire /
+  separate, each fuselage section, wing panel, tail surface crack or break
+  off, each gear burst tyres / collapse. Built from the aircraft's parts.
+  Burning parts lose joint strength (0.4 %/s of capacity at full fire).
 - **Flight model** (`aircraft.gd`, `aero_surface.gd`). Forces only, applied in
   `_physics_process` to the part that carries them:
   - Each `AeroSurface` strip takes the air velocity at its own position, so
@@ -133,10 +148,8 @@ built is marked *(planned)*.
     (`tests/smoke_damage.gd` checks each case).
   - Gear: ray-cast oleo (spring + damper) and a slip-angle tyre model, applied
     to the gear leg's own body so landing loads go through its joint.
-    Tyres burst (`GearUnit`): braked wheels locked below anti-skid speed
-    (6 m/s) by brakes held against thrust scrub 3 m; brake heat over
-    400 J/N (a max-energy RTO is ~250); a touchdown sinking over 5 m/s; or
-    over 105 m/s on the ground. On the rims the gear sits 40 % of a wheel
+    Tyres burst (`GearUnit`) only when the brakes are held while the
+    throttle is above 30 %, for 2 s, on a braked gear on the ground. On the rims the gear sits 40 % of a wheel
     radius lower, drags with mu 0.1 and has half the side grip.
   - Bluff-body drag per part from `drag_area`, ISA density with altitude.
   - Not modelled: propwash, wind, Reynolds effects, aeroelasticity.
@@ -237,6 +250,9 @@ built is marked *(planned)*.
   distance. Noses are lofted from measured `PartDef.nose_table` sections. The
   numbers come from the manufacturers' published airport-planning drawings
   (Airbus AC, Boeing ACAPS), cited in the spec comments in `gen_aircraft.gd`.
+  A hump section past the measured nose table keeps its raised crown
+  (`gen_aircraft._keep_hump`); the 747's nose section ended 0.9 m below the
+  upper deck it joins, which showed as a hole.
   Liveries are original fictional airlines (no real trademarks): base and
   belly colours, swept cheatlines, titles and registrations in a built-in
   stroke font (`StrokeFont`, drawn as a distance field), and fin art from
