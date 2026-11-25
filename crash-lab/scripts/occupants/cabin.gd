@@ -208,6 +208,11 @@ func stand_down() -> void:
 	_finished = true
 
 
+## Undoes stand_down(): an intact aircraft taxiing away from a declared rest.
+func resume() -> void:
+	_finished = false
+
+
 func tick(dt: float) -> void:
 	if _finished:
 		return

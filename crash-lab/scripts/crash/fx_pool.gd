@@ -5,6 +5,11 @@ extends Node3D
 ## during a crash.
 
 const DUST_COUNT := 6
+## Simultaneous metal-on-ground scrapes with sparks (concrete) or a spray of
+## soil (grass).
+const SCRAPE_SLOTS := 4
+## Frames a scrape keeps emitting without being refreshed.
+const SCRAPE_HOLD := 6
 
 var max_fires: int = 0
 var _fire: Array[GPUParticles3D] = []
@@ -14,6 +19,9 @@ var _fires_used: int = 0
 var _dust: Array[GPUParticles3D] = []
 var _dust_next: int = 0
 var _blob: GradientTexture2D
+var _spark: Array[GPUParticles3D] = []
+var _spray: Array[GPUParticles3D] = []
+var _scrape_frames: PackedInt32Array = PackedInt32Array()
 
 
 ## `quality` 0..2 scales emitter count and particle amounts.
@@ -35,6 +43,19 @@ func setup(quality: int) -> void:
 		add_child(smoke)
 		_smoke.append(smoke)
 		_fire_source.append(null)
+	for k: int in SCRAPE_SLOTS:
+		var spark := _make_emitter("Sparks%d" % k, int(56.0 * density), 0.55, _spark_process(), _streak(), 1.0)
+		(spark.draw_pass_1 as QuadMesh).size = Vector2(0.07, 0.9)
+		spark.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+		spark.emitting = false
+		add_child(spark)
+		_spark.append(spark)
+		var spray := _make_emitter("Spray%d" % k, int(36.0 * density), 1.4, _spray_process(), _billboard(false), 0.7)
+		spray.emitting = false
+		add_child(spray)
+		_spray.append(spray)
+	_scrape_frames.resize(SCRAPE_SLOTS)
+	_scrape_frames.fill(0)
 	for i: int in DUST_COUNT:
 		var dust := _make_emitter("Dust%d" % i, int(16.0 * density), 1.6, _dust_process(), _billboard(false), 3.2)
 		dust.one_shot = true
@@ -81,11 +102,34 @@ func burst_dust(pos: Vector3, size: float) -> void:
 	dust.emitting = true
 
 
+## A scrape at `pos` sliding at `velocity` (horizontal), `rate` 0..1. Called
+## every few physics ticks while it lasts; it stops by itself when not renewed.
+func set_scrape(slot: int, pos: Vector3, velocity: Vector3, rate: float) -> void:
+	var paved := World.is_paved(pos)
+	var on := _spark[slot] if paved else _spray[slot]
+	var off := _spray[slot] if paved else _spark[slot]
+	off.emitting = false
+	on.global_position = Vector3(pos.x, maxf(pos.y, 0.05) + 0.1, pos.z)
+	on.amount_ratio = rate
+	# The particles inherit the slide: sparks stream forward and fan out.
+	(on.process_material as ParticleProcessMaterial).direction = (velocity.normalized() + Vector3(0.0, 0.35, 0.0)).normalized()
+	(on.process_material as ParticleProcessMaterial).initial_velocity_max = 4.0 + velocity.length() * 0.6
+	if not on.emitting:
+		on.emitting = true
+	_scrape_frames[slot] = SCRAPE_HOLD
+
+
 func active_fires() -> int:
 	return _fires_used
 
 
 func _process(_delta: float) -> void:
+	for k: int in SCRAPE_SLOTS:
+		if _scrape_frames[k] > 0:
+			_scrape_frames[k] -= 1
+			if _scrape_frames[k] == 0:
+				_spark[k].emitting = false
+				_spray[k].emitting = false
 	# Emitters ride on the burning part; particles stay in world space.
 	for i: int in _fires_used:
 		var source := _fire_source[i]
@@ -120,6 +164,18 @@ func _billboard(additive: bool) -> StandardMaterial3D:
 	mat.billboard_keep_scale = true
 	mat.vertex_color_use_as_albedo = true
 	mat.albedo_texture = _blob
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.disable_receive_shadows = true
+	return mat
+
+
+## Additive, unshaded, bright: hot metal streaks stretched along their motion.
+func _streak() -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.vertex_color_use_as_albedo = true
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.disable_receive_shadows = true
 	return mat
@@ -215,4 +271,45 @@ func _dust_process() -> ParticleProcessMaterial:
 	m.color_ramp = _ramp(
 			[Color(0.5, 0.47, 0.42, 0.0), Color(0.48, 0.45, 0.4, 0.3), Color(0.5, 0.48, 0.45, 0.0)],
 			[0.0, 0.15, 1.0])
+	return m
+
+
+func _spark_process() -> ParticleProcessMaterial:
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	m.emission_sphere_radius = 0.6
+	m.direction = Vector3(0.0, 0.3, -1.0)
+	m.spread = 35.0
+	m.initial_velocity_min = 4.0
+	m.initial_velocity_max = 20.0
+	m.gravity = Vector3(0.0, -9.8, 0.0)
+	m.damping_min = 1.0
+	m.damping_max = 3.0
+	m.scale_min = 0.6
+	m.scale_max = 1.3
+	m.lifetime_randomness = 0.6
+	m.color_ramp = _ramp(
+			[Color(2.5, 1.6, 0.6, 1.0), Color(2.2, 0.8, 0.15, 0.9), Color(0.7, 0.12, 0.02, 0.0)],
+			[0.0, 0.35, 1.0])
+	return m
+
+
+## Soil and turf thrown up by wreckage ploughing across the grass.
+func _spray_process() -> ParticleProcessMaterial:
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	m.emission_sphere_radius = 1.0
+	m.direction = Vector3(0.0, 0.5, -1.0)
+	m.spread = 45.0
+	m.initial_velocity_min = 3.0
+	m.initial_velocity_max = 14.0
+	m.gravity = Vector3(0.0, -9.8, 0.0)
+	m.damping_min = 0.5
+	m.damping_max = 1.5
+	m.scale_min = 0.4
+	m.scale_max = 1.3
+	m.scale_curve = _scale_curve([Vector2(0.0, 0.6), Vector2(0.5, 1.0), Vector2(1.0, 1.8)])
+	m.color_ramp = _ramp(
+			[Color(0.3, 0.23, 0.15, 0.9), Color(0.4, 0.32, 0.22, 0.6), Color(0.5, 0.43, 0.33, 0.0)],
+			[0.0, 0.4, 1.0])
 	return m

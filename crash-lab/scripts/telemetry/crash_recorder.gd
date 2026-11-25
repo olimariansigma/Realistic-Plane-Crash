@@ -123,6 +123,15 @@ func stop_recording() -> void:
 	set_physics_process(false)
 
 
+## Cancels a pending stop and keeps recording (the aircraft moved on).
+func resume_recording() -> void:
+	if playing:
+		return
+	_stop_frame = -1
+	recording = true
+	set_physics_process(true)
+
+
 ## Keeps recording for `seconds` more, then stops: the wreck is still creeping
 ## when it is declared at rest, and the replay should end where it ends up.
 func stop_recording_after(seconds: float) -> void:

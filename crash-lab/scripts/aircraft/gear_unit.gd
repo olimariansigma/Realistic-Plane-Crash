@@ -22,9 +22,9 @@ const BURST_SINK := 5.0
 const TYRE_SPEED_LIMIT := 105.0
 ## On the rims: far more rolling drag, less side grip, and the gear sits lower
 ## by this share of the wheel radius.
-const RIM_ROLLING_MU := 0.35
+const RIM_ROLLING_MU := 0.1
 const RIM_LATERAL_FACTOR := 0.5
-const RIM_DROP := 0.55
+const RIM_DROP := 0.4
 
 var def: GearDef
 var part: AircraftPart
@@ -48,6 +48,9 @@ var burst_at: Vector3
 var scrub: float = 0.0
 var brake_heat: float = 0.0
 var _was_on_ground: bool = false
+## Contact patch (world) and rolling speed while on the ground, for effects.
+var contact: Vector3
+var ground_speed: float = 0.0
 
 
 func setup(gear: GearDef, owner: AircraftPart) -> void:
@@ -103,6 +106,8 @@ func apply(deployed: float, yaw_input: float, brake: float, dt: float, frame: Ai
 		return
 	on_ground = true
 	load = f
+	contact = hit
+	ground_speed = v_c.length()
 
 	# Steering fades with speed so full rudder at rotation speed is a few degrees.
 	var speed := v_c.length()

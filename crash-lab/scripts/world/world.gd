@@ -12,6 +12,14 @@ const RUNWAY_WIDTH := 60.0
 ## The runway runs along -Z from this point; aircraft spawn here facing -Z.
 const RUNWAY_START := Vector3(0.0, 0.0, 250.0)
 
+
+## True on the runway's concrete (metal scraping on it throws sparks); false
+## on soil and grass.
+static func is_paved(pos: Vector3) -> bool:
+	var far_end := RUNWAY_START.z + 100.0 - RUNWAY_LENGTH
+	return absf(pos.x - RUNWAY_START.x) < RUNWAY_WIDTH * 0.5 \
+			and pos.z < RUNWAY_START.z + 100.0 and pos.z > far_end
+
 var sun: DirectionalLight3D
 var environment: Environment
 
@@ -44,9 +52,19 @@ func _ready() -> void:
 ## Applies the graphics quality tier (0 low, 1 medium, 2 high).
 func apply_quality(quality: int) -> void:
 	sun.shadow_enabled = quality >= 1
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if quality >= 2 \
-			else DirectionalLight3D.SHADOW_ORTHOGONAL
-	sun.directional_shadow_max_distance = 320.0 if quality >= 2 else 180.0
+	# Cascades: a small sharp one around the aircraft (the first 12-15 % of
+	# the distance, ~25-40 m), coarser ones beyond. One orthogonal map over
+	# 180 m gave ~18 cm shadow texels: the aircraft's shadow was blocky.
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if quality >= 2 \
+			else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 300.0 if quality >= 2 else 220.0
+	sun.directional_shadow_split_1 = 0.12 if quality >= 2 else 0.15
+	sun.directional_shadow_split_2 = 0.3
+	sun.directional_shadow_split_3 = 0.6
+	sun.directional_shadow_blend_splits = quality >= 2
+	sun.shadow_blur = 1.2
+	sun.shadow_bias = 0.03
+	sun.shadow_normal_bias = 1.0
 	environment.fog_enabled = true
 	# Glow is a full-screen multi-pass effect: high quality only.
 	environment.glow_enabled = quality >= 2

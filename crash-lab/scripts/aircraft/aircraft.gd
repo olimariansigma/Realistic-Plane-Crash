@@ -294,6 +294,30 @@ func rest() -> void:
 		part.can_sleep = true
 
 
+## Undoes rest(): the aircraft turned out to be intact and is being driven
+## away (an incident on the ground, such as a nacelle scrape on burst tyres).
+func wake() -> void:
+	if not resting:
+		return
+	resting = false
+	_rest_brake_left = 0.0
+	cabin.resume()
+	for part: AircraftPart in parts:
+		if part.assembly_root == 0:
+			part.can_sleep = false
+			part.sleeping = false
+
+
+## True while every joint holds, none cracked.
+func is_intact() -> bool:
+	if joints_alive != parts.size() - 1:
+		return false
+	for i: int in parts.size():
+		if structure.cracked[i] == 1:
+			return false
+	return true
+
+
 ## Maximum bend (degrees) of a cracked joint before the stop: a fuselage kinks
 ## mostly in pitch, a wing or tail surface folds about its chord line.
 const CRACK_ANGLE_FUSELAGE := 14.0

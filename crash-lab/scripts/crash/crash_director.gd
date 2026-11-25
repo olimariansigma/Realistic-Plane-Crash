@@ -49,6 +49,7 @@ var _q_xf: Array[Transform3D] = []
 var _q_vel: PackedVector3Array
 var _q_kick: PackedFloat32Array
 var _queued: int = 0
+var _ticks_fx: int = 0
 var _released: int = 0
 
 
@@ -161,12 +162,54 @@ func _release_chunks() -> void:
 		budget -= 1
 
 
+## Picks up to FxPool.SCRAPE_SLOTS metal-on-ground scrapes (parts sliding in
+## contact, gears running on burst rims) for the sparks and soil spray.
+func _sample_scrapes() -> void:
+	var slot := 0
+	for part: AircraftPart in aircraft.parts:
+		if slot >= FxPool.SCRAPE_SLOTS:
+			break
+		if part.contact_count == 0 or part.sleeping or (part.def.kind == PartDef.Kind.GEAR and part.joint != null):
+			continue
+		var v := part.velocity_at(part.hit_position)
+		v.y = 0.0
+		var slide := v.length()
+		if slide < 6.0:
+			continue
+		fx.set_scrape(slot, part.hit_position, v, clampf(slide / 50.0, 0.25, 1.0))
+		slot += 1
+	for gear: GearUnit in aircraft.gears:
+		if slot >= FxPool.SCRAPE_SLOTS:
+			break
+		if gear.burst and gear.on_ground and gear.ground_speed > 6.0:
+			var v := gear.part.lin_vel
+			v.y = 0.0
+			fx.set_scrape(slot, gear.contact, v, clampf(gear.ground_speed / 60.0, 0.2, 0.8))
+			slot += 1
+
+
 func _on_fire_started(source: FireSource) -> void:
 	fx.start_fire(source)
 
 
 func _physics_process(dt: float) -> void:
 	_release_chunks()
+	if not aircraft.resting and _ticks_fx % 3 == 0:
+		_sample_scrapes()
+	_ticks_fx += 1
+	# An intact aircraft with the throttle open is being driven, not wrecked:
+	# it never counts as at rest, and one declared at rest wakes up again (a
+	# nacelle scraping the runway on burst tyres is an incident, not a crash).
+	var driven := aircraft.controls.throttle > 0.2 and aircraft.is_intact()
+	if settled and driven:
+		settled = false
+		crash_active = false
+		_still_time = 0.0
+		_root_still_time = 0.0
+		aircraft.wake()
+		aircraft.clear_incident()
+		crash_cancelled.emit()
+		return
 	if not crash_active or settled:
 		return
 	crash_clock += dt
@@ -199,10 +242,10 @@ func _physics_process(dt: float) -> void:
 
 	# Settled: the heavy wreckage still, or the main wreck still for a long
 	# while with only stragglers moving. There is no time limit while it moves.
-	var still := root_speed < REST_SPEED and not occupants_moving \
+	var still := not driven and root_speed < REST_SPEED and not occupants_moving \
 			and moving_mass <= total_mass * STRAGGLER_SHARE
 	_still_time = _still_time + dt if still else 0.0
-	_root_still_time = _root_still_time + dt if root_speed < REST_SPEED else 0.0
+	_root_still_time = _root_still_time + dt if root_speed < REST_SPEED and not driven else 0.0
 	if _still_time >= REST_TIME or _root_still_time >= ROOT_REST_TIME:
 		settled = true
 		aircraft.rest()

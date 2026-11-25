@@ -136,8 +136,8 @@ built is marked *(planned)*.
     Tyres burst (`GearUnit`): braked wheels locked below anti-skid speed
     (6 m/s) by brakes held against thrust scrub 3 m; brake heat over
     400 J/N (a max-energy RTO is ~250); a touchdown sinking over 5 m/s; or
-    over 105 m/s on the ground. On the rims the gear sits lower, drags with
-    mu 0.35 and has half the side grip.
+    over 105 m/s on the ground. On the rims the gear sits 40 % of a wheel
+    radius lower, drags with mu 0.1 and has half the side grip.
   - Bluff-body drag per part from `drag_area`, ISA density with altitude.
   - Not modelled: propwash, wind, Reynolds effects, aeroelasticity.
 - **Scene flow.** `Game` autoload (`GameState`) shows a loading overlay,
@@ -188,6 +188,14 @@ built is marked *(planned)*.
     incident is cancelled and the flight goes on with the damage. The report
     only opens when the player taps REPORT (any time; the flight pauses
     behind it until the wreck has settled, CLOSE goes back).
+  - An intact aircraft with the throttle above 20 % is never declared at
+    rest, and one already declared at rest wakes up (`Aircraft.wake`) and the
+    incident is cancelled: on burst tyres the nacelles touched the runway,
+    the contact read as a crash, the stationary aircraft was "at rest" and
+    its engines stopped working.
+  - Metal scraping throws sparks on the runway and soil spray on grass
+    (`CrashDirector._sample_scrapes` -> `FxPool.set_scrape`, 4 slots), from
+    sliding parts and from gears running on burst rims.
   - At rest when the root part, every seat-carrying part and all but 5 % of
     the mass are below 1.2 m/s for 1 s (`CrashDirector`). Once the main
     assembly holds under half the mass it gets wreck drag too, wreckage gets
@@ -302,7 +310,7 @@ rules:
 | Physics in `_physics_process` only | Yes. Cameras, HUD and particle follow run in `_process` and only read. |
 | Object pooling | Debris shards, skin chunks, fire/smoke/dust emitters and FRED bodies all exist from scene load. |
 | No per-frame allocations | Steady-state flight shows zero object-count growth over 540 ticks (`tools/bench.gd`). Crash events allocate (recorder keys, event records); HUD text formats at 10 Hz. |
-| Cap, sleep, pool debris | Shards 24/48/80 and chunks 70/120/180 by quality, frozen to static 0.6-0.7 s after stopping (still solid to other loose pieces), reused only once settled. |
+| Cap, sleep, pool debris | Shards 24/48/80 and chunks 100/180/260 by quality, frozen to static 0.6-0.7 s after stopping (still solid to other loose pieces), reused only once settled. |
 | Profile and report frame times | `tools/bench.gd` headless; on device the HUD shows FPS, frame ms and sim ms when "show FPS" is on. |
 
 Other load-shedding:
@@ -312,7 +320,9 @@ Other load-shedding:
   does not land all its set-up cost on one frame.
 - Once the wreck has stopped, `Aircraft.rest()` stops the flight model,
   structure monitor and cabin, and every body may sleep.
-- Low quality also drops shadows.
+- Low quality also drops shadows. Shadows use 2 (medium) or 4 (high)
+  cascades with a 25-40 m sharp first split, a 4096 map and soft filtering:
+  one orthogonal map over 180 m gave ~18 cm texels and blocky shadows.
 
 Render cost (fixed after "it lags even on my high-end phone"):
 

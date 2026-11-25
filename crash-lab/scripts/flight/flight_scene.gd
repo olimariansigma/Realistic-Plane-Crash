@@ -160,7 +160,8 @@ func _on_crash_started() -> void:
 
 
 func _on_crash_cancelled() -> void:
-	hud.show_message("DAMAGED - STILL FLYING", 2.5)
+	recorder.resume_recording()
+	hud.show_message("DAMAGED - STILL FLYING" if not aircraft.telemetry.on_ground else "DAMAGED", 2.5)
 
 
 func _on_crash_settled() -> void:
