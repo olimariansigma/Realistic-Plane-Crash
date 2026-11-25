@@ -6,7 +6,12 @@ const HUD_SCENE_PATH := "res://scenes/ui/flight_hud.tscn"
 const REPORT_SCENE_PATH := "res://scenes/ui/crash_report.tscn"
 ## Seconds the recorder keeps running after the wreck is declared at rest.
 const RECORD_TAIL := 4.0
+## Seconds the "WRECK AT REST" message shows. The report itself only opens
+## when the player taps REPORT.
+const REST_MESSAGE_TIME := 3.0
 
+## True while the report holds the flight paused (opened before rest).
+var _report_paused: bool = false
 var world: World
 var aircraft: Aircraft
 var camera_rig: CameraRig
@@ -47,6 +52,7 @@ func _ready() -> void:
 	director.crash_started.connect(_on_crash_started)
 	director.crash_settled.connect(_on_crash_settled)
 	director.crash_cancelled.connect(_on_crash_cancelled)
+	aircraft.tyre_burst.connect(func(_g: GearUnit, _p: Vector3) -> void: hud.show_message("TYRE BURST", 2.0))
 
 	recorder = CrashRecorder.new()
 	recorder.name = "CrashRecorder"
@@ -73,6 +79,7 @@ func _ready() -> void:
 	hud.cutaway_toggled.connect(_on_cutaway_toggled)
 	hud.restart_requested.connect(_on_restart)
 	hud.hangar_requested.connect(_on_hangar)
+	hud.report_requested.connect(_open_report)
 	_settings.changed.connect(_on_settings_changed)
 
 	report_screen = (load(REPORT_SCENE_PATH) as PackedScene).instantiate() as CrashReportScreen
@@ -84,6 +91,7 @@ func _ready() -> void:
 	report_screen.replay_closed.connect(_on_replay_closed)
 	report_screen.restart_requested.connect(_on_restart)
 	report_screen.hangar_requested.connect(_on_hangar)
+	report_screen.close_requested.connect(_close_report)
 	recorder.playback_progress.connect(report_screen.set_replay_progress)
 	hud.show_message("%s  -  %s" % [def.display_name, GameState.START_MODE_NAMES[_game.start_mode]], 3.0)
 	print("Flight ready: %s, %d parts, %d surfaces" % [def.id, aircraft.parts.size(), aircraft.surfaces.size()])
@@ -157,21 +165,37 @@ func _on_crash_cancelled() -> void:
 
 func _on_crash_settled() -> void:
 	recorder.stop_recording_after(RECORD_TAIL)
+	hud.show_message("WRECK AT REST  -  TAP REPORT", REST_MESSAGE_TIME)
+
+
+## The REPORT button: the report as things stand now. Opened before the wreck
+## has come to rest (or before any crash), the flight is paused behind it.
+func _open_report() -> void:
+	if report_screen.visible:
+		return
 	report = InjuryModel.build_report(aircraft, director)
 	_game.last_report = report
-	hud.show_message("WRECK AT REST", 1.5)
-	# A callback, not an await: if the player leaves in the meantime the
-	# connection dies with this node.
-	get_tree().create_timer(1.5, false).timeout.connect(_show_report, CONNECT_ONE_SHOT)
-
-
-func _show_report() -> void:
+	_report_paused = not director.settled
+	if _report_paused:
+		get_tree().paused = true
 	hud.set_controls_visible(false)
 	report_screen.show_report(report)
 	report_screen.visible = true
 
 
+func _close_report() -> void:
+	if recorder.playing:
+		_on_replay_closed()
+	report_screen.visible = false
+	hud.set_controls_visible(true)
+	if _report_paused:
+		_report_paused = false
+		get_tree().paused = false
+
+
 func _on_replay_requested() -> void:
+	# The replay freezes the simulation itself and needs the tree running.
+	get_tree().paused = false
 	report_screen.show_replay_controls(true)
 	camera_rig.set_mode(CameraRig.Mode.ORBIT)
 	recorder.play()
@@ -184,6 +208,8 @@ func _on_replay_speed(speed: float) -> void:
 func _on_replay_closed() -> void:
 	recorder.stop()
 	report_screen.show_replay_controls(false)
+	if _report_paused and report_screen.visible:
+		get_tree().paused = true
 
 
 func _physics_process(_delta: float) -> void:
@@ -213,8 +239,10 @@ func _on_settings_changed() -> void:
 
 
 func _on_restart() -> void:
+	get_tree().paused = false
 	_game.goto_flight()
 
 
 func _on_hangar() -> void:
+	get_tree().paused = false
 	_game.goto_hangar()

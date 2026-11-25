@@ -737,30 +737,39 @@ static func _engine(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 		prof_d = [0.0, 0.035, 0.14, 0.42, 0.58, 0.6, 0.62, 0.84, 1.0]
 		prof_r = [0.88, 0.985, 1.0, 0.98, 0.9, 0.86, 0.6, 0.53, 0.43]
 		seg_col = [lip, paint, paint, paint, paint, DARK, METAL, METAL.darkened(0.2)]
-	# Two cowl halves (right, left).
-	for half: int in 2:
-		var surf := Surf.new()
-		for s: int in prof_d.size() - 1:
-			var c0 := origin + dir * (prof_d[s] * length)
-			var c1 := origin + dir * (prof_d[s + 1] * length)
-			var r0 := part.r0 * prof_r[s]
-			var r1 := part.r0 * prof_r[s + 1]
-			for k: int in sides / 2:
-				var a0 := TAU * float(k + half * sides / 2) / float(sides)
-				var a1 := TAU * float(k + 1 + half * sides / 2) / float(sides)
-				var col := seg_col[s]
-				var f0 := part.flat_bottom * (1.0 - prof_d[s])
-				var f1 := part.flat_bottom * (1.0 - prof_d[s + 1])
-				var q0 := Vector2(1.0, 1.0 - f0)
-				var q1 := Vector2(1.0, 1.0 - f1)
-				surf.quad(_ring_point(c0, r0, a0, q0, 1.0 / q0.y), _ring_point(c0, r0, a1, q0, 1.0 / q0.y),
-						_ring_point(c1, r1, a1, q1, 1.0 / q1.y), _ring_point(c1, r1, a0, q1, 1.0 / q1.y),
-						(c0 + c1) * 0.5, col,
-						tile_uv(TILE_ENGINE, prof_d[s], float(k) / float(sides / 2)),
-						tile_uv(TILE_ENGINE, prof_d[s], float(k + 1) / float(sides / 2)),
-						tile_uv(TILE_ENGINE, prof_d[s + 1], float(k + 1) / float(sides / 2)),
-						tile_uv(TILE_ENGINE, prof_d[s + 1], float(k) / float(sides / 2)))
-		out.pieces.append(_piece(surf, SKIN_KG_M2 * 1.5))
+	# The nacelle comes apart the way real ones do: inlet lip, fan cowl doors,
+	# thrust-reverser sleeves and the core cowl and nozzle, each in a right
+	# and a left half. `cowl_index[g * 2 + half]` is the piece over group g.
+	var segs := prof_d.size() - 1
+	var groups := mini(4, segs)
+	var cowl_index: PackedInt32Array = []
+	for g: int in groups:
+		var s_from := int(floor(float(g) * float(segs) / float(groups)))
+		var s_to := int(floor(float(g + 1) * float(segs) / float(groups)))
+		for half: int in 2:
+			var surf := Surf.new()
+			for s: int in range(s_from, s_to):
+				var c0 := origin + dir * (prof_d[s] * length)
+				var c1 := origin + dir * (prof_d[s + 1] * length)
+				var r0 := part.r0 * prof_r[s]
+				var r1 := part.r0 * prof_r[s + 1]
+				for k: int in sides / 2:
+					var a0 := TAU * float(k + half * sides / 2) / float(sides)
+					var a1 := TAU * float(k + 1 + half * sides / 2) / float(sides)
+					var col := seg_col[s]
+					var f0 := part.flat_bottom * (1.0 - prof_d[s])
+					var f1 := part.flat_bottom * (1.0 - prof_d[s + 1])
+					var q0 := Vector2(1.0, 1.0 - f0)
+					var q1 := Vector2(1.0, 1.0 - f1)
+					surf.quad(_ring_point(c0, r0, a0, q0, 1.0 / q0.y), _ring_point(c0, r0, a1, q0, 1.0 / q0.y),
+							_ring_point(c1, r1, a1, q1, 1.0 / q1.y), _ring_point(c1, r1, a0, q1, 1.0 / q1.y),
+							(c0 + c1) * 0.5, col,
+							tile_uv(TILE_ENGINE, prof_d[s], float(k) / float(sides / 2)),
+							tile_uv(TILE_ENGINE, prof_d[s], float(k + 1) / float(sides / 2)),
+							tile_uv(TILE_ENGINE, prof_d[s + 1], float(k + 1) / float(sides / 2)),
+							tile_uv(TILE_ENGINE, prof_d[s + 1], float(k) / float(sides / 2)))
+			cowl_index.append(out.pieces.size())
+			out.pieces.append(_piece(surf, SKIN_KG_M2 * 1.5))
 	# Pylon up to the mount point, for podded engines.
 	var mount := part.anchor - part.com
 	var top := origin + dir * (length * 0.45) + Vector3(0.0, part.r0 * 0.95, 0.0)
@@ -783,35 +792,56 @@ static func _engine(adef: AircraftDef, part: PartDef, detail: int, out: PartMesh
 				Vector3(mount.x + half_w, mount.y, m1), Vector3(mount.x - half_w, mount.y, m1), inside, paint, uv)
 		out.pieces.append(_piece(pylon, SKIN_KG_M2 * 2.0))
 
-	# Core, always visible through the intake: fan face, spinner, hot section.
-	var core := Surf.new()
+	# The rotating and hot parts, visible through the intake and nozzle, and
+	# torn out once the cowl over them is gone: fan disc with spinner, front
+	# and rear core casing, exhaust plug. Heavy: most of an engine's mass.
+	var fan := Surf.new()
+	var core_front := Surf.new()
+	var core_aft := Surf.new()
 	var hidden := Color(DARK.r, DARK.g, DARK.b, 0.0)
 	var fan_c := origin + dir * (length * 0.1)
 	var fan_r := part.r0 * 0.93
+	var c0 := origin + dir * (length * 0.14)
+	var cm := origin + dir * (length * 0.56)
+	var c1 := origin + dir * (length * 0.98)
+	var c2 := origin + dir * (length * 1.14)
+	var core_r := part.r0 * 0.52
+	var muv := tile_uv(TILE_METAL, 0.5, 0.5)
 	for k: int in sides:
 		var a0 := TAU * float(k) / float(sides)
 		var a1 := TAU * float(k + 1) / float(sides)
-		core.tri(fan_c, _ring_point(fan_c, fan_r, a0, Vector2.ONE), _ring_point(fan_c, fan_r, a1, Vector2.ONE),
+		fan.tri(fan_c, _ring_point(fan_c, fan_r, a0, Vector2.ONE), _ring_point(fan_c, fan_r, a1, Vector2.ONE),
 				fan_c + dir, Color(1.0, 1.0, 1.0, 0.0), tile_uv(TILE_FAN, 0.5, 0.5),
 				tile_uv(TILE_FAN, 0.5 + 0.5 * sin(a0), 0.5 + 0.5 * cos(a0)),
 				tile_uv(TILE_FAN, 0.5 + 0.5 * sin(a1), 0.5 + 0.5 * cos(a1)))
 		# Spinner cone ahead of the fan.
 		var tip := fan_c - dir * (part.r0 * 0.5)
-		core.tri(tip, _ring_point(fan_c, fan_r * 0.3, a0, Vector2.ONE), _ring_point(fan_c, fan_r * 0.3, a1, Vector2.ONE),
+		fan.tri(tip, _ring_point(fan_c, fan_r * 0.3, a0, Vector2.ONE), _ring_point(fan_c, fan_r * 0.3, a1, Vector2.ONE),
 				fan_c, Color(0.85, 0.86, 0.88, 0.0), tile_uv(TILE_METAL, 0.5, 0.2),
 				tile_uv(TILE_METAL, 0.2, 0.8), tile_uv(TILE_METAL, 0.8, 0.8))
-		# Core casing and exhaust plug.
-		var c0 := origin + dir * (length * 0.14)
-		var c1 := origin + dir * (length * 0.98)
-		var c2 := origin + dir * (length * 1.14)
-		var core_r := part.r0 * 0.52
-		var muv := tile_uv(TILE_METAL, 0.5, 0.5)
-		core.flat_quad(_ring_point(c0, core_r, a0, Vector2.ONE), _ring_point(c0, core_r, a1, Vector2.ONE),
+		# Fan case ring around the blades.
+		fan.flat_quad(_ring_point(fan_c - dir * 0.12, fan_r, a0, Vector2.ONE), _ring_point(fan_c - dir * 0.12, fan_r, a1, Vector2.ONE),
+				_ring_point(fan_c + dir * 0.25, fan_r, a1, Vector2.ONE), _ring_point(fan_c + dir * 0.25, fan_r, a0, Vector2.ONE),
+				fan_c, Color(METAL.r, METAL.g, METAL.b, 0.0).darkened(0.3), muv)
+		core_front.flat_quad(_ring_point(c0, core_r, a0, Vector2.ONE), _ring_point(c0, core_r, a1, Vector2.ONE),
+				_ring_point(cm, core_r * 0.9, a1, Vector2.ONE), _ring_point(cm, core_r * 0.9, a0, Vector2.ONE),
+				(c0 + cm) * 0.5, hidden, muv)
+		core_aft.flat_quad(_ring_point(cm, core_r * 0.9, a0, Vector2.ONE), _ring_point(cm, core_r * 0.9, a1, Vector2.ONE),
 				_ring_point(c1, core_r * 0.8, a1, Vector2.ONE), _ring_point(c1, core_r * 0.8, a0, Vector2.ONE),
-				(c0 + c1) * 0.5, hidden, muv)
-		core.tri(c2, _ring_point(c1, core_r * 0.8, a0, Vector2.ONE), _ring_point(c1, core_r * 0.8, a1, Vector2.ONE),
+				(cm + c1) * 0.5, hidden.darkened(0.1), muv)
+		core_aft.tri(c2, _ring_point(c1, core_r * 0.8, a0, Vector2.ONE), _ring_point(c1, core_r * 0.8, a1, Vector2.ONE),
 				c1, Color(0.3, 0.3, 0.32, 0.0), muv, muv, muv)
-	out.core = core.mesh()
+	# Most of an engine's mass is in these (steel and titanium discs and
+	# casings), given as shares of the part's mass.
+	var covers := [cowl_index[0], cowl_index[mini(2, cowl_index.size() - 1)], cowl_index[cowl_index.size() - 2]]
+	var surfs := [fan, core_front, core_aft]
+	var share := [0.22, 0.28, 0.2]
+	for n: int in surfs.size():
+		var piece := _piece(surfs[n], SKIN_KG_M2)
+		piece.mass = part.mass * share[n]
+		piece.structure = true
+		piece.cover = covers[n]
+		out.pieces.append(piece)
 	out.core_always_visible = true
 	out.far = _body_far(adef, part, 8)
 

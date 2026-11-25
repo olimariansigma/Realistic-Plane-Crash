@@ -8,6 +8,11 @@ extends Node3D
 ## whatever Jolt integrates from the forces.
 
 signal part_detached(part: AircraftPart, parent: AircraftPart, load_ratio: float)
+## A joint cracked: it now bends as a stiff hinge instead of holding rigid.
+signal part_cracked(part: AircraftPart)
+## The tyres on a gear burst (locked brakes against thrust, a very hard
+## touchdown or tyre overspeed); `world_pos` is the contact patch.
+signal tyre_burst(gear: GearUnit, world_pos: Vector3)
 ## A hard contact: where, the contact impulse (N s), and the energy absorbed (J).
 signal part_impacted(part: AircraftPart, world_pos: Vector3, impulse: Vector3, energy: float)
 signal fire_started(source: FireSource)
@@ -32,6 +37,17 @@ const N_CRUSH := 12.0
 ## detached wreckage in ground contact.
 const WRECK_ROLL_DRAG := 2.5
 const WRECK_SLIDE_DRAG := 0.35
+## Load-proportional rolling resistance of wreckage (C_rr; a tyre in loose sand
+## is ~0.3): a crushed nacelle, barrel or wheel truck digs in under its own
+## weight, every bounce and any wreck lying on it, so it stops in finite time.
+const WRECK_ROLL_RESIST := 0.3
+## Once the main assembly holds less than this share of the airframe's mass (a
+## fuselage section that has lost its wings and tail) it is wreckage like the
+## pieces torn off it and takes the same losses. Above it, it is still an
+## aircraft sliding on its belly on friction alone.
+const WRECK_ROOT_SHARE := 0.5
+## Seconds rest() keeps braking stragglers; a body being pushed never sleeps.
+const REST_BRAKE_TIME := 4.0
 ## Sliding faster than this (m/s) on the ground scrapes skin off, and loose
 ## wreckage above this dynamic pressure (Pa) sheds panels into the airstream.
 const SCRAPE_SPEED := 12.0
@@ -102,6 +118,9 @@ var _has_prev_vel: bool = false
 var _g_filtered := Vector3(0.0, 1.0, 0.0)
 var _gear_colliders_on: bool = true
 var _ticks: int = 0
+## True once the main assembly is itself wreckage (see WRECK_ROOT_SHARE).
+var _root_wrecked: bool = false
+var _rest_brake_left: float = 0.0
 ## Pairs of parts (i * count + j) that do not collide with each other: all of
 ## them while the airframe is whole, since jointed parts overlap at their
 ## seams. Once a joint breaks, pairs that end up in different pieces of
@@ -269,9 +288,86 @@ func rest() -> void:
 	if resting:
 		return
 	resting = true
+	_rest_brake_left = REST_BRAKE_TIME
 	cabin.stand_down()
 	for part: AircraftPart in parts:
 		part.can_sleep = true
+
+
+## Maximum bend (degrees) of a cracked joint before the stop: a fuselage kinks
+## mostly in pitch, a wing or tail surface folds about its chord line.
+const CRACK_ANGLE_FUSELAGE := 14.0
+const CRACK_ANGLE_PANEL := 25.0
+
+
+## Turns a locked joint into a plastic hinge: the limits open and a friction
+## motor holds the bend below a fraction of the joint's strength, so the
+## structure folds under load instead of snapping. The linear axes stay locked:
+## floor and lower skin hold the section in line until the joint finally breaks.
+func _crack(index: int) -> void:
+	var part := parts[index]
+	var j := part.joint
+	if j == null:
+		return
+	var friction := part.def.break_torque * StructureMonitor.RESIDUAL * 0.7
+	if part.def.kind == PartDef.Kind.FUSELAGE:
+		var a := deg_to_rad(CRACK_ANGLE_FUSELAGE)
+		_open_axis(j, 0, a, friction)
+		_open_axis(j, 1, a * 0.5, friction)
+	else:
+		var a := deg_to_rad(CRACK_ANGLE_PANEL)
+		# Folds about the chord line (fore-aft) for wings and stabilisers; a
+		# fin also folds about the fore-aft axis, sideways.
+		_open_axis(j, 2, a, friction)
+	_mark_crashed()
+	part_cracked.emit(part)
+	shed_pieces(part, part.anchor_local, 3.5, 1, 4.0, false)
+	shed_pieces(parts[part.parent_index], part.def.anchor - parts[part.parent_index].def.com, 3.5, 1, 4.0, false)
+
+
+func _open_axis(j: Generic6DOFJoint3D, axis: int, angle: float, friction: float) -> void:
+	match axis:
+		0:
+			j.set_param_x(Generic6DOFJoint3D.PARAM_ANGULAR_LOWER_LIMIT, -angle)
+			j.set_param_x(Generic6DOFJoint3D.PARAM_ANGULAR_UPPER_LIMIT, angle)
+			j.set_flag_x(Generic6DOFJoint3D.FLAG_ENABLE_MOTOR, true)
+			j.set_param_x(Generic6DOFJoint3D.PARAM_ANGULAR_MOTOR_TARGET_VELOCITY, 0.0)
+			j.set_param_x(Generic6DOFJoint3D.PARAM_ANGULAR_MOTOR_FORCE_LIMIT, friction)
+		1:
+			j.set_param_y(Generic6DOFJoint3D.PARAM_ANGULAR_LOWER_LIMIT, -angle)
+			j.set_param_y(Generic6DOFJoint3D.PARAM_ANGULAR_UPPER_LIMIT, angle)
+			j.set_flag_y(Generic6DOFJoint3D.FLAG_ENABLE_MOTOR, true)
+			j.set_param_y(Generic6DOFJoint3D.PARAM_ANGULAR_MOTOR_TARGET_VELOCITY, 0.0)
+			j.set_param_y(Generic6DOFJoint3D.PARAM_ANGULAR_MOTOR_FORCE_LIMIT, friction)
+		_:
+			j.set_param_z(Generic6DOFJoint3D.PARAM_ANGULAR_LOWER_LIMIT, -angle)
+			j.set_param_z(Generic6DOFJoint3D.PARAM_ANGULAR_UPPER_LIMIT, angle)
+			j.set_flag_z(Generic6DOFJoint3D.FLAG_ENABLE_MOTOR, true)
+			j.set_param_z(Generic6DOFJoint3D.PARAM_ANGULAR_MOTOR_TARGET_VELOCITY, 0.0)
+			j.set_param_z(Generic6DOFJoint3D.PARAM_ANGULAR_MOTOR_FORCE_LIMIT, friction)
+
+
+## Rolling resistance C_rr * |J| * lever against the spin, at most half the
+## part's angular momentum per tick so it never reverses it.
+func _dig_in_torque(part: AircraftPart, dt: float) -> Vector3:
+	var l := part.angular_momentum()
+	var l_len := l.length()
+	if l_len < 1.0e-3:
+		return Vector3.ZERO
+	var lever := (part.hit_position - part.xf.origin).length()
+	var dl := minf(WRECK_ROLL_RESIST * part.contact_load * lever, l_len * 0.5)
+	return l * (-dl / (l_len * dt))
+
+
+## After rest() light pieces still moving keep the ground losses until they
+## stop. The structure monitor is off, so forces go straight to the body.
+func _brake_stragglers(dt: float) -> void:
+	for part: AircraftPart in parts:
+		if part.sleeping or part.contact_count == 0:
+			continue
+		part.begin_tick()
+		part.apply_torque(part.angular_momentum() * -WRECK_ROLL_DRAG + _dig_in_torque(part, dt))
+		part.apply_central_force(part.lin_vel * (-WRECK_SLIDE_DRAG * part.mass))
 
 
 ## Anti-collision lights: a double white strobe every 1.2 s at the wingtips
@@ -290,7 +386,14 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(dt: float) -> void:
-	if def == null or resting:
+	if def == null:
+		return
+	if resting:
+		# Stragglers the director no longer waits for keep their ground losses
+		# for a while, then everything may sleep.
+		if _rest_brake_left > 0.0:
+			_rest_brake_left -= dt
+			_brake_stragglers(dt)
 		return
 	_ticks += 1
 	var count := parts.size()
@@ -304,6 +407,8 @@ func _physics_process(dt: float) -> void:
 		if _ticks % 4 == 0:
 			_attitude_before = Vector2(telemetry.pitch_deg, telemetry.roll_deg)
 	structure.update(dt)
+	for k: int in structure.cracks.size():
+		_crack(structure.cracks[k])
 	if structure.broken.size() > 0:
 		for k: int in structure.broken.size():
 			var idx := structure.broken[k]
@@ -353,6 +458,9 @@ func _physics_process(dt: float) -> void:
 	for i: int in gears.size():
 		var gear := gears[i]
 		gear.apply(gear_ratio, _act.z, brake, dt, parts[gear.part.assembly_root])
+		if gear.burst_now:
+			gear.burst_now = false
+			tyre_burst.emit(gear, gear.burst_at)
 		if gear_ratio > 0.02:
 			var v := gear.part.lin_vel
 			gear.part.push_central_force(v * (-0.5 * rho * gear.def.drag_area * gear_ratio * v.length()))
@@ -417,10 +525,16 @@ func detach(index: int, load_ratio: float) -> void:
 	for i: int in parts.size():
 		var p := parts[i]
 		p.assembly_root = parts[p.parent_index].assembly_root if p.joint != null else i
+	var root_mass := 0.0
+	var all_mass := 0.0
 	for i: int in parts.size():
 		var p := parts[i]
+		all_mass += p.mass
 		if p.assembly_root != 0:
 			p.can_sleep = true
+		else:
+			root_mass += p.mass
+	_root_wrecked = root_mass < WRECK_ROOT_SHARE * all_mass
 	# Pieces of wreckage that are now separate must be able to hit each other.
 	var count := parts.size()
 	for i: int in count:
@@ -434,8 +548,14 @@ func detach(index: int, load_ratio: float) -> void:
 		if engine.part.assembly_root != 0:
 			engine.running = false
 	if part.def.kind == PartDef.Kind.GEAR:
-		# A retracted leg has its collider off; torn loose it must hit the ground.
-		(part.get_node(^"Collider") as CollisionShape3D).set_deferred(&"disabled", false)
+		# Torn loose (retracted or not) the leg hits the ground as a strut and
+		# wheel truck, not as the bump-stop sphere, which rolled like a ball
+		# bearing under the wreck.
+		(part.get_node(^"Collider") as CollisionShape3D).set_deferred(&"disabled", true)
+		var truck := part.get_node(^"WreckCollider") as CollisionShape3D
+		truck.set_deferred(&"disabled", false)
+		var size := (truck.shape as BoxShape3D).size
+		part.hull_aabb = AABB(truck.position - size * 0.5, size)
 		for gear: GearUnit in gears:
 			if gear.part == part and gear.leg_visual != null:
 				gear.leg_visual.visible = true
@@ -546,18 +666,21 @@ func _process_impacts(dt: float) -> void:
 			continue
 		if part.def.kind != PartDef.Kind.GEAR:
 			touching = true
-		if part.assembly_root != 0:
+		if part.assembly_root != 0 or _root_wrecked:
 			# Wreckage on the ground: rolling and ploughing resistance, so loose
-			# wheels and nacelles do not trundle on forever. Applied as explicit
-			# forces so the structure monitor still accounts for them.
-			part.push_torque(part.angular_momentum() * -WRECK_ROLL_DRAG)
+			# wheels, nacelles and fuselage barrels do not trundle or rock on
+			# forever. Applied as explicit forces so the structure monitor still
+			# accounts for them.
+			part.push_torque(part.angular_momentum() * -WRECK_ROLL_DRAG + _dig_in_torque(part, dt))
 			part.push_central_force(part.lin_vel * (-WRECK_SLIDE_DRAG * part.mass))
 		# Scraping along the ground at speed grinds skin off the contact patch.
 		if part.pieces_left > 0 and (_ticks + i) % 8 == 0:
 			var slide := part.lin_vel.length()
 			if slide > SCRAPE_SPEED and _rng.randf() < slide / 420.0:
-				# Abrasion wears through skin; frames are torn out by impacts.
-				shed_pieces(part, (part.hit_position - part.xf.origin) * part.xf.basis, 2.4, 1, 2.0, false)
+				# Abrasion wears through skin. On wreckage that has broken away it
+				# grinds on into the exposed frames, spars and engine cores.
+				shed_pieces(part, (part.hit_position - part.xf.origin) * part.xf.basis, 2.4, 1, 2.0,
+						part.assembly_root != 0)
 		if part.hit_speed < IMPACT_MIN_SPEED:
 			continue
 		# Energy absorbed at the contact: impulse times mean closing speed.
@@ -668,7 +791,8 @@ func _fbw_schedule() -> float:
 ## The flight computer flies only while the wing and tail it uses are on.
 func _fbw_alive() -> bool:
 	for part: AircraftPart in parts:
-		if part.joint == null and part.parent_index >= 0 and part.def.kind != PartDef.Kind.GEAR:
+		if part.parent_index >= 0 and part.def.kind != PartDef.Kind.GEAR \
+				and (part.joint == null or structure.cracked[part.index] == 1):
 			return false
 	return true
 

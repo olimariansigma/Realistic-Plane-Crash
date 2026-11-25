@@ -9,6 +9,8 @@ signal replay_seek(fraction: float)         ## 0..1, emitted while the scrub bar
 signal replay_closed
 signal restart_requested
 signal hangar_requested
+## CLOSE: back to the flight (or the wreck) behind the report.
+signal close_requested
 
 const COLOR_GOOD := Color(0.3, 0.8, 0.36)
 const COLOR_WARN := Color(0.97, 0.72, 0.2)
@@ -230,6 +232,8 @@ func _build() -> void:
 	_replay_button = _button("REPLAY", buttons, "ReplayButton")
 	_restart_button = _button("RESTART", buttons, "RestartButton")
 	_hangar_button = _button("HANGAR", buttons, "HangarButton")
+	var close := _button("CLOSE", buttons, "CloseButton")
+	close.pressed.connect(func() -> void: close_requested.emit())
 	_replay_button.pressed.connect(func() -> void: replay_requested.emit())
 	_restart_button.pressed.connect(func() -> void: restart_requested.emit())
 	_hangar_button.pressed.connect(func() -> void: hangar_requested.emit())

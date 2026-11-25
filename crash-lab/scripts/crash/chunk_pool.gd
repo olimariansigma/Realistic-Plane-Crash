@@ -18,7 +18,7 @@ const LAYER_SETTLED := 16
 ## How often (ticks) a chunk not yet clear of the airframe is checked again.
 const CLEAR_CHECK_TICKS := 4
 const REST_SPEED_SQ := 0.5
-const REST_TIME := 0.7
+const REST_TIME := 0.5
 const PARK := Vector3(0.0, -2000.0, 0.0)
 
 enum State { FREE, FLYING, SETTLED }

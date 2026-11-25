@@ -133,6 +133,11 @@ built is marked *(planned)*.
     (`tests/smoke_damage.gd` checks each case).
   - Gear: ray-cast oleo (spring + damper) and a slip-angle tyre model, applied
     to the gear leg's own body so landing loads go through its joint.
+    Tyres burst (`GearUnit`): braked wheels locked below anti-skid speed
+    (6 m/s) by brakes held against thrust scrub 3 m; brake heat over
+    400 J/N (a max-energy RTO is ~250); a touchdown sinking over 5 m/s; or
+    over 105 m/s on the ground. On the rims the gear sits lower, drags with
+    mu 0.35 and has half the side grip.
   - Bluff-body drag per part from `drag_area`, ISA density with altitude.
   - Not modelled: propwash, wind, Reynolds effects, aeroelasticity.
 - **Scene flow.** `Game` autoload (`GameState`) shows a loading overlay,
@@ -156,6 +161,14 @@ built is marked *(planned)*.
     when at most one side of the joint is touching something, and falls back
     to Jolt's estimated contact impulses (taking the smaller answer)
     otherwise. The header comment in the file has the derivation.
+  - Joints fail progressively (`StructureMonitor`): load above 67 % of the
+    remaining capacity yields the joint plastically and costs capacity (up
+    to half). A fuselage, wing or tail joint reaching its limit below 3x
+    first *cracks*: `Aircraft._crack` opens its angular limits (fuselage
+    +/-14 deg pitch, half that in yaw; panels +/-25 deg about the chord) with
+    a friction motor at 0.7 x residual strength, so a fuselage kinks and a
+    wing folds before either lets go; the cracked joint keeps 35 % of its
+    strength. A violent overload (3x or more) still separates at once.
   - A joint breaks when its filtered load passes the part's `break_force` or
     `break_torque`. `Aircraft.detach()` frees the joint, relabels assemblies,
     flames out orphaned engines and ignites ruptured tanks.
@@ -173,7 +186,15 @@ built is marked *(planned)*.
   - A hit is an *incident* first. If the airframe is still in one piece and
     flies clear of the ground for 4 s (a tail strike, a wingtip scrape), the
     incident is cancelled and the flight goes on with the damage. The report
-    only comes up when the wreck has actually stopped; there is no time limit.
+    only opens when the player taps REPORT (any time; the flight pauses
+    behind it until the wreck has settled, CLOSE goes back).
+  - At rest when the root part, every seat-carrying part and all but 5 % of
+    the mass are below 1.2 m/s for 1 s (`CrashDirector`). Once the main
+    assembly holds under half the mass it gets wreck drag too, wreckage gets
+    load-proportional rolling resistance (`_dig_in_torque`, C_rr 0.3), and
+    stragglers are braked for 4 s after rest. A torn-off gear leg collides as
+    a wheel-truck box, not the bump-stop sphere (which rolled like a ball
+    bearing). Measured: drops 2-3 s, dives 7-10 s (were 3-8 and 13-27 s).
 - **Skin pieces** (`mesh_factory.gd`, `SkinPiece`, `ChunkPool`). A part is
   drawn as separate skin pieces over a core: fuselage panels (bay x
   quadrant), wing box segments, control surfaces, cowl halves, pylons.
@@ -185,8 +206,9 @@ built is marked *(planned)*.
   (`SkinPiece.cover`) has gone, and only through impacts and violent joint
   breaks, never scraping or the airstream. Losing it weakens the part's joint
   (`AircraftPart.strength()`, down to 40 % with all of it gone). The floor and
-  floor beams stay with the part (core); engines keep the fan and hot
-  section. Intact structure is drawn as one merged "Frame" mesh, shown with
+  floor beams stay with the part (core). Engines split into inlet, fan
+  cowl, reverser and core cowl halves over a fan disc and front and rear core
+  casings (22/28/20 % of the engine mass) that tear out once uncovered. Intact structure is drawn as one merged "Frame" mesh, shown with
   the cutaway or once skin is gone, and split into its members at the first
   tear. The interior shader takes the same dents and scorch as the skin.
   Measured, cruise-speed dive: 40-90 % of members torn out by type.

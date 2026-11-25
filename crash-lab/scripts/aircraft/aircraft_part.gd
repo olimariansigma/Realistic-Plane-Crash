@@ -32,6 +32,9 @@ var has_prev: bool = false
 var contact_count: int = 0
 var contact_impulse: Vector3
 var contact_torque_impulse: Vector3
+## Sum of the contact impulse magnitudes (N s) this step: the load the part is
+## pressed into the ground with, counting a wreck lying on top of it.
+var contact_load: float = 0.0
 ## Largest single contact this step: its world position, impulse, and the
 ## closing speed along the contact normal. Drives crumple and damage.
 var hit_position: Vector3
@@ -352,6 +355,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	contact_count = 0
 	contact_impulse = Vector3.ZERO
 	contact_torque_impulse = Vector3.ZERO
+	contact_load = 0.0
 	hit_speed = 0.0
 	hit_impulse = Vector3.ZERO
 	if n == 0:
@@ -365,6 +369,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		var j := state.get_contact_impulse(i)
 		var pos := state.get_contact_collider_position(i)
 		contact_impulse += j
+		contact_load += j.length()
 		contact_torque_impulse += (pos - origin).cross(j)
 		var mag := j.length_squared()
 		if mag > best:

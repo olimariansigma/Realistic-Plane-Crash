@@ -192,7 +192,8 @@ static func build_part_visual(adef: AircraftDef, part: PartDef) -> Node3D:
 		frame.set_instance_shader_parameter(&"cut_plane_x", cut_x)
 		frame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		frame.visibility_range_end = LOD_DISTANCE * 3.0
-		frame.visible = false
+		# An engine's fan and core show through the intake even when intact.
+		frame.visible = meshes.core_always_visible
 		root.add_child(frame)
 	if merged > 0:
 		var intact := _mesh_instance(merge.commit(), cut_x)
@@ -471,6 +472,20 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 			if g.part == part.name:
 				travel = g.travel
 		shape.position = part.p1 - part.com + Vector3(0.0, travel + 0.04, 0.0)
+		# Torn off, the wheels are a truck lying on the ground, not a ball: a box
+		# the bump stop's size (as long as the bogie) that tumbles and digs in
+		# instead of rolling away, and that a wreck lying on it cannot roll off
+		# like a bearing. Built now, switched on by Aircraft.detach().
+		var spread := part.r0 * (2.2 if part.shape_a >= 6.0 else (1.12 if part.shape_a >= 4.0 else 0.0))
+		var box := BoxShape3D.new()
+		box.size = Vector3(part.r0 * 2.0, part.r0 * 2.0, (spread + part.r0) * 2.0)
+		var wreck := CollisionShape3D.new()
+		wreck.name = "WreckCollider"
+		wreck.shape = box
+		wreck.position = shape.position
+		wreck.disabled = true
+		body.add_child(wreck)
+		body.hull_aabb = AABB(shape.position - Vector3.ONE * part.r0, Vector3.ONE * part.r0 * 2.0)
 	else:
 		var hull := ConvexPolygonShape3D.new()
 		hull.points = MeshFactory.part_hull(part)
@@ -489,8 +504,9 @@ static func build_part(adef: AircraftDef, part: PartDef, index: int) -> Aircraft
 	for i: int in meshes.pieces.size():
 		body.piece_nodes.append(body.visual.get_node("P%d" % i) as MeshInstance3D)
 	body.pieces_left = meshes.pieces.size()
-	body.hull_aabb = _points_aabb((shape.shape as ConvexPolygonShape3D).points) \
-			if shape.shape is ConvexPolygonShape3D else AABB(shape.position - Vector3.ONE * part.r0, Vector3.ONE * part.r0 * 2.0)
+	body.show_structure(false)
+	if shape.shape is ConvexPolygonShape3D:
+		body.hull_aabb = _points_aabb((shape.shape as ConvexPolygonShape3D).points)
 	return body
 
 

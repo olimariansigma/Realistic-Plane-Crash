@@ -13,6 +13,8 @@ signal cutaway_toggled(enabled: bool)
 signal restart_requested
 signal hangar_requested
 signal pause_changed(paused: bool)
+## The REPORT button: show the crash report now (any time, crashed or not).
+signal report_requested
 
 const EXPO: float = 1.6
 ## Seconds per unit of _settings.stick_smoothing.
@@ -59,6 +61,7 @@ var _settings: SettingsStore = SettingsStore.instance()
 @onready var _cam_button: TouchButton = %CamButton
 @onready var _cut_button: TouchButton = %CutButton
 @onready var _pause_button: TouchButton = %PauseButton
+@onready var _report_button: TouchButton = %ReportButton
 @onready var _telemetry_label: Label = %TelemetryLabel
 @onready var _attitude: AttitudeIndicator = %AttitudeIndicator
 @onready var _stall_label: Label = %StallLabel
@@ -85,6 +88,7 @@ func _ready() -> void:
 	_cam_button.tapped.connect(camera_cycle_requested.emit)
 	_cut_button.pressed_changed.connect(cutaway_toggled.emit)
 	_pause_button.tapped.connect(_set_paused.bind(true))
+	_report_button.tapped.connect(report_requested.emit)
 	_flap_up.tapped.connect(_step_flap.bind(1))
 	_flap_down.tapped.connect(_step_flap.bind(-1))
 	%ResumeButton.pressed.connect(_set_paused.bind(false))
@@ -170,7 +174,8 @@ func _release_all_touches() -> void:
 	_stick.cancel_touch()
 	_rudder.cancel_touch()
 	_throttle.cancel_touch()
-	for b: TouchButton in [_flap_up, _flap_down, _brake, _cam_button, _pause_button, _gear, _spoilers, _cut_button]:
+	for b: TouchButton in [_flap_up, _flap_down, _brake, _cam_button, _pause_button, _gear, _spoilers, _cut_button,
+			_report_button]:
 		b.cancel_touch()
 	_cam_index[0] = -1
 	_cam_index[1] = -1

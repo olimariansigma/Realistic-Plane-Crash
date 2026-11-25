@@ -177,6 +177,14 @@ script = ExtResource("4_nilo6")
 text = "CUT"
 toggle_mode = true
 
+[node name="ReportButton" type="Control" parent="FlightLayer/TopRightRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 56)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("4_nilo6")
+text = "REPORT"
+
 [node name="PauseButton" type="Control" parent="FlightLayer/TopRightRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 56)

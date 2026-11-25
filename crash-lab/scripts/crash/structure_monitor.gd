@@ -34,6 +34,17 @@ extends RefCounted
 const GRAVITY := Vector3(0.0, -9.80665, 0.0)
 ## Weight of the newest sample in the load filter.
 const FILTER := 0.5
+## Progressive damage. Above YIELD of its remaining capacity a joint yields
+## plastically and loses capacity (DAMAGE_RATE per unit of excess ratio per
+## second, up to MAX_DAMAGE). A fuselage or panel joint that reaches its limit
+## below VIOLENT cracks first: it turns into a stiff hinge carrying RESIDUAL of
+## its strength (a kinked fuselage, a folding wing) and only separates when
+## that is exceeded too. A violent overload still separates at once.
+const YIELD := 0.67
+const DAMAGE_RATE := 2.0
+const MAX_DAMAGE := 0.5
+const RESIDUAL := 0.35
+const VIOLENT := 3.0
 
 var parts: Array[AircraftPart]
 ## Filtered load / threshold per joint, indexed by the child part. >= 1 breaks.
@@ -45,6 +56,11 @@ var joint_force: PackedFloat32Array
 var joint_torque: PackedFloat32Array
 ## Indices of joints that exceeded their threshold in the last update().
 var broken: PackedInt32Array
+## Indices of joints that cracked (turned into hinges) in the last update().
+var cracks: PackedInt32Array
+## Plastic damage per joint, 0..MAX_DAMAGE, and 1 for a cracked joint.
+var damage: PackedFloat32Array
+var cracked: PackedByteArray
 ## Set false to observe loads without breaking anything.
 var enabled: bool = true
 
@@ -61,6 +77,10 @@ func setup(aircraft_parts: Array[AircraftPart]) -> void:
 	_count = parts.size()
 	load_ratio.resize(_count)
 	peak_ratio.resize(_count)
+	damage.resize(_count)
+	damage.fill(0.0)
+	cracked.resize(_count)
+	cracked.fill(0)
 	joint_force.resize(_count)
 	joint_torque.resize(_count)
 	_sub_force.resize(_count)
@@ -76,6 +96,7 @@ func setup(aircraft_parts: Array[AircraftPart]) -> void:
 ## tick's forces are applied (ext_force still holds last tick's forces).
 func update(dt: float) -> void:
 	broken.clear()
+	cracks.clear()
 	if dt <= 0.0:
 		return
 	var inv_dt := 1.0 / dt
@@ -131,8 +152,9 @@ func update(dt: float) -> void:
 		var touching_rest := _sub_contacts[root] - touching
 		var anchor_offset := p.xf * p.anchor_local - reference
 		var def := p.def
-		# Structure torn out of the part (frames, spars) weakens its joint.
-		var weak := 1.0 / p.strength()
+		# Structure torn out of the part (frames, spars), plastic damage and a
+		# crack all weaken the joint.
+		var weak := 1.0 / (p.strength() * (1.0 - damage[i]) * (RESIDUAL if cracked[i] == 1 else 1.0))
 		var f_mag: float
 		var m_mag: float
 		if touching == 0:
@@ -167,5 +189,14 @@ func update(dt: float) -> void:
 		load_ratio[i] = filtered
 		if filtered > peak_ratio[i]:
 			peak_ratio[i] = filtered
+		if enabled and filtered > YIELD:
+			damage[i] = minf(damage[i] + (filtered - YIELD) * DAMAGE_RATE * dt, MAX_DAMAGE)
 		if enabled and filtered >= 1.0:
-			broken.append(i)
+			var hinge_kind := def.kind == PartDef.Kind.FUSELAGE or def.kind == PartDef.Kind.WING \
+					or def.kind == PartDef.Kind.STABILIZER or def.kind == PartDef.Kind.FIN
+			if cracked[i] == 0 and hinge_kind and filtered < VIOLENT:
+				cracked[i] = 1
+				load_ratio[i] = 0.0
+				cracks.append(i)
+			else:
+				broken.append(i)

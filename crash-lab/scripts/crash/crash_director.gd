@@ -9,9 +9,14 @@ signal crash_settled
 ## The aircraft flew away from a minor contact: the crash state is cleared.
 signal crash_cancelled
 
-## Seconds everything must be still before the crash counts as settled.
-const REST_TIME := 2.5
+## The wreck is at rest once it has visibly stopped: the main wreck, every
+## part that carries seats, and all but STRAGGLER_SHARE of the airframe's mass
+## slower than REST_SPEED (m/s) for REST_TIME seconds. Light pieces still
+## moving (a wheel, a fin toppling over) do not hold the report up; Aircraft
+## keeps braking them after rest().
+const REST_TIME := 1.0
 const REST_SPEED := 1.2
+const STRAGGLER_SHARE := 0.05
 ## Seconds the main wreck alone must be still, if loose parts keep moving.
 const ROOT_REST_TIME := 10.0
 ## Intact, off the ground and faster than this (m/s) for RECOVERY_TIME: the
@@ -35,6 +40,9 @@ var breaks: int = 0
 var _still_time: float = 0.0
 var _root_still_time: float = 0.0
 var _flying_time: float = 0.0
+## 1 for each part that carries seats: the report is about the occupants, and
+## the cabin stops logging at rest, so those parts must have stopped too.
+var _occupied: PackedByteArray = PackedByteArray()
 var _q_piece: Array[SkinPiece] = []
 var _q_node: Array[MeshInstance3D] = []
 var _q_xf: Array[Transform3D] = []
@@ -50,7 +58,7 @@ func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 	chunks = ChunkPool.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
-	chunks.setup([70, 120, 180][clampi(quality, 0, 2)])
+	chunks.setup([100, 180, 260][clampi(quality, 0, 2)])
 	_q_piece.resize(QUEUE_SIZE)
 	_q_node.resize(QUEUE_SIZE)
 	_q_xf.resize(QUEUE_SIZE)
@@ -67,8 +75,14 @@ func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 	fx.setup(quality)
 	aircraft.part_detached.connect(_on_part_detached)
 	aircraft.part_impacted.connect(_on_part_impacted)
+	aircraft.part_cracked.connect(_on_part_cracked)
+	aircraft.tyre_burst.connect(_on_tyre_burst)
 	aircraft.fire_started.connect(_on_fire_started)
 	aircraft.crashed.connect(_on_crashed)
+	_occupied.resize(aircraft.parts.size())
+	_occupied.fill(0)
+	for seat: Seat in aircraft.cabin.seats:
+		_occupied[seat.part_index] = 1
 
 
 func _on_crashed() -> void:
@@ -86,6 +100,19 @@ func _on_part_detached(part: AircraftPart, _parent: AircraftPart, load_ratio: fl
 	debris.spawn_burst(pos, part.lin_vel, 5.0 + minf(load_ratio * 2.0, 10.0), count, aircraft.def.paint)
 	if pos.y - aircraft.ground_y < 6.0:
 		fx.burst_dust(Vector3(pos.x, aircraft.ground_y + 0.5, pos.z), 2.0)
+
+
+## A tyre blow-out: shreds of rubber and a puff of smoke and dust.
+func _on_tyre_burst(gear: GearUnit, world_pos: Vector3) -> void:
+	debris.spawn_burst(world_pos + Vector3(0.0, 0.4, 0.0), gear.part.lin_vel, 7.0, 3, MeshFactory.TYRE.darkened(0.5))
+	fx.burst_dust(world_pos + Vector3(0.0, 0.3, 0.0), 1.5)
+
+
+func _on_part_cracked(part: AircraftPart) -> void:
+	var pos := part.xf * part.anchor_local
+	debris.spawn_burst(pos, part.lin_vel, 4.0, 2, aircraft.def.paint)
+	if pos.y - aircraft.ground_y < 6.0:
+		fx.burst_dust(Vector3(pos.x, aircraft.ground_y + 0.5, pos.z), 1.2)
 
 
 func _on_part_impacted(part: AircraftPart, world_pos: Vector3, _impulse: Vector3, energy: float) -> void:
@@ -143,10 +170,15 @@ func _physics_process(dt: float) -> void:
 	if not crash_active or settled:
 		return
 	crash_clock += dt
-	var fastest := 0.0
-	for part: AircraftPart in aircraft.parts:
-		if not part.sleeping:
-			fastest = maxf(fastest, part.lin_vel.length_squared())
+	var total_mass := 0.0
+	var moving_mass := 0.0
+	var occupants_moving := false
+	for i: int in aircraft.parts.size():
+		var part := aircraft.parts[i]
+		total_mass += part.mass
+		if not part.sleeping and part.lin_vel.length_squared() >= REST_SPEED * REST_SPEED:
+			moving_mass += part.mass
+			occupants_moving = occupants_moving or _occupied[i] == 1
 	var root_speed := aircraft.root_part.lin_vel.length()
 
 	# An incident, not a crash: nothing structural failed and the aircraft is
@@ -165,9 +197,11 @@ func _physics_process(dt: float) -> void:
 	else:
 		_flying_time = 0.0
 
-	# Settled: everything still, or the main wreck still for a long while
-	# with only stragglers rolling. There is no time limit while it moves.
-	_still_time = _still_time + dt if fastest < REST_SPEED * REST_SPEED else 0.0
+	# Settled: the heavy wreckage still, or the main wreck still for a long
+	# while with only stragglers moving. There is no time limit while it moves.
+	var still := root_speed < REST_SPEED and not occupants_moving \
+			and moving_mass <= total_mass * STRAGGLER_SHARE
+	_still_time = _still_time + dt if still else 0.0
 	_root_still_time = _root_still_time + dt if root_speed < REST_SPEED else 0.0
 	if _still_time >= REST_TIME or _root_still_time >= ROOT_REST_TIME:
 		settled = true

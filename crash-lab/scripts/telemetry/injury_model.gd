@@ -155,7 +155,9 @@ static func build_report(aircraft: Aircraft, director: CrashDirector) -> CrashRe
 		# Structure: dents reaching the seat, or the fuselage breaking beside it.
 		var intrusion := _dent_intrusion(part, seat.local_pos)
 		for other: AircraftPart in aircraft.parts:
-			if other.def.kind != PartDef.Kind.FUSELAGE or other.joint != null or other.parent_index < 0:
+			var cracked := other.parent_index >= 0 and aircraft.structure.cracked[other.index] == 1
+			if other.def.kind != PartDef.Kind.FUSELAGE or (other.joint != null and not cracked) \
+					or other.parent_index < 0:
 				continue
 			if other.index != part.index and other.parent_index != part.index:
 				continue

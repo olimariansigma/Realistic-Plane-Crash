@@ -2,7 +2,7 @@ class_name Autoplay
 extends Node
 ## Scripted play-through for tools/playtest.sh. It plays the real game the way
 ## a player does - synthetic screen touches on the real widgets, from the
-## hangar through a take-off, a crash, the report and its replay, a restart
+## hangar through a take-off, a crash, the REPORT button, its replay, a restart
 ## and back to the hangar - and fails loudly at the first step that does not
 ## respond. Only created when CRASHLAB_AUTOPLAY is set.
 ##
@@ -87,10 +87,30 @@ func _run() -> void:
 
 	# Roll over and push: into the ground.
 	_drag(1, centre + Vector2(radius * 0.9, -radius * 0.9))
-	if not await _until(func() -> bool: return flight.report_screen.visible, 240.0,
-			"no crash report appeared after flying into the ground"):
+	if not await _until(func() -> bool: return flight.director.settled, 240.0,
+			"the wreck never came to rest after flying into the ground"):
 		return
 	_touch(1, centre, false)
+	await _wait(0.5)
+	# The report only opens on the REPORT button.
+	if flight.report_screen.visible:
+		_fail("the report opened by itself; it should wait for the REPORT button")
+		return
+	var report_button := flight.hud.get_node(^"%ReportButton") as Control
+	await _tap(report_button)
+	if not await _until(func() -> bool: return flight.report_screen.visible, 5.0,
+			"tapping REPORT did not open the crash report"):
+		return
+	# CLOSE goes back to the wreck; REPORT opens it again.
+	await _tap(flight.report_screen.find_child("CloseButton", true, false) as Control)
+	await _wait(0.3)
+	if flight.report_screen.visible or not report_button.is_visible_in_tree():
+		_fail("CLOSE did not return to the flight view")
+		return
+	await _tap(report_button)
+	if not await _until(func() -> bool: return flight.report_screen.visible, 5.0,
+			"REPORT did not reopen the crash report"):
+		return
 	await _wait(0.5)
 	_shot("5_report")
 	if flight.report == null or flight.report.seats.is_empty():
