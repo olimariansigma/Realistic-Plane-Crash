@@ -46,6 +46,13 @@ const WRECK_ROLL_RESIST := 0.3
 ## pieces torn off it and takes the same losses. Above it, it is still an
 ## aircraft sliding on its belly on friction alone.
 const WRECK_ROOT_SHARE := 0.5
+## Fragmentation by the crash energy a part has absorbed per kilogram: from
+## FRAG_E0 it starts coming apart from the impact point outward, and by
+## FRAG_E1 (about what a 300 km/h impact leaves in the section that takes
+## it) every panel, frame and spar is gone, leaving the floor and seats.
+## Measured: belly landing ~0, 30 m drop 20-120, cruise dive 400-3000 J/kg.
+const FRAG_E0 := 150.0
+const FRAG_E1 := 900.0
 ## Seconds rest() keeps braking stragglers; a body being pushed never sleeps.
 const REST_BRAKE_TIME := 4.0
 ## Sliding faster than this (m/s) on the ground scrapes skin off, and loose
@@ -760,6 +767,8 @@ func _process_impacts(dt: float) -> void:
 			if q > STRIP_DYN_PRESSURE and _rng.randf() < chance:
 				var pick := part.pieces[_rng.randi() % part.pieces.size()].center
 				shed_pieces(part, pick, 1000.0, 1, 4.0, false)
+		if part.crush_energy > 0.0 and part.pieces_left > 0 and (_ticks + i * 5) % 10 == 0:
+			_fragment(part)
 		if part.contact_count == 0 or part.sleeping:
 			continue
 		if part.def.kind != PartDef.Kind.GEAR:
@@ -958,6 +967,24 @@ func _animate_surfaces() -> void:
 			continue
 		_hinged_last[i] = amount
 		node.transform = Transform3D(Basis(piece.hinge, amount * piece.deflect_max), piece.xform.origin)
+
+
+## Keeps tearing `part` apart until the share of pieces gone matches the
+## crash energy it has absorbed (FRAG_E0..FRAG_E1), nearest the last hit
+## first, as fast as the chunk pool has room: a section that hit at 300 km/h
+## ends up as its floor and seats, not an intact barrel.
+func _fragment(part: AircraftPart) -> void:
+	var e := part.crush_energy / maxf(part.def.mass, 1.0)
+	if e <= FRAG_E0:
+		return
+	var target := clampf((e - FRAG_E0) / (FRAG_E1 - FRAG_E0), 0.0, 1.0)
+	var total := part.pieces.size()
+	var gone := float(total - part.pieces_left) / float(maxi(total, 1))
+	if gone >= target:
+		return
+	var want := mini(int(ceil((target - gone) * float(total))), 4)
+	var at := (part.hit_position - part.xf.origin) * part.xf.basis
+	shed_pieces(part, at, 1000.0, want, 5.0 + minf(part.lin_vel.length() * 0.1, 8.0))
 
 
 ## Tears up to `max_count` skin pieces off `part`, nearest to `local_pos`

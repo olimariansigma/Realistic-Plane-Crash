@@ -59,7 +59,7 @@ func setup(target: Aircraft, quality: int, max_debris: int) -> void:
 	chunks = ChunkPool.new()
 	chunks.name = "Chunks"
 	add_child(chunks)
-	chunks.setup([100, 180, 260][clampi(quality, 0, 2)])
+	chunks.setup([120, 240, 320][clampi(quality, 0, 2)])
 	_q_piece.resize(QUEUE_SIZE)
 	_q_node.resize(QUEUE_SIZE)
 	_q_xf.resize(QUEUE_SIZE)

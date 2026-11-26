@@ -250,6 +250,12 @@ built is marked *(planned)*.
   the cutaway or once skin is gone, and split into its members at the first
   tear. The interior shader takes the same dents and scorch as the skin.
   Measured, cruise-speed dive: 40-90 % of members torn out by type.
+  Fragmentation (`Aircraft._fragment`): a part keeps tearing apart, from
+  its last impact point outward, until the share of its pieces gone matches
+  the crash energy it absorbed per kg (150 J/kg nothing extra, 900 J/kg
+  everything: skin, frames, spars, engine cores; only floor and seats stay).
+  Measured: belly landing ~0, 30 m drop 20-120, dive 400-3000 J/kg. Before
+  this a fuselage section that hit at 300 km/h stayed an intact barrel.
   `Aircraft.shed_pieces()` tears pieces off nearest-first and `ChunkPool`
   flies each one as its own rigid body; loose pieces collide with each other,
   the ground and the wreck. Four things shed skin: impacts (about one panel per 0.4 m of crush),
@@ -343,7 +349,7 @@ rules:
 | Physics in `_physics_process` only | Yes. Cameras, HUD and particle follow run in `_process` and only read. |
 | Object pooling | Debris shards, skin chunks, fire/smoke/dust emitters and FRED bodies all exist from scene load. |
 | No per-frame allocations | Steady-state flight shows zero object-count growth over 540 ticks (`tools/bench.gd`). Crash events allocate (recorder keys, event records); HUD text formats at 10 Hz. |
-| Cap, sleep, pool debris | Shards 24/48/80 and chunks 100/180/260 by quality, frozen to static 0.6-0.7 s after stopping (still solid to other loose pieces), reused only once settled. |
+| Cap, sleep, pool debris | Shards 24/48/80 and chunks 120/240/320 by quality, frozen to static 0.6-0.7 s after stopping (still solid to other loose pieces), reused only once settled. |
 | Profile and report frame times | `tools/bench.gd` headless; on device the HUD shows FPS, frame ms and sim ms when "show FPS" is on. |
 
 Other load-shedding:
